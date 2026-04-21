@@ -1,6 +1,6 @@
 # ZenSend
 
-ZenSend is a real-time, cross-internet mobile file sharing app (Android/iOS) built with Flutter + Supabase for the NeoSapien Flutter Developer Intern Assessment.
+ZenSend is a real-time, cross-internet mobile file sharing app (Android/iOS) built with Flutter + Supabase.
 
 It focuses on:
 - simple recipient-code based sharing (no account setup friction),
@@ -101,7 +101,7 @@ lib/
 ### 1) User and identity
 
 - **Anonymous onboarding**: no email/password/phone; device gets an anonymous Supabase auth identity.
-- **Safe short recipient code**: 6-character code from a disambiguated alphabet (`ABCDEFGHJKMNPQRSTUVWXYZ23456789`).
+- **Safe short recipient code**: 6-character code from a disambiguated alphabet (`DFG5HR`).
 - **Collision-safe code creation**: unique-constraint retries up to 10 attempts for code generation.
 - **Session continuity**: token refresh + session recovery logic prevent most auth interruptions.
 
