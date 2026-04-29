@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_reset.dart';
 import '../../core/theme.dart';
+import '../../zensend/theme/zen_theme.dart';
+import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../transfer/transfer_service.dart';
@@ -45,112 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final preferenceItems = <_SettingsItem>[
-      const _SettingsItem(
-        icon: Icons.notifications_none_rounded,
-        title: 'Notifications',
-        subtitle: 'Transfer alerts & updates',
-      ),
-      const _SettingsItem(
-        icon: Icons.storage_rounded,
-        title: 'Storage',
-        subtitle: 'Manage file storage settings',
-      ),
-      const _SettingsItem(
-        icon: Icons.security_rounded,
-        title: 'Privacy & Security',
-        subtitle: 'Encryption & data protection',
-      ),
-    ];
-
-    final aboutItems = <_SettingsItem>[
-      _SettingsItem(
-        icon: Icons.play_circle_outline_rounded,
-        title: 'How It Works',
-        subtitle: 'View the app walkthrough again',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => OnboardingScreen(
-                onComplete: () => Navigator.of(context).pop(),
-              ),
-            ),
-          );
-        },
-      ),
-      const _SettingsItem(
-        icon: Icons.info_outline_rounded,
-        title: 'About ZenSend',
-        subtitle: 'Version 1.0.0',
-      ),
-      const _SettingsItem(
-        icon: Icons.help_outline_rounded,
-        title: 'Help & Support',
-        subtitle: 'Get help with ZenSend',
-      ),
-    ];
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 32),
-            const Text(
-              'ACCOUNT',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildProfileCard(context),
-            const SizedBox(height: 10),
-            _buildIdentityPersistenceNote(),
-            const SizedBox(height: 10),
-            _buildPushReadinessCard(),
-            const SizedBox(height: 24),
-            const Text(
-              'PREFERENCES',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildThemeToggleTile(),
-            const SizedBox(height: 10),
-            ..._buildSettingsTiles(preferenceItems),
-            const SizedBox(height: 24),
-            const Text(
-              'ABOUT',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ..._buildSettingsTiles(aboutItems),
-            const SizedBox(height: 24),
-            _buildDangerZone(context),
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _confirmFullLocalReset(BuildContext context) async {
+  Future<void> _confirmFullLocalReset() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -159,11 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Text(
             'This device will forget your short code, onboarding, theme, and '
             'pending uploads, and sign out of Supabase here.\n\n'
-            'To wipe server rows but keep tables/columns/policies, run '
-            'scripts/reset_supabase_data.sql in the Supabase SQL editor, then '
-            'empty the Storage bucket "transfers" in the dashboard.\n\n'
-            'Network issues are not fixed by a reset — see '
-            'scripts/emulator_network_reset_hint.txt.',
+            'Network issues are not fixed by a reset.',
           ),
         ),
         actions: [
@@ -173,8 +67,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
+              backgroundColor: ZenColors.danger,
+              foregroundColor: ZenColors.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reset this device'),
@@ -182,183 +76,155 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-    if (ok != true || !context.mounted) return;
+    if (ok != true || !mounted) return;
     await AppReset.clearLocalDataAndRelaunchUi();
   }
 
-  Widget _buildDangerZone(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'DANGER ZONE',
-          style: TextStyle(
-            color: AppColors.error,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => _confirmFullLocalReset(context),
-            icon: const Icon(Icons.delete_forever_rounded, color: AppColors.error),
-            label: const Text('Clear all local data & sign out'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: const BorderSide(color: AppColors.error),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ZenColors.paper,
+      body: SafeArea(
+        child: ListView(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Preferences', style: ZenText.label),
+                  const SizedBox(height: 4),
+                  Text('Settings', style: ZenText.title),
+                ],
+              ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
+            const HairLine(indent: 20),
+            const SizedBox(height: 8),
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.asset('assets/logo.png', width: 32, height: 32),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'Settings',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-            letterSpacing: -0.4,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.person_rounded,
-                color: AppColors.primary, size: 26),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Your Identity',
-                  style: TextStyle(
-                    color: AppColors.cardText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Code: ${widget.identity.shortCode}',
-                  style: TextStyle(
-                    color: AppColors.cardTextSecondary,
-                    fontSize: 13,
-                    fontFamily: 'monospace',
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: widget.identity.shortCode));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Code copied'),
-                  duration: const Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: AppColors.snackBarBg,
-                ),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
+            // Identity card
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: ZenColors.paperDeep,
+                borderRadius: BorderRadius.circular(18),
               ),
-              child: const Icon(Icons.copy_rounded,
-                  color: AppColors.primary, size: 16),
+              child: Column(
+                children: [
+                  Text('Your code', style: ZenText.label),
+                  const SizedBox(height: 14),
+                  Text(
+                    fmtCode(widget.identity.shortCode),
+                    style: ZenText.codeLarge,
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _CodeAction(
+                        icon: Icons.copy_rounded,
+                        label: 'Copy',
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(
+                              text: widget.identity.shortCode));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Code copied')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Push readiness
+            _buildPushCard(),
+
+            SectionHeader(title: 'Preferences'),
+            const HairLine(indent: 20),
+
+            // Theme toggle
+            _ToggleRow(
+              label: 'Dark mode',
+              sub: 'Switch between light and dark theme',
+              value: _darkMode,
+              onChanged: _setDarkMode,
+            ),
+            const HairLine(indent: 20),
+
+            SectionHeader(title: 'About'),
+            const HairLine(indent: 20),
+
+            _LinkRow(
+              label: 'How it works',
+              sub: 'View the app walkthrough again',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OnboardingScreen(
+                      onComplete: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const HairLine(indent: 20),
+            _LinkRow(
+              label: 'Notifications',
+              sub: 'Transfer alerts & updates',
+              onTap: null,
+            ),
+            const HairLine(indent: 20),
+            _LinkRow(
+              label: 'Privacy & Security',
+              sub: 'Encryption & data protection',
+              onTap: null,
+            ),
+            const HairLine(indent: 20),
+            _LinkRow(
+              label: 'Version',
+              trailing: 'ZenSend 1.1.0',
+            ),
+            const HairLine(indent: 20),
+
+            const SizedBox(height: 32),
+
+            // Danger zone
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+              child: ZenButton(
+                label: 'Clear all local data & sign out',
+                style: ZenBtnStyle.danger,
+                leading: const Icon(Icons.delete_outline_rounded,
+                    size: 16, color: ZenColors.danger),
+                onPressed: _confirmFullLocalReset,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildIdentityPersistenceNote() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            size: 18,
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Your code stays the same while you keep this app.',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.85),
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPushReadinessCard() {
+  Widget _buildPushCard() {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
-    final title = _checkingPush
-        ? 'Checking push diagnostics...'
+    final tint = _checkingPush
+        ? ZenColors.blue600
         : ready
-            ? 'Closed-app delivery is ready'
+            ? ZenColors.success
+            : ZenColors.warn;
+    final icon = _checkingPush
+        ? Icons.sync_rounded
+        : ready
+            ? Icons.verified_rounded
+            : Icons.warning_amber_rounded;
+    final title = _checkingPush
+        ? 'Checking push diagnostics…'
+        : ready
+            ? 'Closed-app delivery ready'
             : 'Closed-app delivery not ready';
     final subtitle = _checkingPush
         ? 'Verifying token and push relay health'
@@ -366,205 +232,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? 'Incoming transfers can alert you when the app is closed.'
             : (readiness?.reason ??
                 'Push pipeline is not fully configured yet.');
-    final icon = _checkingPush
-        ? Icons.sync_rounded
-        : ready
-            ? Icons.verified_rounded
-            : Icons.warning_amber_rounded;
-    final accent = _checkingPush
-        ? AppColors.primary
-        : ready
-            ? AppColors.success
-            : AppColors.warning;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: accent.withValues(alpha: 0.9)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.onSurface,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: _checkingPush ? null : _refreshPushReadiness,
-                child: const Text('Refresh'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.85),
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
+    return StatusBanner(
+      icon: icon,
+      text: '$title\n$subtitle',
+      tint: tint,
+      onTap: _checkingPush ? null : _refreshPushReadiness,
     );
   }
+}
 
-  List<Widget> _buildSettingsTiles(List<_SettingsItem> items) {
-    return [
-      for (int i = 0; i < items.length; i++) ...[
-        _buildSettingsTile(
-          icon: items[i].icon,
-          title: items[i].title,
-          subtitle: items[i].subtitle,
-          onTap: items[i].onTap,
-        ),
-        if (i != items.length - 1) const SizedBox(height: 10),
-      ],
-    ];
-  }
+class _CodeAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _CodeAction(
+      {required this.icon, required this.label, required this.onTap});
 
-  Widget _buildThemeToggleTile() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              _darkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              color: AppColors.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Theme',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Switch between light and dark theme',
-                  style: TextStyle(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _darkMode,
-            onChanged: _setDarkMode,
-            activeThumbColor: AppColors.primary,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    VoidCallback? onTap,
-  }) {
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: ZenColors.paper,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ZenColors.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: ZenColors.ink),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: ZenColors.ink,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  final String label;
+  final String sub;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _ToggleRow(
+      {required this.label,
+      required this.sub,
+      required this.value,
+      required this.onChanged});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 16, 14),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+                  label,
+                  style: GoogleFonts.inter(
                     fontSize: 14,
-                    color: AppColors.onSurface,
+                    color: ZenColors.ink,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color:
-                        AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                    fontSize: 12,
-                  ),
-                ),
+                Text(sub, style: ZenText.small),
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded,
-              color: AppColors.outlineVariant.withValues(alpha: 0.5),
-              size: 20),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+          ),
         ],
       ),
-    ),
     );
   }
 }
 
-class _SettingsItem {
-  final IconData icon;
-  final String title;
-  final String subtitle;
+class _LinkRow extends StatelessWidget {
+  final String label;
+  final String? sub;
+  final String? trailing;
   final VoidCallback? onTap;
-
-  const _SettingsItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-  });
+  const _LinkRow(
+      {required this.label, this.sub, this.trailing, this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                        fontSize: 14, color: ZenColors.ink),
+                  ),
+                  if (sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(sub!, style: ZenText.small),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null)
+              Text(trailing!, style: ZenText.small)
+            else if (onTap != null)
+              const Icon(Icons.chevron_right_rounded,
+                  color: ZenColors.inkFaint, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -4,14 +4,16 @@ import 'dart:io';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:mime/mime.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/network/network_errors.dart';
-import '../../core/theme.dart';
+import '../../zensend/theme/zen_theme.dart';
+import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
@@ -92,25 +94,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (!mounted) return;
 
     if (existing.isEmpty) {
-      if (!mounted) return;
       final discard = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.cardBg,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Interrupted send',
-            style: TextStyle(color: AppColors.onSurface, fontSize: 16),
-          ),
-          content: Text(
+          title: const Text('Interrupted send'),
+          content: const Text(
             'A previous send did not finish, but the saved files are no longer '
-            'on this device (common after a restart). Discard this reminder?',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-              fontSize: 13,
-              height: 1.4,
-            ),
+            'on this device. Discard this reminder?',
           ),
           actions: [
             TextButton(
@@ -136,20 +126,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final shouldResume = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Resume interrupted upload?',
-          style: TextStyle(color: AppColors.onSurface, fontSize: 16),
-        ),
+        title: const Text('Resume interrupted upload?'),
         content: Text(
           'We found an interrupted upload with ${existing.length} file(s). '
           'Do you want to resume it?',
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-            fontSize: 13,
-            height: 1.4,
-          ),
         ),
         actions: [
           TextButton(
@@ -166,7 +146,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
     if (!mounted) return;
     if (shouldResume != true) {
-      await TransferService.discardPendingUploadJob(senderId: widget.identity.id);
+      await TransferService.discardPendingUploadJob(
+          senderId: widget.identity.id);
       return;
     }
 
@@ -194,7 +175,6 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   Future<bool> _confirmMeteredUploadIfNeeded() async {
     final isMetered = await _isLikelyMeteredConnection();
     if (!mounted) return false;
-
     final threshold = isMetered
         ? AppConstants.cellularMeteredWarnThresholdBytes
         : AppConstants.largeUploadWarnThresholdBytes;
@@ -203,23 +183,11 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          isMetered ? 'Using mobile data' : 'Large upload',
-          style: TextStyle(color: AppColors.onSurface, fontSize: 16),
-        ),
+        title: Text(isMetered ? 'Using mobile data' : 'Large upload'),
         content: Text(
           isMetered
-              ? 'This upload is ${_formatSize(_totalSize)} and may use significant '
-                  'cellular data. Continue?'
-              : 'This upload is ${_formatSize(_totalSize)}. '
-                  'Large uploads may take longer and use more data. Continue?',
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-            fontSize: 13,
-            height: 1.4,
-          ),
+              ? 'This upload is ${_formatSize(_totalSize)} and may use significant cellular data. Continue?'
+              : 'This upload is ${_formatSize(_totalSize)}. Continue?',
         ),
         actions: [
           TextButton(
@@ -233,7 +201,6 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-
     return confirmed ?? false;
   }
 
@@ -253,20 +220,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Battery saver is on',
-          style: TextStyle(color: AppColors.onSurface, fontSize: 16),
-        ),
+        title: const Text('Battery saver is on'),
         content: Text(
-          'This upload is ${_formatSize(_totalSize)}. '
-          'Power-save mode may throttle network and interrupt long transfers. Continue anyway?',
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-            fontSize: 13,
-            height: 1.4,
-          ),
+          'This upload is ${_formatSize(_totalSize)}. Power-save mode may throttle network. Continue anyway?',
         ),
         actions: [
           TextButton(
@@ -292,7 +248,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       );
       if (result == null || !mounted) return;
 
-      final accessibleRaw = result.files.where((f) => f.path != null).toList();
+      final accessibleRaw =
+          result.files.where((f) => f.path != null).toList();
       final seenNames = <String>{};
       final accessible = <PlatformFile>[];
       for (final f in accessibleRaw) {
@@ -340,8 +297,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         setState(
-          () => _error = 'Could not pick files. Check app permissions.',
-        );
+            () => _error = 'Could not pick files. Check app permissions.');
       }
     }
   }
@@ -362,49 +318,24 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.file_copy_rounded, color: AppColors.warning, size: 20),
-            const SizedBox(width: 10),
-            const Text(
-              'Duplicate Files',
-              style: TextStyle(color: AppColors.onSurface, fontSize: 16),
-            ),
-          ],
-        ),
+        title: const Text('Duplicate files'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               fileNames.length == 1
-                  ? 'This file has already been added:'
-                  : 'These files have already been added:',
-              style: TextStyle(
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                  fontSize: 13),
+                  ? 'Already added:'
+                  : 'Already added:',
+              style: ZenText.bodySoft,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             ...fileNames.map(
               (name) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.insert_drive_file_rounded,
-                        color: AppColors.outlineVariant, size: 14),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                            color: AppColors.onSurfaceVariant, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(name,
+                    style: ZenText.small,
+                    overflow: TextOverflow.ellipsis),
               ),
             ),
           ],
@@ -426,16 +357,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       return;
     }
     if (code.length != AppConstants.codeLength) {
-      setState(
-        () => _codeError =
-            'Code must be exactly ${AppConstants.codeLength} characters',
-      );
+      setState(() => _codeError =
+          'Code must be exactly ${AppConstants.codeLength} characters');
       return;
     }
     if (!AppConstants.isValidShortCodeFormat(code)) {
       setState(
-        () => _codeError = 'Use only A-Z and 2-9 (excluding O, I, L, 0, 1)',
-      );
+          () => _codeError = 'Use only A-Z and 2-9 (excluding O, I, L, 0, 1)');
       return;
     }
     if (code == widget.identity.shortCode) {
@@ -474,9 +402,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _codeError = e.message.isNotEmpty
-              ? 'Server error while looking up code: ${e.message}'
-              : 'Server rejected this lookup. Check Supabase RLS allows '
-                  'anonymous users to read `users` for `short_code`.';
+              ? 'Server error: ${e.message}'
+              : 'Server rejected this lookup.';
           _validatingCode = false;
         });
       }
@@ -484,9 +411,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _codeError = NetworkErrors.isRetryableFailure(e)
-              ? 'Cannot reach Supabase to validate this code (network or '
-                  'firewall). Wi‑Fi/VPN/DNS can block *.supabase.co — try '
-                  'another network.'
+              ? 'Cannot reach server to validate this code.'
               : 'Could not validate code: $e';
           _validatingCode = false;
         });
@@ -503,7 +428,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _error = pushReadiness.reason ??
-            'Incoming delivery while recipient app is closed is not configured yet.';
+            'Incoming delivery while recipient app is closed is not configured.';
       });
       return;
     }
@@ -532,7 +457,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       final result = await TransferService.sendFiles(
         senderId: widget.identity.id,
         receiverId: _validatedRecipientId!,
-        receiverCode: AppConstants.normalizeShortCode(_codeController.text),
+        receiverCode:
+            AppConstants.normalizeShortCode(_codeController.text),
         files: _selectedFiles,
         cancellationToken: _uploadCancellationToken,
         onProgress: (states) {
@@ -546,8 +472,6 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${result.completedFiles} file(s) sent successfully'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.snackBarBg,
           ),
         );
         Navigator.pop(context);
@@ -595,30 +519,21 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final failed = result.fileStates
         .where((s) => s.status == FileUploadStatus.failed)
         .toList();
-    if (failed.isEmpty) {
-      return 'Some files could not be sent.';
-    }
-
+    if (failed.isEmpty) return 'Some files could not be sent.';
     final first = failed.first;
     final reason = _toUserFriendlyError(first.error ?? 'Unknown error');
-
-    if (failed.length == 1) {
-      return '$reason (${first.fileName})';
-    }
-
+    if (failed.length == 1) return '$reason (${first.fileName})';
     return '$reason (${first.fileName}). ${failed.length - 1} more file(s) failed.';
   }
 
   String _toUserFriendlyError(String raw) {
     var message = raw.replaceAll('Exception: ', '').trim();
-
     if (message.contains('Failed after')) {
       final idx = message.indexOf(':');
       if (idx != -1 && idx + 1 < message.length) {
         message = message.substring(idx + 1).trim();
       }
     }
-
     if (message.contains('No internet connection')) {
       return 'No internet connection. Please try again.';
     }
@@ -635,14 +550,12 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (message.toLowerCase().contains('protocol(413') ||
         message.toLowerCase().contains('payload too large') ||
         message.toLowerCase().contains('creating upload')) {
-      return 'File is too large for the server upload limit. '
-          'Try a smaller file or increase the Supabase Storage bucket size limit.';
+      return 'File is too large for the server upload limit.';
     }
     if (message.toLowerCase().contains('invalid') &&
         message.toLowerCase().contains('mime')) {
       return 'This file format is not supported.';
     }
-
     return message;
   }
 
@@ -650,480 +563,267 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     _uploadCancellationToken?.cancel();
   }
 
-  String _formatSize(int bytes) {
-    return TransferService.formatFileSize(bytes);
-  }
+  String _formatSize(int bytes) => TransferService.formatFileSize(bytes);
 
-  int get _totalSize => _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
-
-  String _mimeCategory(String fileName) {
-    final mime = lookupMimeType(fileName) ?? '';
-    if (mime.startsWith('image/')) return 'Image';
-    if (mime.startsWith('video/')) return 'Video';
-    if (mime.startsWith('audio/')) return 'Audio';
-    if (mime.contains('pdf')) return 'PDF';
-    if (mime.contains('zip') || mime.contains('tar') || mime.contains('rar')) {
-      return 'Archive';
-    }
-    if (mime.contains('document') ||
-        mime.contains('word') ||
-        mime.contains('text/')) {
-      return 'Document';
-    }
-    return 'File';
-  }
-
-  Widget _buildPowerSaveBanner() {
-    if (!_powerSaveMode) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.battery_saver_rounded,
-            size: 16,
-            color: AppColors.warning.withValues(alpha: 0.9),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Battery saver is on. Large uploads may be slower or pause.',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.85),
-                fontSize: 12,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBatteryBadge() {
-    final levelText = _batteryLevel != null ? '${_batteryLevel!}%' : '--%';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-            .withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-              .withValues(alpha: 0.35),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _powerSaveMode
-                ? Icons.battery_saver_rounded
-                : Icons.battery_std_rounded,
-            size: 14,
-            color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-                .withValues(alpha: 0.95),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            levelText,
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  int get _totalSize =>
+      _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      backgroundColor: ZenColors.paper,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Send to'),
+      ),
+      body: Column(
+        children: [
+          // Recipient code input
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: ZenColors.paperDeep,
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_rounded,
-                        color: AppColors.onSurfaceVariant, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child:
-                        Image.asset('assets/logo.png', width: 32, height: 32),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'ZenSend',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
-                      letterSpacing: -0.4,
+                  Expanded(
+                    child: TextField(
+                      controller: _codeController,
+                      enabled: !_sending && !_codeValidated,
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: AppConstants.codeLength,
+                      textAlign: TextAlign.center,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'[A-Za-z0-9]')),
+                        _UpperCaseFormatter(),
+                      ],
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 22,
+                        letterSpacing: 3,
+                        fontWeight: FontWeight.w500,
+                        color: ZenColors.ink,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '— — —   — — —',
+                        hintStyle: GoogleFonts.jetBrainsMono(
+                          fontSize: 18,
+                          color: ZenColors.inkFaint,
+                          letterSpacing: 3,
+                        ),
+                        counterText: '',
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                      ),
+                      onChanged: (_) {
+                        if (_codeValidated) {
+                          setState(() {
+                            _codeValidated = false;
+                            _validatedRecipientId = null;
+                          });
+                        }
+                      },
                     ),
                   ),
-                  const Spacer(),
-                  _buildBatteryBadge(),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: SizedBox(
+                      height: 44,
+                      child: FilledButton(
+                        onPressed: (_validatingCode || _sending || _codeValidated)
+                            ? null
+                            : _validateCode,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _codeValidated
+                              ? ZenColors.success
+                              : ZenColors.blue600,
+                          disabledBackgroundColor: _codeValidated
+                              ? ZenColors.success
+                              : ZenColors.blue600.withOpacity(0.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 20),
+                        ),
+                        child: _validatingCode
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: ZenColors.paper),
+                              )
+                            : Text(
+                                _codeValidated ? 'Verified ✓' : 'Validate',
+                                style: GoogleFonts.inter(
+                                  color: ZenColors.paper,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Ready to Send',
-                      style: TextStyle(
-                        color: AppColors.onSurface,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Enter the recipient's secure short-code to begin the encrypted handshake.",
-                      style: TextStyle(
-                        color:
-                            AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildPowerSaveBanner(),
-
-                    // Recipient code input card
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: AppColors.cardBorder.withValues(alpha: 0.6)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _codeController,
-                              enabled: !_sending && !_codeValidated,
-                              textCapitalization: TextCapitalization.characters,
-                              maxLength: AppConstants.codeLength,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                letterSpacing: 4,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'monospace',
-                                color: AppColors.cardText,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'RECIPIENT SHORTCODE',
-                                hintStyle: TextStyle(
-                                  color: AppColors.cardTextSecondary
-                                      .withValues(alpha: 0.5),
-                                  fontSize: 13,
-                                  letterSpacing: 1,
-                                  fontFamily: 'Inter',
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                counterText: '',
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 14,
-                                ),
-                              ),
-                              onChanged: (_) {
-                                if (_codeValidated) {
-                                  setState(() {
-                                    _codeValidated = false;
-                                    _validatedRecipientId = null;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: SizedBox(
-                              height: 40,
-                              child: FilledButton(
-                                onPressed: (_validatingCode ||
-                                        _sending ||
-                                        _codeValidated)
-                                    ? null
-                                    : _validateCode,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: _codeValidated
-                                      ? AppColors.success
-                                      : AppColors.primary,
-                                  disabledBackgroundColor: _codeValidated
-                                      ? AppColors.success
-                                      : AppColors.primary
-                                          .withValues(alpha: 0.5),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20),
-                                  textStyle: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                child: _validatingCode
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : Text(
-                                        _codeValidated
-                                            ? 'Verified'
-                                            : 'Validate',
-                                        style: const TextStyle(
-                                            color: Colors.white),
-                                      ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    if (_codeError != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _codeError!,
-                        style: const TextStyle(
-                            color: AppColors.error, fontSize: 12),
-                      ),
-                    ],
-
-                    const SizedBox(height: 28),
-
-                    // Selected files section
-                    Row(
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Selected Files',
-                              style: TextStyle(
-                                color: AppColors.onSurface,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (_selectedFiles.isNotEmpty)
-                              Text(
-                                '${_selectedFiles.length} files, ${_formatSize(_totalSize)}',
-                                style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                          ],
-                        ),
-                        const Spacer(),
-                        if (!_sending && _selectedFiles.isNotEmpty) ...[
-                          TextButton(
-                            onPressed: _pickFiles,
-                            child: const Text('Add More'),
-                          ),
-                          TextButton(
-                            onPressed: _clearAll,
-                            child: Text(
-                              'Clear All',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // File list or upload progress
-                    if (_sending && _uploadStates != null)
-                      TransferUploadProgressList(states: _uploadStates!)
-                    else if (_selectedFiles.isEmpty)
-                      _EmptyFilesView(onPick: _pickFiles)
-                    else
-                      ...List.generate(_selectedFiles.length, (index) {
-                        final file = _selectedFiles[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _FileTile(
-                            name: file.name,
-                            size: _formatSize(file.size),
-                            mimeType: _mimeCategory(file.name),
-                            onRemove:
-                                _sending ? null : () => _removeFile(index),
-                          ),
-                        );
-                      }),
-
-                    if (_error != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _error!,
-                        style: const TextStyle(
-                            color: AppColors.error, fontSize: 12),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    if (_codeValidated && _selectedFiles.isNotEmpty) ...[
-                      Text(
-                        'Keep the app open while uploading. Closing the app will stop the transfer.',
-                        style: TextStyle(
-                          color:
-                              AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                          fontSize: 12,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ],
-                ),
-              ),
+          ),
+          if (_codeError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              child: Text(_codeError!,
+                  style: ZenText.small.copyWith(color: ZenColors.danger)),
             ),
 
-            // Send button
-            if (_codeValidated && _selectedFiles.isNotEmpty)
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: _sending
-                          ? null
-                          : const LinearGradient(
-                              colors: [
-                                AppColors.primary,
-                                AppColors.primaryContainer
-                              ],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                      color: _sending ? AppColors.outlineVariant : null,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: FilledButton(
-                      onPressed: _sending ? null : _send,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        disabledBackgroundColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+          // Power save banner
+          if (_powerSaveMode)
+            StatusBanner(
+              icon: Icons.battery_saver_rounded,
+              text:
+                  'Battery saver is on. Large uploads may be slower or pause.',
+              tint: ZenColors.warn,
+            ),
+
+          // Files section
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Files header
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Files', style: ZenText.label),
+                            if (_selectedFiles.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_selectedFiles.length} selected · ${_formatSize(_totalSize)}',
+                                style: ZenText.small,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      child: _sending
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildSendingLabel(),
-                                const SizedBox(width: 10),
-                                GestureDetector(
-                                  onTap: _cancelUpload,
-                                  child: const Icon(
-                                    Icons.close_rounded,
-                                    color: AppColors.onSurfaceVariant,
-                                    size: 18,
+                      if (!_sending && _selectedFiles.isNotEmpty) ...[
+                        _GhostAction(
+                            label: 'Add more', onTap: _pickFiles),
+                        const SizedBox(width: 4),
+                        _GhostAction(
+                            label: 'Clear all',
+                            onTap: _clearAll,
+                            color: ZenColors.danger),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // File list / progress / empty
+                  if (_sending && _uploadStates != null)
+                    TransferUploadProgressList(states: _uploadStates!)
+                  else if (_selectedFiles.isEmpty)
+                    _EmptyFilesZen(onPick: _pickFiles)
+                  else
+                    for (var i = 0; i < _selectedFiles.length; i++) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: ZenColors.paperDeep.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ZenFileRow(
+                          name: _selectedFiles[i].name,
+                          size: _formatSize(_selectedFiles[i].size),
+                          mimeCategory: ZenFileRow.categoryFromFileName(
+                              _selectedFiles[i].name),
+                          trailing: _sending
+                              ? null
+                              : GestureDetector(
+                                  onTap: () => _removeFile(i),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Icon(Icons.close_rounded,
+                                        size: 16,
+                                        color: ZenColors.inkFaint),
                                   ),
                                 ),
-                              ],
-                            )
-                          : const Text(
-                              'Send',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
+                        ),
+                      ),
+                    ],
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    StatusBanner(
+                      icon: Icons.error_outline_rounded,
+                      text: _error!,
+                      tint: ZenColors.danger,
                     ),
-                  ),
-                ),
+                  ],
+
+                  if (_codeValidated && _selectedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Keep the app open while uploading.',
+                      style: ZenText.small,
+                    ),
+                  ],
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+
+          // Send button
+          if (_codeValidated && _selectedFiles.isNotEmpty)
+            Container(
+              color: ZenColors.paper,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: _sending
+                  ? ZenButton(
+                      label: _buildSendingLabel(),
+                      loading: true,
+                      onPressed: null,
+                      leading: GestureDetector(
+                        onTap: _cancelUpload,
+                        child: const Icon(Icons.close_rounded,
+                            size: 16, color: ZenColors.inkFaint),
+                      ),
+                    )
+                  : ZenButton(
+                      label: 'Send',
+                      leading: const Icon(Icons.north_east_rounded,
+                          size: 16, color: ZenColors.paper),
+                      onPressed: _send,
+                    ),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildSendingLabel() {
+  String _buildSendingLabel() {
     final states = _uploadStates;
-    if (states == null) {
-      return const SizedBox(
-        width: 18,
-        height: 18,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: AppColors.onSurfaceVariant,
-        ),
-      );
-    }
+    if (states == null) return 'Preparing…';
     final done =
         states.where((s) => s.status == FileUploadStatus.completed).length;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'Sending $done / ${states.length}',
-          style:
-              const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 13),
-        ),
-      ],
-    );
+    return 'Sending $done / ${states.length}';
   }
 }
 
-class _EmptyFilesView extends StatelessWidget {
+class _EmptyFilesZen extends StatelessWidget {
   final VoidCallback onPick;
-  const _EmptyFilesView({required this.onPick});
+  const _EmptyFilesZen({required this.onPick});
 
   @override
   Widget build(BuildContext context) {
@@ -1132,36 +832,21 @@ class _EmptyFilesView extends StatelessWidget {
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.cardBorder,
-            width: 1.5,
-          ),
+          color: ZenColors.paperDeep,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ZenColors.divider),
         ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_upload_outlined,
-                  size: 40,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.2)),
-              const SizedBox(height: 16),
-              Text(
-                'Tap to select files',
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                  fontSize: 14,
-                ),
-              ),
+              const Icon(Icons.add_circle_outline_rounded,
+                  size: 36, color: ZenColors.inkFaint),
+              const SizedBox(height: 14),
+              Text('Tap to choose files', style: ZenText.bodySoft),
               const SizedBox(height: 4),
-              Text(
-                'Images, videos, documents — any file type',
-                style: TextStyle(
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.25),
-                  fontSize: 11,
-                ),
-              ),
+              Text('Images, videos, documents — any type',
+                  style: ZenText.small),
             ],
           ),
         ),
@@ -1170,96 +855,35 @@ class _EmptyFilesView extends StatelessWidget {
   }
 }
 
-class _FileTile extends StatelessWidget {
-  final String name;
-  final String size;
-  final String mimeType;
-  final VoidCallback? onRemove;
-
-  const _FileTile({
-    required this.name,
-    required this.size,
-    required this.mimeType,
-    this.onRemove,
-  });
-
-  IconData get _typeIcon {
-    switch (mimeType) {
-      case 'Image':
-        return Icons.image_rounded;
-      case 'Video':
-        return Icons.videocam_rounded;
-      case 'Audio':
-        return Icons.audiotrack_rounded;
-      case 'PDF':
-        return Icons.picture_as_pdf_rounded;
-      case 'Archive':
-        return Icons.folder_zip_rounded;
-      case 'Document':
-        return Icons.description_rounded;
-      default:
-        return Icons.insert_drive_file_rounded;
-    }
-  }
+class _GhostAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+  const _GhostAction({required this.label, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(_typeIcon, color: AppColors.primary, size: 22),
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: color ?? ZenColors.inkSoft,
+            fontWeight: FontWeight.w500,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$size • $mimeType',
-                  style: TextStyle(
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (onRemove != null)
-            GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                child: Icon(Icons.close_rounded,
-                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                    size: 18),
-              ),
-            ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+class _UpperCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

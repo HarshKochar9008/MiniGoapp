@@ -3,13 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/supabase_config.dart';
-import '../../core/theme.dart';
+import '../../zensend/theme/zen_theme.dart';
+import '../../zensend/widgets/zen_widgets.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
 import 'save_file.dart';
@@ -211,20 +213,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardBg,
+        backgroundColor: ZenColors.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Battery saver is on',
-          style: TextStyle(color: AppColors.onSurface, fontSize: 16),
+          style: GoogleFonts.instrumentSerif(color: ZenColors.ink, fontSize: 18),
         ),
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
           'Power-save mode can pause or throttle long downloads. Continue anyway?',
-          style: TextStyle(
-            color: AppColors.onSurfaceVariant.withValues(alpha: 0.8),
-            fontSize: 13,
-            height: 1.4,
-          ),
+          style: ZenText.bodySoft,
         ),
         actions: [
           TextButton(
@@ -266,49 +264,22 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Widget _buildPowerSaveBanner() {
     if (!_powerSaveMode) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.battery_saver_rounded,
-            size: 16,
-            color: AppColors.warning.withValues(alpha: 0.9),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Battery saver is on. Large downloads may be slower or pause.',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.85),
-                fontSize: 12,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return StatusBanner(
+      icon: Icons.battery_saver_rounded,
+      text: 'Battery saver is on. Large downloads may be slower or pause.',
+      tint: ZenColors.warn,
     );
   }
 
   Widget _buildBatteryBadge() {
     final levelText = _batteryLevel != null ? '${_batteryLevel!}%' : '--%';
+    final tint = _powerSaveMode ? ZenColors.warn : ZenColors.blue600;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-            .withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-              .withValues(alpha: 0.35),
-        ),
+        color: tint.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tint.withOpacity(0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -318,14 +289,13 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                 ? Icons.battery_saver_rounded
                 : Icons.battery_std_rounded,
             size: 14,
-            color: (_powerSaveMode ? AppColors.warning : AppColors.primary)
-                .withValues(alpha: 0.95),
+            color: tint,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             levelText,
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.9),
+            style: GoogleFonts.inter(
+              color: ZenColors.inkSoft,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -347,7 +317,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           const SnackBar(
             content: Text('No internet connection. Connect to download.'),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.snackBarBg,
           ),
         );
       }
@@ -460,7 +429,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ),
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.snackBarBg,
           ),
         );
       }
@@ -499,61 +467,49 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final files = _files ?? const <Map<String, dynamic>>[];
     final hasFiles = files.isNotEmpty;
     final live = _senderLiveStates;
-    final showLive =
-        !_transferTerminal && live != null && live.isNotEmpty;
+    final showLive = !_transferTerminal && live != null && live.isNotEmpty;
 
     if (!hasFiles && !showLive) {
       final waiting = !_transferTerminal;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(
-            waiting
-                ? 'Waiting for the sender…\nLive upload progress will appear here.'
-                : 'No files in this transfer',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.55),
-              fontSize: 14,
-              height: 1.45,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.hourglass_empty_rounded,
+                  size: 40, color: ZenColors.inkFaint),
+              const SizedBox(height: 16),
+              Text(
+                waiting
+                    ? 'Waiting for the sender…'
+                    : 'No files in this transfer',
+                textAlign: TextAlign.center,
+                style: ZenText.bodySoft,
+              ),
+            ],
           ),
         ),
       );
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         if (showLive) ...[
-          Text(
-            'Sender upload',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant.withValues(alpha: 0.75),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
-            ),
-          ),
+          Text('Sender upload', style: ZenText.label),
           const SizedBox(height: 10),
           TransferUploadProgressList(
             states: live,
             headerPrefix: 'Live from sender',
           ),
-          if (hasFiles) const SizedBox(height: 28),
+          if (hasFiles) const SizedBox(height: 24),
         ],
         if (hasFiles) ...[
-          if (showLive)
-            Text(
-              'Ready to download',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.75),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-          if (showLive) const SizedBox(height: 10),
+          if (showLive) ...[
+            Text('Ready to download', style: ZenText.label),
+            const SizedBox(height: 10),
+          ],
           ...files.map((file) {
             final fileId = file['id'] as String;
             final dlState = _dlStates[fileId];
@@ -585,7 +541,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
               'Download fewer files or free up space first.',
             ),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.snackBarBg,
           ),
         );
       }
@@ -609,60 +564,82 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             (f) => _dlStates[f['id']]?.status == _DownloadStatus.completed);
 
     return Scaffold(
+      backgroundColor: ZenColors.paper,
       body: SafeArea(
         child: Column(
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
               child: Row(
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Icon(Icons.arrow_back_rounded,
-                        color: AppColors.onSurfaceVariant, size: 22),
+                        color: ZenColors.inkFaint, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child:
-                        Image.asset('assets/logo.png', width: 32, height: 32),
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'From ${widget.senderCode}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
-                        letterSpacing: -0.3,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('From', style: ZenText.label),
+                        const SizedBox(height: 2),
+                        Text(
+                          fmtCode(widget.senderCode),
+                          style: ZenText.codeSmall.copyWith(color: ZenColors.ink),
+                        ),
+                      ],
                     ),
                   ),
                   _buildBatteryBadge(),
                   const SizedBox(width: 8),
                   if (_files != null && _files!.isNotEmpty && !allCompleted)
-                    TextButton.icon(
-                      onPressed: _downloadAll,
-                      icon: const Icon(Icons.download_rounded, size: 16),
-                      label: const Text('All'),
+                    GestureDetector(
+                      onTap: _downloadAll,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: ZenColors.blue600.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: ZenColors.blue600.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.download_rounded,
+                                size: 14, color: ZenColors.blue600),
+                            const SizedBox(width: 5),
+                            Text(
+                              'All',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: ZenColors.blue600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                 ],
               ),
             ),
+            const HairLine(indent: 20),
             _buildPowerSaveBanner(),
 
             // Content
             Expanded(
               child: _loading
-                  ? Center(
+                  ? const Center(
                       child: SizedBox(
-                        width: 24,
-                        height: 24,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primary.withValues(alpha: 0.6),
+                          color: ZenColors.blue500,
                         ),
                       ),
                     )
@@ -676,15 +653,12 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                                 Text(
                                   _loadError!,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.onSurfaceVariant,
-                                    fontSize: 14,
-                                  ),
+                                  style: ZenText.bodySoft,
                                 ),
                                 const SizedBox(height: 20),
-                                FilledButton(
+                                ZenButton(
+                                  label: 'Retry',
                                   onPressed: _loadFiles,
-                                  child: const Text('Retry'),
                                 ),
                               ],
                             ),
@@ -744,11 +718,11 @@ class _FileDownloadTile extends StatelessWidget {
     final status = state?.status ?? _DownloadStatus.idle;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder.withValues(alpha: 0.6)),
+        color: ZenColors.paperDeep,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ZenColors.dividerSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,14 +730,14 @@ class _FileDownloadTile extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: _iconBg(status),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(_fileIcon(status),
-                    color: _iconColor(status), size: 20),
+                    color: _iconColor(status), size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -774,21 +748,14 @@ class _FileDownloadTile extends StatelessWidget {
                       fileName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.onSurface,
+                        color: ZenColors.ink,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      fileSize,
-                      style: TextStyle(
-                        color:
-                            AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                        fontSize: 11,
-                      ),
-                    ),
+                    Text(fileSize, style: ZenText.small),
                   ],
                 ),
               ),
@@ -797,74 +764,51 @@ class _FileDownloadTile extends StatelessWidget {
             ],
           ),
           if (status == _DownloadStatus.downloading) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: state!.progress,
-                backgroundColor:
-                    AppColors.outlineVariant.withValues(alpha: 0.15),
-                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                backgroundColor: ZenColors.divider,
+                valueColor:
+                    const AlwaysStoppedAnimation(ZenColors.blue500),
                 minHeight: 3,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               'Downloading… ${(state!.progress * 100).toInt()}%',
-              style: TextStyle(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                fontSize: 11,
-              ),
+              style: ZenText.small,
             ),
           ],
           if (status == _DownloadStatus.verifying) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Verifying integrity…',
-              style: TextStyle(
-                color: AppColors.primary.withValues(alpha: 0.6),
-                fontSize: 11,
-              ),
-            ),
+            const SizedBox(height: 6),
+            Text('Verifying integrity…',
+                style: GoogleFonts.inter(
+                    color: ZenColors.blue600, fontSize: 11)),
           ],
           if (status == _DownloadStatus.saving) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Saving to device…',
-              style: TextStyle(
-                color: AppColors.warning.withValues(alpha: 0.7),
-                fontSize: 11,
-              ),
-            ),
+            const SizedBox(height: 6),
+            Text('Saving to device…',
+                style: GoogleFonts.inter(
+                    color: ZenColors.warn, fontSize: 11)),
           ],
           if (status == _DownloadStatus.completed) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 if (state?.hashVerified == true) ...[
-                  Icon(Icons.verified_rounded,
-                      color: AppColors.success.withValues(alpha: 0.7),
-                      size: 12),
+                  const Icon(Icons.verified_rounded,
+                      color: ZenColors.success, size: 12),
                   const SizedBox(width: 4),
-                  Text(
-                    'SHA-256 verified',
-                    style: TextStyle(
-                      color: AppColors.success.withValues(alpha: 0.7),
-                      fontSize: 11,
-                    ),
-                  ),
+                  Text('SHA-256 verified',
+                      style: GoogleFonts.inter(
+                          color: ZenColors.success, fontSize: 11)),
                 ] else ...[
-                  Icon(Icons.check_circle_outline,
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                      size: 12),
+                  const Icon(Icons.check_circle_outline,
+                      color: ZenColors.inkFaint, size: 12),
                   const SizedBox(width: 4),
-                  Text(
-                    'Saved',
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.4),
-                      fontSize: 11,
-                    ),
-                  ),
+                  Text('Saved', style: ZenText.small),
                 ],
               ],
             ),
@@ -874,18 +818,17 @@ class _FileDownloadTile extends StatelessWidget {
                 state!.savedLocation!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.outlineVariant.withValues(alpha: 0.5),
-                  fontSize: 10,
-                ),
+                style: GoogleFonts.jetBrainsMono(
+                    color: ZenColors.inkFaint, fontSize: 10),
               ),
             ],
           ],
           if (status == _DownloadStatus.failed && state?.error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               state!.error!,
-              style: const TextStyle(color: AppColors.error, fontSize: 11),
+              style:
+                  GoogleFonts.inter(color: ZenColors.danger, fontSize: 11),
             ),
           ],
         ],
@@ -904,14 +847,25 @@ class _FileDownloadTile extends StatelessWidget {
     }
   }
 
+  Color _iconBg(_DownloadStatus status) {
+    switch (status) {
+      case _DownloadStatus.completed:
+        return ZenColors.success.withOpacity(0.1);
+      case _DownloadStatus.failed:
+        return ZenColors.danger.withOpacity(0.1);
+      default:
+        return ZenColors.blue500.withOpacity(0.1);
+    }
+  }
+
   Color _iconColor(_DownloadStatus status) {
     switch (status) {
       case _DownloadStatus.completed:
-        return AppColors.success;
+        return ZenColors.success;
       case _DownloadStatus.failed:
-        return AppColors.error;
+        return ZenColors.danger;
       default:
-        return AppColors.primary.withValues(alpha: 0.6);
+        return ZenColors.blue600;
     }
   }
 
@@ -924,11 +878,11 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: ZenColors.blue500.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.download_rounded,
-                color: AppColors.primary, size: 20),
+                color: ZenColors.blue600, size: 18),
           ),
         );
       case _DownloadStatus.downloading:
@@ -937,26 +891,26 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.1),
+              color: ZenColors.danger.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.close_rounded,
-                color: AppColors.error, size: 18),
+                color: ZenColors.danger, size: 18),
           ),
         );
       case _DownloadStatus.verifying:
       case _DownloadStatus.saving:
-        return SizedBox(
+        return const SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppColors.primary.withValues(alpha: 0.6),
+            color: ZenColors.blue500,
           ),
         );
       case _DownloadStatus.completed:
-        return Icon(Icons.check_rounded,
-            color: AppColors.success.withValues(alpha: 0.7), size: 20);
+        return const Icon(Icons.check_rounded,
+            color: ZenColors.success, size: 20);
     }
   }
 }

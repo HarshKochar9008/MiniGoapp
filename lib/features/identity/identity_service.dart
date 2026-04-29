@@ -66,7 +66,8 @@ class IdentityService {
               'short_code': code,
             })
             .select()
-            .single();
+            .single()
+            .timeout(const Duration(seconds: 20));
 
         final identity = _identityFromDbRow(dbUser);
         await _persistIdentity(
@@ -152,7 +153,9 @@ class IdentityService {
       return current;
     }
 
-    final authResponse = await SupabaseConfig.client.auth.signInAnonymously();
+    final authResponse = await SupabaseConfig.client.auth
+        .signInAnonymously()
+        .timeout(const Duration(seconds: 25));
     final user = authResponse.user;
     final session = authResponse.session ?? SupabaseConfig.client.auth.currentSession;
     if (user == null) {
@@ -184,7 +187,8 @@ class IdentityService {
         .from('users')
         .select('id, short_code, auth_uid')
         .eq('auth_uid', authUid)
-        .maybeSingle();
+        .maybeSingle()
+        .timeout(const Duration(seconds: 20));
   }
 
   static Future<void> _persistIdentity({

@@ -1,48 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../zensend/theme/zen_theme.dart';
 
+export '../zensend/theme/zen_theme.dart' show ZenColors, ZenText, fmtCode;
+
+/// AppColors — mapped to ZenColors for design consistency.
 class AppColors {
-  static const primary = Color(0xFF3366FF);
-  static const primaryLight = Color(0xFF5B8AFF);
-  static const primaryContainer = Color(0xFF1A3DB8);
-  static const onPrimary = Color(0xFFFFFFFF);
+  static const primary = ZenColors.blue600;
+  static const primaryLight = ZenColors.blue500;
+  static const primaryContainer = ZenColors.blue600;
+  static const onPrimary = ZenColors.paper;
 
-  static const secondary = Color(0xFF2E7D4F);
+  static const secondary = ZenColors.success;
   static const secondaryContainer = Color(0xFFD4EDDA);
 
-  static const tertiary = Color(0xFFD4880F);
+  static const tertiary = ZenColors.warn;
   static const tertiaryContainer = Color(0xFFFFF3CD);
 
-  static const scaffold = Color(0xFFF7F8FA);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const surfaceContainerLow = Color(0xFFF5F6F8);
-  static const surfaceContainer = Color(0xFFF0F1F4);
-  static const surfaceContainerHigh = Color(0xFFF3F4F6);
-  static const surfaceContainerHighest = Color(0xFFE5E7EB);
-  static const surfaceBright = Color(0xFFFFFFFF);
+  static const scaffold = ZenColors.paper;
+  static const surface = ZenColors.paper;
+  static const surfaceContainerLowest = ZenColors.paper;
+  static const surfaceContainerLow = ZenColors.paperDeep;
+  static const surfaceContainer = ZenColors.sand;
+  static const surfaceContainerHigh = ZenColors.sand;
+  static const surfaceContainerHighest = ZenColors.sandDeep;
+  static const surfaceBright = ZenColors.paper;
 
-  static const onSurface = Color(0xFF111827);
-  static const onSurfaceVariant = Color(0xFF6B7280);
-  static const outline = Color(0xFF9CA3AF);
-  static const outlineVariant = Color(0xFFE5E7EB);
+  static const onSurface = ZenColors.ink;
+  static const onSurfaceVariant = ZenColors.inkSoft;
+  static const outline = ZenColors.inkFaint;
+  static const outlineVariant = ZenColors.sandDeep;
 
-  static const success = Color(0xFF16A34A);
-  static const warning = Color(0xFFD97706);
-  static const error = Color(0xFFDC2626);
+  static const success = ZenColors.success;
+  static const warning = ZenColors.warn;
+  static const error = ZenColors.danger;
 
-  static const dialogBg = Color(0xFFFFFFFF);
+  static const dialogBg = ZenColors.paper;
 
-  static const cardBg = Color(0xFFFFFFFF);
-  static const cardText = Color(0xFF111827);
-  static const cardTextSecondary = Color(0xFF6B7280);
-  static const cardBorder = Color(0xFFE5E7EB);
+  static const cardBg = ZenColors.paper;
+  static const cardText = ZenColors.ink;
+  static const cardTextSecondary = ZenColors.inkSoft;
+  static const cardBorder = ZenColors.divider;
 
-  static const navBarBg = Color(0xFFFFFFFF);
+  static const navBarBg = ZenColors.paper;
 
-  static const snackBarBg = Color(0xFF1F2937);
-  static const snackBarText = Color(0xFFFFFFFF);
+  static const snackBarBg = ZenColors.ink;
+  static const snackBarText = ZenColors.paper;
 }
 
 class ThemeController {
@@ -73,103 +76,6 @@ class ThemeController {
   }
 }
 
-ThemeData buildAppTheme() {
-  return ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.light,
-      surface: AppColors.surface,
-      onSurface: AppColors.onSurface,
-      primary: AppColors.primary,
-      onPrimary: AppColors.onPrimary,
-      secondary: AppColors.secondary,
-      tertiary: AppColors.tertiary,
-      error: AppColors.error,
-      outline: AppColors.outline,
-      outlineVariant: AppColors.outlineVariant,
-    ),
-    useMaterial3: true,
-    scaffoldBackgroundColor: AppColors.scaffold,
-    fontFamily: 'Inter',
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
-      titleTextStyle: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: AppColors.onSurface,
-        letterSpacing: -0.02,
-      ),
-      iconTheme: IconThemeData(color: AppColors.onSurfaceVariant),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        textStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        textStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ),
-    snackBarTheme: const SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: AppColors.snackBarBg,
-      contentTextStyle: TextStyle(
-        fontFamily: 'Inter',
-        color: AppColors.snackBarText,
-        fontSize: 13,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(12)),
-      ),
-    ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.primary,
-      linearTrackColor: Color(0x1A000000),
-    ),
-  );
-}
+ThemeData buildAppTheme() => buildZenTheme();
 
-ThemeData buildDarkAppTheme() {
-  return ThemeData(
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.dark,
-    ),
-    useMaterial3: true,
-    fontFamily: 'Inter',
-    scaffoldBackgroundColor: const Color(0xFF0B1220),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
-    ),
-  );
-}
+ThemeData buildDarkAppTheme() => buildZenTheme();

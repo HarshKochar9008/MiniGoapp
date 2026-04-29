@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/network/connection_status.dart';
 import '../../core/native/native_share.dart';
-import '../../core/theme.dart';
+import '../../zensend/theme/zen_theme.dart';
+import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
 import '../send/send_screen.dart';
 
@@ -53,12 +56,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.identity.shortCode));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Code copied to clipboard'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.snackBarBg,
-      ),
+      const SnackBar(content: Text('Code copied')),
     );
   }
 
@@ -69,244 +67,282 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 28),
-            _buildIdentitySection(),
-            const SizedBox(height: 20),
-            _buildSessionCodeCard(),
-            const SizedBox(height: 24),
-            _buildSendButton(),
-          ],
-        ),
+  void _openSend() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SendScreen(identity: widget.identity),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Image.asset('assets/logo.png', width: 32, height: 32),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'ZenSend',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-            letterSpacing: -0.4,
-          ),
-        ),
-        const Spacer(),
-      ],
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final code = widget.identity.shortCode;
 
-  Widget _buildIdentitySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'IDENTITY ANCHOR',
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
+    return Scaffold(
+      backgroundColor: ZenColors.paper,
+      body: SafeArea(
+        child: Column(
           children: [
-            const Expanded(
-              child: Text(
-                'Personal Short-code',
-                style: TextStyle(
-                  color: AppColors.onSurface,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _isOnline
-                    ? AppColors.primary.withValues(alpha: 0.12)
-                    : AppColors.error.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: _isOnline ? AppColors.primary : AppColors.error,
-                      shape: BoxShape.circle,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('You are', style: ZenText.label),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              fmtCode(code),
+                              style: ZenText.code.copyWith(fontSize: 22),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: _copyCode,
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.copy_rounded,
+                                  size: 15,
+                                  color: ZenColors.inkFaint,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _isOnline ? 'Ready to Receive' : 'Offline',
-                    style: TextStyle(
-                      color: _isOnline ? AppColors.primary : AppColors.error,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                  // Online status dot
+                  GestureDetector(
+                    onTap: _shareCode,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: _isOnline
+                                  ? ZenColors.success
+                                  : ZenColors.danger,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _isOnline ? 'Online' : 'Offline',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: _isOnline ? ZenColors.success : ZenColors.danger,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+            const HairLine(indent: 20),
+
+            // Large code card
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Code card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        color: ZenColors.blue600,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            'YOUR CODE',
+                            style: ZenText.label.copyWith(
+                              color: ZenColors.blue200,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            fmtCode(code),
+                            style: ZenText.codeLarge.copyWith(
+                              color: ZenColors.paper,
+                              letterSpacing: 4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.copy_rounded,
+                                  label: 'Copy',
+                                  onTap: _copyCode,
+                                  dark: true,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.share_rounded,
+                                  label: 'Share',
+                                  onTap: _shareCode,
+                                  dark: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    // Info card
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: ZenColors.blue50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: ZenColors.blue200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded,
+                              size: 18, color: ZenColors.blue600),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Share this code so others can send you files. '
+                              'Tap Send below to send files to someone else.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: ZenColors.blue600,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildSessionCodeCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color.fromARGB(255, 83, 109, 255).withValues(alpha: 0.9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Active Session ID',
-            style: TextStyle(
-              color: AppColors.cardTextSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              widget.identity.shortCode,
-              style: const TextStyle(
-                color: AppColors.cardText,
-                fontSize: 42,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 6,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: FilledButton.icon(
-                    onPressed: _copyCode,
-                    icon: const Icon(Icons.copy_rounded, size: 16),
-                    label: const Text('Copy'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF3366FF),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    onPressed: _shareCode,
-                    icon: Icon(Icons.share_rounded,
-                        size: 16, color: AppColors.cardText),
-                    label: Text(
-                      'Share',
-                      style: TextStyle(color: AppColors.cardText),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: const Color.fromARGB(255, 70, 131, 252), width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSendButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.primary, AppColors.primaryContainer],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: FilledButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SendScreen(identity: widget.identity),
-            ),
-          ),
-          icon: const Icon(Icons.send_rounded, size: 18),
-          label: const Text('Send Files'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 16,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: FloatingActionButton.extended(
+          onPressed: _openSend,
+          backgroundColor: ZenColors.blue600,
+          foregroundColor: ZenColors.paper,
+          elevation: 0,
+          extendedPadding:
+              const EdgeInsets.symmetric(horizontal: 28, vertical: 0),
+          label: Text(
+            'Send',
+            style: GoogleFonts.inter(
               fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+              fontSize: 15,
+              color: ZenColors.paper,
             ),
           ),
+          icon: const Icon(Icons.north_east_rounded, size: 18),
+          shape: const StadiumBorder(),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool dark;
+  const _OutlineBtn({required this.icon, required this.label, required this.onTap, this.dark = false});
+
+  @override
+  Widget build(BuildContext context) {
+    if (dark) {
+      return GestureDetector(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 15, color: Colors.white.withOpacity(0.75)),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withOpacity(0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: ZenColors.paper,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: ZenColors.divider),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 15, color: ZenColors.ink),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: ZenColors.ink,
+              ),
+            ),
+          ],
         ),
       ),
     );

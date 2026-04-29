@@ -136,7 +136,7 @@ class OfflineSyncCoordinator {
           'You have an unfinished send. Open Send Files to resume or discard.',
         ),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.snackBarBg,
+        backgroundColor: ZenColors.ink,
         duration: const Duration(seconds: 5),
       ),
     );

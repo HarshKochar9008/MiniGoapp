@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:http/io_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'constants.dart';
@@ -30,16 +28,12 @@ Future<void> initSupabase() async {
     );
   }
 
-  final httpClient = IOClient(
-    HttpClient()
-      ..connectionTimeout = const Duration(seconds: 25)
-      ..userAgent = 'ZenSend/1.0 (Flutter)',
-  );
-
+  // Use the default platform HTTP client so Android 14+ uses the system
+  // certificate store (OkHttp) rather than Dart's IOClient, which avoids
+  // TLS handshake aborts on stricter Android TLS policies.
   await Supabase.initialize(
     url: url,
     anonKey: key,
-    httpClient: httpClient,
   );
 }
 
