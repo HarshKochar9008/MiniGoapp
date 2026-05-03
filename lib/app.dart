@@ -291,14 +291,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: ZenColors.blue600,
-                ),
-              ),
+              Image.asset('assets/logo.png', width: 72, height: 72),
               const SizedBox(height: 28),
               const SizedBox(
                 width: 20,

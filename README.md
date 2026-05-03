@@ -1,8 +1,8 @@
-# ZenSend
+# Whoosh
 
 **Frictionless file sharing across any network — no accounts, no friction, just a 6-character code.**
 
-ZenSend is a production-grade Flutter mobile application that enables secure, real-time file transfers between devices using a simple short-code system. No email, no password, no sign-up — recipients are identified by a unique 6-character code, and files are transferred instantly over a cloud-relay with full SHA-256 integrity verification.
+Whoosh is a production-grade Flutter mobile application that enables secure, real-time file transfers between devices using a simple short-code system. No email, no password, no sign-up — recipients are identified by a unique 6-character code, and files are transferred instantly over a cloud-relay with full SHA-256 integrity verification.
 
 ---
 
@@ -28,7 +28,7 @@ ZenSend is a production-grade Flutter mobile application that enables secure, re
 
 ## Overview
 
-ZenSend solves the classic problem of sending files between people on different networks without requiring any account setup or contact exchange.
+Whoosh solves the classic problem of sending files between people on different networks without requiring any account setup or contact exchange.
 
 **Core user flows:**
 
@@ -78,7 +78,7 @@ Every file transfer uses TUS resumable uploads, streaming SHA-256 integrity veri
 
 ## Architecture
 
-ZenSend uses a **client-driven cloud-relay** model — the Flutter app orchestrates all transfer logic; Supabase provides identity, storage, real-time messaging, and push delivery.
+Whoosh uses a **client-driven cloud-relay** model — the Flutter app orchestrates all transfer logic; Supabase provides identity, storage, real-time messaging, and push delivery.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -206,7 +206,7 @@ lib/
 │   └── onboarding/
 │       └── onboarding_screen.dart          # Welcome → code animation → permissions → ready
 │
-└── zensend/
+└── Whoosh/
     ├── theme/
     │   └── zen_theme.dart                  # ZenColors (paper, ink, blue600, sand, etc.)
     └── widgets/
@@ -232,8 +232,8 @@ supabase/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/zensend.git
-cd zensend
+git clone https://github.com/your-org/Whoosh.git
+cd Whoosh
 ```
 
 ### 2. Install dependencies
@@ -470,10 +470,10 @@ Permissions are requested contextually — never upfront — with explanatory di
 
 | Platform | File Type | Destination |
 |----------|-----------|-------------|
-| Android | Image / Video | Device gallery (via `gal`, ZenSend album) |
+| Android | Image / Video | Device gallery (via `gal`, Whoosh album) |
 | Android | Other | `/Download/` folder |
 | iOS | Image / Video | Photos app (via `gal`) |
-| iOS | Other | App Documents (`ZenSend/` directory) |
+| iOS | Other | App Documents (`Whoosh/` directory) |
 
 Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended automatically.
 
@@ -496,7 +496,7 @@ Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended aut
 
 ## Offline Resilience
 
-ZenSend recovers gracefully from connectivity interruptions at every stage of a transfer.
+Whoosh recovers gracefully from connectivity interruptions at every stage of a transfer.
 
 ### Upload Interruption
 - TUS protocol persists a **fingerprint and byte offset** locally
@@ -569,4 +569,5 @@ flutter test
 
 ## License
 
-Proprietary — All rights reserved. © 2025 ZenSend / Neosapien.
+Proprietary — All rights reserved. © 2025 Whoosh / Neosapien.
+

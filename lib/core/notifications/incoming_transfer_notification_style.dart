@@ -2,8 +2,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Shared look for FCM-triggered local notifications (foreground + background isolate).
 ///
-/// Android: [largeIcon] shows the ZenSend logo in the expanded notification header.
-/// The bitmap lives at `android/app/src/main/res/drawable/zensend_notif_logo.png`
+/// Android: [largeIcon] shows the Whoosh logo in the expanded notification header.
+/// The bitmap lives at `android/app/src/main/res/drawable/whoosh_notif_logo.png`
 /// (kept in sync with `assets/logo.png`).
 ///
 /// Use [stableNotificationId] + [androidTagForTransfer] so multiple FCM deliveries for the
@@ -26,7 +26,7 @@ class IncomingTransferLocalNotifications {
   );
 
   static const DrawableResourceAndroidBitmap androidLargeIcon =
-      DrawableResourceAndroidBitmap('@drawable/zensend_notif_logo');
+      DrawableResourceAndroidBitmap('@drawable/whoosh_notif_logo');
 
   /// One notification id per transfer so [FlutterLocalNotificationsPlugin.show] updates in place.
   static int stableNotificationId(
@@ -52,8 +52,8 @@ class IncomingTransferLocalNotifications {
   /// Android tag groups replacements; must stay stable per transfer.
   static String? androidTagForTransfer(Map<String, dynamic> data) {
     final tid = (data['transfer_id'] ?? data['transferId'] ?? '').toString().trim();
-    if (tid.isEmpty) return 'zensend_incoming_unknown';
-    return 'zensend_incoming_$tid';
+    if (tid.isEmpty) return 'whoosh_incoming_unknown';
+    return 'whoosh_incoming_$tid';
   }
 
   static NotificationDetails notificationDetails(

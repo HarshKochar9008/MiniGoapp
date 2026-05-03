@@ -1,4 +1,4 @@
-# ZenSend Command Guide
+# Whoosh Command Guide
 
 Quick command reference for local development, debugging, cleaning, building, and dependency management.
 

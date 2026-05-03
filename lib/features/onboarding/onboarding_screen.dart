@@ -182,17 +182,10 @@ class _OnbWelcome extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Container(
+              Image.asset(
+                'assets/logo.png',
                 width: 96,
                 height: 96,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [ZenColors.blue200, ZenColors.paperDeep],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
               ),
               const SizedBox(height: 36),
               Text(
