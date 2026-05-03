@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>ZenSend</string>
+	<string>Whoosh</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ZenSend</string>
+	<string>Whoosh</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,9 +46,9 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>ZenSend needs access to save received images and videos to your photo library.</string>
+	<string>Whoosh needs access to save received images and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>ZenSend needs access to your photo library to save received media files.</string>
+	<string>Whoosh needs access to your photo library to save received media files.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

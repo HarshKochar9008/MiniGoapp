@@ -4,11 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_reset.dart';
 import '../../core/theme.dart';
-import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../transfer/transfer_service.dart';
+import 'about_screen.dart';
+import 'privacy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -49,6 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmFullLocalReset() async {
+    final c = context.zen;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -68,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: ZenColors.danger,
-              foregroundColor: ZenColors.paper,
+              foregroundColor: c.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reset this device'),
@@ -82,8 +84,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: ListView(
           children: [
@@ -93,9 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Preferences', style: ZenText.label),
+                  Text('Preferences',
+                      style: ZenText.label.copyWith(color: c.inkSoft)),
                   const SizedBox(height: 4),
-                  Text('Settings', style: ZenText.title),
+                  Text('Settings',
+                      style: ZenText.title.copyWith(color: c.ink)),
                 ],
               ),
             ),
@@ -107,16 +112,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: ZenColors.paperDeep,
+                color: c.paperDeep,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 children: [
-                  Text('Your code', style: ZenText.label),
+                  Text('Your code',
+                      style: ZenText.label.copyWith(color: c.inkSoft)),
                   const SizedBox(height: 14),
                   Text(
                     fmtCode(widget.identity.shortCode),
-                    style: ZenText.codeLarge,
+                    style: ZenText.codeLarge.copyWith(color: c.ink),
                   ),
                   const SizedBox(height: 18),
                   Row(
@@ -145,7 +151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SectionHeader(title: 'Preferences'),
             const HairLine(indent: 20),
 
-            // Theme toggle
             _ToggleRow(
               label: 'Dark mode',
               sub: 'Switch between light and dark theme',
@@ -158,34 +163,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const HairLine(indent: 20),
 
             _LinkRow(
-              label: 'How it works',
-              sub: 'View the app walkthrough again',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => OnboardingScreen(
-                      onComplete: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                );
-              },
+              label: 'About Whoosh',
+              sub: 'Version, how it works, and legal',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              ),
             ),
             const HairLine(indent: 20),
             _LinkRow(
-              label: 'Notifications',
-              sub: 'Transfer alerts & updates',
-              onTap: null,
+              label: 'How it works',
+              sub: 'View the app walkthrough again',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OnboardingScreen(
+                    onComplete: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ),
             ),
             const HairLine(indent: 20),
             _LinkRow(
               label: 'Privacy & Security',
-              sub: 'Encryption & data protection',
-              onTap: null,
+              sub: 'Encryption, data collection & your rights',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+              ),
             ),
             const HairLine(indent: 20),
             _LinkRow(
               label: 'Version',
-              trailing: 'ZenSend 1.1.0',
+              trailing: 'Whoosh 1.1.0',
             ),
             const HairLine(indent: 20),
 
@@ -251,27 +258,28 @@ class _CodeAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding:
             const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: ZenColors.paper,
+          color: c.paper,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ZenColors.divider),
+          border: Border.all(color: c.divider),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: ZenColors.ink),
+            Icon(icon, size: 16, color: c.ink),
             const SizedBox(width: 6),
             Text(
               label,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: ZenColors.ink,
+                color: c.ink,
               ),
             ),
           ],
@@ -293,6 +301,7 @@ class _ToggleRow extends StatelessWidget {
       required this.onChanged});
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 16, 14),
       child: Row(
@@ -305,12 +314,13 @@ class _ToggleRow extends StatelessWidget {
                   label,
                   style: GoogleFonts.inter(
                     fontSize: 14,
-                    color: ZenColors.ink,
+                    color: c.ink,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(sub, style: ZenText.small),
+                Text(sub,
+                    style: ZenText.small.copyWith(color: c.inkSoft)),
               ],
             ),
           ),
@@ -333,6 +343,7 @@ class _LinkRow extends StatelessWidget {
       {required this.label, this.sub, this.trailing, this.onTap});
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -346,20 +357,22 @@ class _LinkRow extends StatelessWidget {
                   Text(
                     label,
                     style: GoogleFonts.inter(
-                        fontSize: 14, color: ZenColors.ink),
+                        fontSize: 14, color: c.ink),
                   ),
                   if (sub != null) ...[
                     const SizedBox(height: 2),
-                    Text(sub!, style: ZenText.small),
+                    Text(sub!,
+                        style: ZenText.small.copyWith(color: c.inkSoft)),
                   ],
                 ],
               ),
             ),
             if (trailing != null)
-              Text(trailing!, style: ZenText.small)
+              Text(trailing!,
+                  style: ZenText.small.copyWith(color: c.inkSoft))
             else if (onTap != null)
-              const Icon(Icons.chevron_right_rounded,
-                  color: ZenColors.inkFaint, size: 20),
+              Icon(Icons.chevron_right_rounded,
+                  color: c.inkFaint, size: 20),
           ],
         ),
       ),

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 
@@ -43,6 +45,121 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Shuffling code animation – chars cycle randomly, then optionally settle
+// ---------------------------------------------------------------------------
+class _CodeShuffler extends StatefulWidget {
+  /// Target code to settle on; null keeps cycling forever.
+  final String? settle;
+  final TextStyle style;
+  final VoidCallback? onSettled;
+  /// Delay before locking chars (ignored when settle is null).
+  final Duration shuffleDuration;
+  /// Gap between each char locking in.
+  final Duration lockInterval;
+
+  const _CodeShuffler({
+    this.settle,
+    required this.style,
+    this.onSettled,
+    this.shuffleDuration = const Duration(milliseconds: 1000),
+    this.lockInterval = const Duration(milliseconds: 140),
+  });
+
+  @override
+  State<_CodeShuffler> createState() => _CodeShufflerState();
+}
+
+class _CodeShufflerState extends State<_CodeShuffler> {
+  static const _alpha = AppConstants.codeAlphabet;
+  final _rng = Random();
+
+  late List<String> _display;
+  late List<bool> _locked;
+  Timer? _tick;
+  int _lockIdx = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _display = List.generate(6, (_) => _rand());
+    _locked = List.filled(6, false);
+    _tick = Timer.periodic(const Duration(milliseconds: 55), _onTick);
+    if (widget.settle != null) {
+      Future.delayed(widget.shuffleDuration, _beginSettle);
+    }
+  }
+
+  void _onTick(Timer _) {
+    if (!mounted) return;
+    setState(() {
+      for (int i = 0; i < 6; i++) {
+        if (!_locked[i]) _display[i] = _rand();
+      }
+    });
+  }
+
+  void _beginSettle() {
+    if (!mounted) return;
+    _lockNext();
+  }
+
+  void _lockNext() {
+    if (!mounted) return;
+    if (_lockIdx >= 6) {
+      _tick?.cancel();
+      widget.onSettled?.call();
+      return;
+    }
+    final i = _lockIdx++;
+    setState(() {
+      _locked[i] = true;
+      _display[i] = widget.settle![i];
+    });
+    Future.delayed(widget.lockInterval, _lockNext);
+  }
+
+  String _rand() => _alpha[_rng.nextInt(_alpha.length)];
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        children: [
+          ..._buildChars(0, 3),
+          TextSpan(
+            text: ' · ',
+            style: widget.style.copyWith(color: ZenColors.inkFaint),
+          ),
+          ..._buildChars(3, 6),
+        ],
+      ),
+    );
+  }
+
+  List<TextSpan> _buildChars(int start, int end) {
+    return List.generate(end - start, (j) {
+      final i = start + j;
+      return TextSpan(
+        text: _display[i],
+        style: widget.style.copyWith(
+          color: _locked[i] ? ZenColors.ink : ZenColors.blue500,
+        ),
+      );
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 0 – Welcome
+// ---------------------------------------------------------------------------
 class _OnbWelcome extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onSkip;
@@ -108,6 +225,9 @@ class _OnbWelcome extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Step 1 – Generating (shuffling animation, auto-advances)
+// ---------------------------------------------------------------------------
 class _OnbGenerate extends StatefulWidget {
   final VoidCallback onNext;
   const _OnbGenerate({required this.onNext});
@@ -115,25 +235,13 @@ class _OnbGenerate extends StatefulWidget {
   State<_OnbGenerate> createState() => _OnbGenerateState();
 }
 
-class _OnbGenerateState extends State<_OnbGenerate>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
+class _OnbGenerateState extends State<_OnbGenerate> {
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1600))
-      ..repeat();
-    Future.delayed(const Duration(milliseconds: 2000), () {
+    Future.delayed(const Duration(milliseconds: 2600), () {
       if (mounted) widget.onNext();
     });
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
   }
 
   @override
@@ -145,44 +253,13 @@ class _OnbGenerateState extends State<_OnbGenerate>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 140,
-                height: 140,
-                child: AnimatedBuilder(
-                  animation: _c,
-                  builder: (_, __) => Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      ...List.generate(3, (i) {
-                        final t = ((_c.value + i / 3) % 1);
-                        return Opacity(
-                          opacity: (1 - t),
-                          child: Container(
-                            width: 140 * t,
-                            height: 140 * t,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: ZenColors.blue500, width: 1),
-                            ),
-                          ),
-                        );
-                      }),
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: ZenColors.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              _CodeShuffler(style: ZenText.codeLarge),
+              const SizedBox(height: 40),
+              Text(
+                'Crafting your code',
+                style: ZenText.title,
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 36),
-              Text('Crafting your code',
-                  style: ZenText.title, textAlign: TextAlign.center),
               const SizedBox(height: 6),
               Text('a few quiet moments…', style: ZenText.bodySoft),
             ],
@@ -193,6 +270,9 @@ class _OnbGenerateState extends State<_OnbGenerate>
   }
 }
 
+// ---------------------------------------------------------------------------
+// Step 2 – Code reveal (settles on demo code)
+// ---------------------------------------------------------------------------
 class _OnbCode extends StatelessWidget {
   final VoidCallback onNext;
   const _OnbCode({required this.onNext});
@@ -209,10 +289,9 @@ class _OnbCode extends StatelessWidget {
               const SizedBox(height: 24),
               Text('How it works', style: ZenText.label),
               const SizedBox(height: 24),
-              Text(
-                fmtCode('A4X9K2'),
+              _CodeShuffler(
+                settle: 'A4X9K2',
                 style: ZenText.codeLarge,
-                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 28),
               Container(
@@ -239,6 +318,9 @@ class _OnbCode extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Step 3 – Permissions
+// ---------------------------------------------------------------------------
 class _OnbPermissions extends StatelessWidget {
   final VoidCallback onNext;
   const _OnbPermissions({required this.onNext});
@@ -317,6 +399,9 @@ class _OnbPermissions extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Step 4 – Ready
+// ---------------------------------------------------------------------------
 class _OnbReady extends StatelessWidget {
   final VoidCallback onDone;
   const _OnbReady({required this.onDone});
@@ -349,7 +434,7 @@ class _OnbReady extends StatelessWidget {
                 style: ZenText.bodySoft,
               ),
               const Spacer(),
-              ZenButton(label: 'Open ZenSend', onPressed: onDone),
+              ZenButton(label: 'Open Whoosh', onPressed: onDone),
             ],
           ),
         ),

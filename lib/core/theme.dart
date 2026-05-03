@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../zensend/theme/zen_theme.dart';
 
-export '../zensend/theme/zen_theme.dart' show ZenColors, ZenText, fmtCode;
+export '../zensend/theme/zen_theme.dart' show ZenColors, ZenText, fmtCode, ZenThemeExtension, ZenContextX;
 
 /// AppColors — mapped to ZenColors for design consistency.
 class AppColors {
@@ -78,4 +78,4 @@ class ThemeController {
 
 ThemeData buildAppTheme() => buildZenTheme();
 
-ThemeData buildDarkAppTheme() => buildZenTheme();
+ThemeData buildDarkAppTheme() => buildZenDarkTheme();

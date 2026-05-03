@@ -212,8 +212,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,15 +228,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Transfers', style: ZenText.label),
+                        Text('Transfers',
+                            style:
+                                ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
-                        Text('History', style: ZenText.title),
+                        Text('History',
+                            style: ZenText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: ZenColors.inkFaint, size: 20),
+                    icon: Icon(Icons.refresh_rounded,
+                        color: c.inkFaint, size: 20),
                     onPressed: _loadTransfers,
                   ),
                 ],
@@ -250,7 +254,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: ZenColors.paperDeep,
+                  color: c.paperDeep,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -295,7 +299,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               children: [
                                 Text(_error!,
                                     textAlign: TextAlign.center,
-                                    style: ZenText.bodySoft),
+                                    style: ZenText.bodySoft
+                                        .copyWith(color: c.inkSoft)),
                                 const SizedBox(height: 20),
                                 ZenButton(
                                     label: 'Retry',
@@ -306,7 +311,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         )
                       : _transfers == null ||
                               _applyFilter(_transfers!).isEmpty
-                          ? _buildEmpty()
+                          ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
                               color: ZenColors.blue500,
@@ -370,7 +375,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(ZenThemeExtension c) {
     final title = switch (_filter) {
       _HistoryFilter.sent => 'No files sent yet',
       _HistoryFilter.received => 'No files received yet',
@@ -387,13 +392,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inbox_outlined,
-              size: 48, color: ZenColors.inkFaint),
+          Icon(Icons.inbox_outlined, size: 48, color: c.inkFaint),
           const SizedBox(height: 18),
-          Text(title, style: ZenText.title),
+          Text(title, style: ZenText.title.copyWith(color: c.ink)),
           const SizedBox(height: 6),
           Text(subtitle,
-              textAlign: TextAlign.center, style: ZenText.bodySoft),
+              textAlign: TextAlign.center,
+              style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
         ],
       ),
     );
@@ -434,6 +439,7 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     final isOut = direction == 'sent';
     return Opacity(
       opacity: isExpired ? 0.45 : 1.0,
@@ -449,7 +455,7 @@ class _HistoryTile extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: isOut
                       ? [ZenColors.blue200, ZenColors.blue50]
-                      : [ZenColors.sand, ZenColors.paperDeep],
+                      : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -457,7 +463,7 @@ class _HistoryTile extends StatelessWidget {
               child: Icon(
                 isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
                 size: 16,
-                color: ZenColors.ink.withOpacity(0.55),
+                color: c.ink.withOpacity(0.55),
               ),
             ),
             const SizedBox(width: 12),
@@ -467,10 +473,10 @@ class _HistoryTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(isOut ? 'To ' : 'From ', style: ZenText.bodySoft),
+                      Text(isOut ? 'To ' : 'From ',
+                          style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
                       Text(fmtCode(counterpartyCode),
-                          style: ZenText.codeSmall
-                              .copyWith(color: ZenColors.ink)),
+                          style: ZenText.codeSmall.copyWith(color: c.ink)),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -489,14 +495,14 @@ class _HistoryTile extends StatelessWidget {
                         isExpired
                             ? 'Expired'
                             : '${isOut ? 'Sent' : 'Received'} · $status',
-                        style: ZenText.small,
+                        style: ZenText.small.copyWith(color: c.inkSoft),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Text(timeAgo, style: ZenText.small),
+            Text(timeAgo, style: ZenText.small.copyWith(color: c.inkSoft)),
           ],
         ),
       ),

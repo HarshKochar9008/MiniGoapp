@@ -107,6 +107,107 @@ class ZenText {
       );
 }
 
+// ---------------------------------------------------------------------------
+// Theme-adaptive color extension (replaces hardcoded ZenColors in widgets)
+// ---------------------------------------------------------------------------
+
+class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
+  final Color paper;
+  final Color paperDeep;
+  final Color ink;
+  final Color inkSoft;
+  final Color inkFaint;
+  final Color sand;
+  final Color sandDeep;
+  final Color divider;
+  final Color dividerSoft;
+
+  const ZenThemeExtension({
+    required this.paper,
+    required this.paperDeep,
+    required this.ink,
+    required this.inkSoft,
+    required this.inkFaint,
+    required this.sand,
+    required this.sandDeep,
+    required this.divider,
+    required this.dividerSoft,
+  });
+
+  static const light = ZenThemeExtension(
+    paper: Color(0xFFFBFAF7),
+    paperDeep: Color(0xFFF4F1EA),
+    ink: Color(0xFF1A2230),
+    inkSoft: Color(0xFF5A6478),
+    inkFaint: Color(0xFF8A93A4),
+    sand: Color(0xFFECE9E2),
+    sandDeep: Color(0xFFDCD7C8),
+    divider: Color(0x141A2230),
+    dividerSoft: Color(0x0A1A2230),
+  );
+
+  static const dark = ZenThemeExtension(
+    paper: Color(0xFF0E1116),
+    paperDeep: Color(0xFF161D27),
+    ink: Color(0xFFE8E4DA),
+    inkSoft: Color(0xFF8A9AB0),
+    inkFaint: Color(0xFF4A5A6A),
+    sand: Color(0xFF1A2230),
+    sandDeep: Color(0xFF1E2840),
+    divider: Color(0x1AE8E4DA),
+    dividerSoft: Color(0x0DE8E4DA),
+  );
+
+  @override
+  ZenThemeExtension copyWith({
+    Color? paper,
+    Color? paperDeep,
+    Color? ink,
+    Color? inkSoft,
+    Color? inkFaint,
+    Color? sand,
+    Color? sandDeep,
+    Color? divider,
+    Color? dividerSoft,
+  }) =>
+      ZenThemeExtension(
+        paper: paper ?? this.paper,
+        paperDeep: paperDeep ?? this.paperDeep,
+        ink: ink ?? this.ink,
+        inkSoft: inkSoft ?? this.inkSoft,
+        inkFaint: inkFaint ?? this.inkFaint,
+        sand: sand ?? this.sand,
+        sandDeep: sandDeep ?? this.sandDeep,
+        divider: divider ?? this.divider,
+        dividerSoft: dividerSoft ?? this.dividerSoft,
+      );
+
+  @override
+  ZenThemeExtension lerp(ZenThemeExtension? other, double t) {
+    if (other == null) return this;
+    return ZenThemeExtension(
+      paper: Color.lerp(paper, other.paper, t)!,
+      paperDeep: Color.lerp(paperDeep, other.paperDeep, t)!,
+      ink: Color.lerp(ink, other.ink, t)!,
+      inkSoft: Color.lerp(inkSoft, other.inkSoft, t)!,
+      inkFaint: Color.lerp(inkFaint, other.inkFaint, t)!,
+      sand: Color.lerp(sand, other.sand, t)!,
+      sandDeep: Color.lerp(sandDeep, other.sandDeep, t)!,
+      divider: Color.lerp(divider, other.divider, t)!,
+      dividerSoft: Color.lerp(dividerSoft, other.dividerSoft, t)!,
+    );
+  }
+}
+
+extension ZenContextX on BuildContext {
+  ZenThemeExtension get zen =>
+      Theme.of(this).extension<ZenThemeExtension>() ?? ZenThemeExtension.light;
+}
+
+// ---------------------------------------------------------------------------
+// Theme builders
+// ---------------------------------------------------------------------------
+
 ThemeData buildZenTheme() {
   return ThemeData(
     brightness: Brightness.light,
@@ -120,6 +221,7 @@ ThemeData buildZenTheme() {
       onSecondary: ZenColors.paper,
       error: ZenColors.danger,
     ),
+    extensions: const [ZenThemeExtension.light],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
     textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
@@ -198,6 +300,103 @@ ThemeData buildZenTheme() {
       trackColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) return ZenColors.ink;
         return ZenColors.divider;
+      }),
+    ),
+  );
+}
+
+ThemeData buildZenDarkTheme() {
+  const c = ZenThemeExtension.dark;
+  return ThemeData(
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: c.paper,
+    colorScheme: ColorScheme(
+      brightness: Brightness.dark,
+      primary: ZenColors.blue600,
+      onPrimary: c.paper,
+      secondary: c.ink,
+      onSecondary: c.paper,
+      error: ZenColors.danger,
+      onError: c.paper,
+      surface: c.paper,
+      onSurface: c.ink,
+    ),
+    extensions: const [c],
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: Colors.transparent,
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    appBarTheme: AppBarTheme(
+      backgroundColor: c.paper,
+      foregroundColor: c.ink,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      titleTextStyle: GoogleFonts.instrumentSerif(
+        fontSize: 18,
+        color: c.ink,
+        letterSpacing: -0.1,
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: c.ink,
+        foregroundColor: c.paper,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: c.ink,
+        side: BorderSide(color: c.divider),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: c.inkSoft,
+        textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: c.ink,
+      contentTextStyle: GoogleFonts.inter(color: c.paper, fontSize: 13),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: ZenColors.blue500,
+      linearTrackColor: c.divider,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: c.paperDeep,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: GoogleFonts.instrumentSerif(
+        fontSize: 20,
+        color: c.ink,
+      ),
+      contentTextStyle: GoogleFonts.inter(
+        fontSize: 14,
+        color: c.inkSoft,
+        height: 1.5,
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return c.paper;
+        return c.inkFaint;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return ZenColors.blue600;
+        return c.divider;
       }),
     ),
   );

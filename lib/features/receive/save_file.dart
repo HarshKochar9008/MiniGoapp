@@ -31,11 +31,11 @@ Future<String> saveFileToDevice(File file, String fileName) async {
     await _ensureGalleryPermission();
     try {
       if (isImage) {
-        await Gal.putImage(file.path, album: 'ZenSend');
+        await Gal.putImage(file.path, album: 'Whoosh');
       } else {
-        await Gal.putVideo(file.path, album: 'ZenSend');
+        await Gal.putVideo(file.path, album: 'Whoosh');
       }
-      return 'Gallery (ZenSend album)';
+      return 'Gallery (Whoosh album)';
     } catch (e) {
       throw SaveFileException('Could not save to gallery: $e');
     }
@@ -95,11 +95,11 @@ Future<String> _saveNonMedia(File file, String fileName) async {
 
   // iOS or fallback
   final docsDir = await getApplicationDocumentsDirectory();
-  final ZenSendDir = Directory('${docsDir.path}/ZenSend');
-  if (!await ZenSendDir.exists()) {
-    await ZenSendDir.create(recursive: true);
+  final whooshDir = Directory('${docsDir.path}/Whoosh');
+  if (!await whooshDir.exists()) {
+    await whooshDir.create(recursive: true);
   }
-  final savePath = _uniquePath(ZenSendDir.path, fileName);
+  final savePath = _uniquePath(whooshDir.path, fileName);
   await file.copy(savePath);
   return savePath;
 }

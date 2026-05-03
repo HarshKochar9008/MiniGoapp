@@ -17,7 +17,7 @@
         android:maxSdkVersion="29"/>
 
     <application
-        android:label="ZenSend"
+        android:label="Whoosh"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

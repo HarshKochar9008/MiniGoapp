@@ -41,18 +41,19 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       (data['body'] as String?)?.trim() ??
       'Tap to view and download your files.';
 
-  final notificationId = IncomingTransferLocalNotifications.stableNotificationId(
+  final notificationId =
+      IncomingTransferLocalNotifications.stableNotificationId(
     data,
     messageId: message.messageId,
   );
-  final androidTag = IncomingTransferLocalNotifications.androidTagForTransfer(data);
+  final androidTag =
+      IncomingTransferLocalNotifications.androidTagForTransfer(data);
 
   await plugin.show(
     id: notificationId,
     title: title,
     body: body,
-    notificationDetails:
-        IncomingTransferLocalNotifications.notificationDetails(
+    notificationDetails: IncomingTransferLocalNotifications.notificationDetails(
       body,
       androidTag: androidTag,
     ),

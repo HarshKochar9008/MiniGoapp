@@ -20,10 +20,9 @@ import 'features/settings/settings_screen.dart';
 import 'features/receive/received_tab_screen.dart';
 import 'features/identity/identity_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
-import 'zensend/theme/zen_theme.dart';
 
-class ZenSendApp extends StatelessWidget {
-  const ZenSendApp({super.key});
+class WhooshApp extends StatelessWidget {
+  const WhooshApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +30,11 @@ class ZenSendApp extends StatelessWidget {
       valueListenable: ThemeController.themeMode,
       builder: (context, themeMode, _) => MaterialApp(
         navigatorKey: rootNavigatorKey,
-        title: 'ZenSend',
+        title: 'Whoosh',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         darkTheme: buildDarkAppTheme(),
-        themeMode: ThemeMode.light,
+        themeMode: themeMode,
         home: const _AppEntry(),
       ),
     );
@@ -67,9 +66,9 @@ class _AppEntryState extends State<_AppEntry> {
   @override
   Widget build(BuildContext context) {
     if (_onboardingComplete == null) {
-      return const Scaffold(
-        backgroundColor: ZenColors.paper,
-        body: SizedBox.shrink(),
+      return Scaffold(
+        backgroundColor: context.zen.paper,
+        body: const SizedBox.shrink(),
       );
     }
 
@@ -287,7 +286,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: ZenColors.paper,
+        backgroundColor: context.zen.paper,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -313,7 +312,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Text(
                 'Setting up…',
                 style: GoogleFonts.inter(
-                  color: ZenColors.inkSoft,
+                  color: context.zen.inkSoft,
                   fontSize: 14,
                 ),
               ),
@@ -325,21 +324,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: ZenColors.paper,
+        backgroundColor: context.zen.paper,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(48),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.wifi_off_rounded,
-                    size: 48, color: ZenColors.inkFaint),
+                Icon(Icons.wifi_off_rounded,
+                    size: 48, color: context.zen.inkFaint),
                 const SizedBox(height: 24),
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    color: ZenColors.inkSoft,
+                    color: context.zen.inkSoft,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -362,14 +361,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: ZenColors.paperDeep,
+                      color: context.zen.paperDeep,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: ZenColors.divider),
+                      border: Border.all(color: context.zen.divider),
                     ),
                     child: Text(
                       _diagnosticsReport!,
                       style: GoogleFonts.jetBrainsMono(
-                        color: ZenColors.inkSoft,
+                        color: context.zen.inkSoft,
                         fontSize: 11,
                         height: 1.5,
                       ),
@@ -391,7 +390,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: context.zen.paper,
       body: IndexedStack(
         index: _currentIndex,
         children: tabs,
@@ -420,10 +419,10 @@ class _ZenBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: ZenColors.paper,
+      decoration: BoxDecoration(
+        color: context.zen.paper,
         border: Border(
-          top: BorderSide(color: ZenColors.dividerSoft),
+          top: BorderSide(color: context.zen.dividerSoft),
         ),
       ),
       child: SafeArea(
@@ -485,7 +484,7 @@ class _ZenNavTile extends StatelessWidget {
             Icon(
               isActive ? activeIcon : icon,
               size: 22,
-              color: isActive ? ZenColors.blue600 : ZenColors.inkFaint,
+              color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
             ),
             const SizedBox(height: 4),
             Text(
@@ -493,7 +492,7 @@ class _ZenNavTile extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color: isActive ? ZenColors.blue600 : ZenColors.inkFaint,
+                color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
                 letterSpacing: 0.2,
               ),
             ),
@@ -514,7 +513,7 @@ class _ZenActionButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: Material(
-        color: ZenColors.ink,
+        color: context.zen.ink,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onPressed,
@@ -527,7 +526,7 @@ class _ZenActionButton extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: ZenColors.paper,
+                  color: context.zen.paper,
                 ),
               ),
             ),
@@ -561,7 +560,7 @@ class _ZenGhostButton extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: ZenColors.inkSoft,
+                  color: context.zen.inkSoft,
                 ),
               ),
             ),

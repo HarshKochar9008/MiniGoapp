@@ -37,7 +37,7 @@ void main() async {
     }
   }
 
-  runApp(const ZenSendApp());
+  runApp(const WhooshApp());
 
   unawaited(_initializeServices());
 }

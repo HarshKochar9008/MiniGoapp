@@ -157,8 +157,9 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Column(
           children: [
@@ -171,9 +172,12 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Incoming', style: ZenText.label),
+                        Text('Incoming',
+                            style:
+                                ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
-                        Text('Received', style: ZenText.title),
+                        Text('Received',
+                            style: ZenText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -202,8 +206,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: ZenColors.inkFaint, size: 20),
+                    icon: Icon(Icons.refresh_rounded,
+                        color: c.inkFaint, size: 20),
                     onPressed: _loadTransfers,
                   ),
                 ],
@@ -233,7 +237,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                               children: [
                                 Text(_error!,
                                     textAlign: TextAlign.center,
-                                    style: ZenText.bodySoft),
+                                    style: ZenText.bodySoft
+                                        .copyWith(color: c.inkSoft)),
                                 const SizedBox(height: 20),
                                 ZenButton(
                                   label: 'Retry',
@@ -244,7 +249,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                           ),
                         )
                       : _transfers == null || _transfers!.isEmpty
-                          ? _buildEmpty()
+                          ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
                               color: ZenColors.blue500,
@@ -288,7 +293,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(ZenThemeExtension c) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(48),
@@ -298,20 +303,20 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
             Container(
               width: 56,
               height: 56,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: ZenColors.paperDeep,
+                color: c.paperDeep,
               ),
-              child: const Icon(Icons.south_west_rounded,
-                  color: ZenColors.inkFaint),
+              child: Icon(Icons.south_west_rounded, color: c.inkFaint),
             ),
             const SizedBox(height: 18),
-            Text('Nothing here yet', style: ZenText.title),
+            Text('Nothing here yet',
+                style: ZenText.title.copyWith(color: c.ink)),
             const SizedBox(height: 6),
             Text(
               'Files sent to you will appear here.\nShare your code so others can send you files.',
               textAlign: TextAlign.center,
-              style: ZenText.bodySoft,
+              style: ZenText.bodySoft.copyWith(color: c.inkSoft),
             ),
             if (_channel != null) ...[
               const SizedBox(height: 16),
@@ -389,6 +394,7 @@ class _ReceivedTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -403,7 +409,7 @@ class _ReceivedTile extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: status == 'completed'
                       ? [ZenColors.blue200, ZenColors.blue50]
-                      : [ZenColors.sand, ZenColors.paperDeep],
+                      : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -413,7 +419,7 @@ class _ReceivedTile extends StatelessWidget {
                     ? Icons.download_done_rounded
                     : Icons.south_west_rounded,
                 size: 18,
-                color: ZenColors.ink.withOpacity(0.55),
+                color: c.ink.withOpacity(0.55),
               ),
             ),
             const SizedBox(width: 12),
@@ -423,10 +429,10 @@ class _ReceivedTile extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text('From ', style: ZenText.bodySoft),
+                      Text('From ',
+                          style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
                       Text(fmtCode(senderCode),
-                          style: ZenText.codeSmall
-                              .copyWith(color: ZenColors.ink)),
+                          style: ZenText.codeSmall.copyWith(color: c.ink)),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -441,18 +447,17 @@ class _ReceivedTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 5),
-                      Text(_label, style: ZenText.small),
+                      Text(_label,
+                          style: ZenText.small.copyWith(color: c.inkSoft)),
                       const SizedBox(width: 8),
                       Text(timeAgo,
-                          style: ZenText.small
-                              .copyWith(color: ZenColors.inkFaint)),
+                          style: ZenText.small.copyWith(color: c.inkFaint)),
                     ],
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: ZenColors.inkFaint, size: 20),
+            Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
           ],
         ),
       ),

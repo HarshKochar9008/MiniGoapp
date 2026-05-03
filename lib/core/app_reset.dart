@@ -30,6 +30,6 @@ class AppReset {
 
     await ThemeController.load();
 
-    runApp(const ZenSendApp());
+    runApp(const WhooshApp());
   }
 }

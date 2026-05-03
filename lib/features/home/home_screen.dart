@@ -62,8 +62,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _shareCode() {
     NativeShareService.shareText(
-      'Send me files on ZenSend using my code: ${widget.identity.shortCode}',
-      subject: 'ZenSend invite',
+      'Send me files on Whoosh using my code: ${widget.identity.shortCode}',
+      subject: 'Whoosh invite',
     );
   }
 
@@ -78,10 +78,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     final code = widget.identity.shortCode;
 
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Column(
           children: [
@@ -94,23 +95,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('You are', style: ZenText.label),
+                        Text('You are',
+                            style: ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Row(
                           children: [
                             Text(
                               fmtCode(code),
-                              style: ZenText.code.copyWith(fontSize: 22),
+                              style: ZenText.code
+                                  .copyWith(fontSize: 22, color: c.ink),
                             ),
                             const SizedBox(width: 6),
                             GestureDetector(
                               onTap: _copyCode,
-                              child: const Padding(
-                                padding: EdgeInsets.all(4),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
                                 child: Icon(
                                   Icons.copy_rounded,
                                   size: 15,
-                                  color: ZenColors.inkFaint,
+                                  color: c.inkFaint,
                                 ),
                               ),
                             ),
@@ -142,7 +145,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             _isOnline ? 'Online' : 'Offline',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: _isOnline ? ZenColors.success : ZenColors.danger,
+                              color: _isOnline
+                                  ? ZenColors.success
+                                  : ZenColors.danger,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -167,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       width: double.infinity,
                       padding: const EdgeInsets.all(28),
                       decoration: BoxDecoration(
-                        color: ZenColors.blue600,
+                        color: const Color.fromARGB(255, 126, 175, 255),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Column(
@@ -281,10 +286,15 @@ class _OutlineBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool dark;
-  const _OutlineBtn({required this.icon, required this.label, required this.onTap, this.dark = false});
+  const _OutlineBtn(
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.dark = false});
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     if (dark) {
       return GestureDetector(
         onTap: onTap,
@@ -325,21 +335,21 @@ class _OutlineBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: ZenColors.paper,
+          color: c.paper,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: ZenColors.divider),
+          border: Border.all(color: c.divider),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: ZenColors.ink),
+            Icon(icon, size: 15, color: c.ink),
             const SizedBox(width: 6),
             Text(
               label,
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: ZenColors.ink,
+                color: c.ink,
               ),
             ),
           ],

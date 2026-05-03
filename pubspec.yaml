@@ -1,4 +1,4 @@
-name: ZenSend
+name: whoosh
 description: Real-time mobile file sharing app (Android/iOS only).
 publish_to: 'none'
 version: 1.0.0+1

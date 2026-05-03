@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ZenSend/core/constants.dart';
-import 'package:ZenSend/core/utils/short_code_generator.dart';
-import 'package:ZenSend/features/transfer/transfer_service.dart';
+import 'package:whoosh/core/constants.dart';
+import 'package:whoosh/core/utils/short_code_generator.dart';
+import 'package:whoosh/features/transfer/transfer_service.dart';
 
 void main() {
   group('ShortCodeGenerator', () {

@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   // Flutter local notification (logo + single slot per transfer_id). Title/body live in
   // `data` for the app and in `apns` for iOS banner when backgrounded.
   const title = "Incoming transfer";
-  const body = "Tap to open ZenSend and download your files.";
+  const body = "Tap to open Whoosh and download your files.";
   const fcmBody = {
     message: {
       token,

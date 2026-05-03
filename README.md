@@ -1,288 +1,345 @@
 # ZenSend
 
-ZenSend is a real-time, cross-internet mobile file sharing app (Android/iOS) built with Flutter + Supabase.
+**Frictionless file sharing across any network — no accounts, no friction, just a 6-character code.**
 
-It focuses on:
-- simple recipient-code based sharing (no account setup friction),
-- reliable large-file transfer using resumable uploads,
-- end-to-end transfer integrity checks with SHA-256,
-- and resilient behavior across poor or intermittent connectivity.
+ZenSend is a production-grade Flutter mobile application that enables secure, real-time file transfers between devices using a simple short-code system. No email, no password, no sign-up — recipients are identified by a unique 6-character code, and files are transferred instantly over a cloud-relay with full SHA-256 integrity verification.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Supabase Setup](#supabase-setup)
+- [Firebase & Push Notifications](#firebase--push-notifications)
+- [Configuration Reference](#configuration-reference)
+- [Permissions](#permissions)
+- [Security](#security)
+- [Offline Resilience](#offline-resilience)
+- [Error Handling](#error-handling)
+- [Testing](#testing)
+- [License](#license)
+
+---
 
 ## Overview
 
-### What the app does
+ZenSend solves the classic problem of sending files between people on different networks without requiring any account setup or contact exchange.
 
-ZenSend lets a sender transfer one or more files to a receiver using a short recipient code.  
-Files are uploaded to Supabase Storage, transfer metadata is stored in Postgres, and the receiver is updated through Supabase Realtime and push notifications.
+**Core user flows:**
 
-### Key product behavior
+| Role | Steps |
+|------|-------|
+| **Sender** | Enter recipient's 6-character code → Select files → Hash + Upload → Done |
+| **Receiver** | Receive push notification → Download + Verify SHA-256 → Saved to device |
 
-- No email/password onboarding (anonymous auth).
-- Sender and receiver can be on different networks (internet-based relay model).
-- Receiver can download later if offline during send.
-- Transfers are treated as time-bound (24-hour TTL).
+Every file transfer uses TUS resumable uploads, streaming SHA-256 integrity verification, and Supabase Realtime for live per-file progress. Transfers expire after 24 hours.
 
-## Architecture
-
-### High-level system design
-
-ZenSend uses a **client-driven architecture** where Flutter handles user flows, transfer orchestration, and integrity checks, while Supabase provides identity, storage, metadata, and real-time signaling.
-
-Core building blocks:
-- **Identity layer**: Supabase Anonymous Auth + short code provisioning.
-- **Transfer layer**: streaming hash, resumable upload, metadata persistence, download + verify.
-- **Notification layer**: Realtime subscriptions + FCM notifications for closed-app delivery.
-- **Resilience layer**: connectivity monitoring, persisted retry queues, deferred backend jobs.
-
-### Tech stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Flutter 3.x (Dart, Android/iOS targets only) |
-| Auth | Supabase Anonymous Auth (no email/password/phone) |
-| Database | Supabase Postgres (users, transfers, transfer_files) |
-| Storage | Supabase Storage (bucket: `transfers`) |
-| Real-time | Supabase Realtime (Postgres CDC on `transfers` table) |
-| Integrity | SHA-256 via `package:crypto` (streaming, constant memory) |
-| Connectivity | `connectivity_plus` for network awareness |
-| Transport | TLS 1.2+ via Supabase HTTPS endpoints (all traffic encrypted) |
-
-### Codebase structure
-
-```
-lib/
-├── main.dart                              # Entry point, Supabase init, auth listener
-├── app.dart                               # MaterialApp + theme
-├── core/
-│   ├── constants.dart                     # App-wide config (limits, keys, pagination)
-│   ├── supabase_config.dart               # Supabase singleton + auth state management
-│   ├── network/
-│   │   ├── connection_status.dart         # Shared connectivity notifier (connectivity_plus)
-│   │   └── network_errors.dart            # Retryable transport/DNS classification
-│   ├── offline/
-│   │   ├── offline_sync_coordinator.dart  # When-online drain: FCM DB sync, push invoke queue
-│   │   └── pending_backend_jobs.dart      # SharedPreferences queue for deferred backend calls
-│   └── utils/
-│       └── short_code_generator.dart      # Safe-alphabet code generation
-└── features/
-    ├── identity/
-    │   └── identity_service.dart          # Anonymous auth + short code provisioning + session refresh
-    ├── home/
-    │   └── home_screen.dart               # Code display, navigation, sent history, connectivity
-    ├── send/
-    │   └── send_screen.dart               # File pick → hash → stream upload → progress
-    ├── receive/
-    │   ├── receive_screen.dart            # Realtime subscription, download + verify, TTL, pagination
-    │   └── save_file.dart                 # Platform-specific native file saving + permissions
-    └── transfer/
-        └── transfer_service.dart          # Core: streaming I/O, SHA-256, retry, Realtime, pagination
-```
-
-### Transfer data flow
-
-```
-[Sender]                              [Supabase]                           [Receiver]
-   │                                      │                                    │
-   ├─ Connectivity pre-check              │                                    │
-   ├─ Pick files (path only, no RAM)      │                                    │
-   ├─ Validate sizes / count / dupes      │                                    │
-   ├─ Compute SHA-256 (streaming)         │                                    │
-   ├─ Stream upload (with retry) ────────►│ Storage (transfers bucket)         │
-   ├─ Insert transfer_files row ─────────►│ Postgres                          │
-   │                                      ├─ Realtime CDC ────────────────────►│
-   │                                      │                     Auto-refresh   │
-   │                                      │◄──────────────── Stream download ──┤
-   │                                      │                  Verify SHA-256    │
-   │                                      │                  Save to device    │
-```
+---
 
 ## Features
 
-### 1) User and identity
+### Identity & Onboarding
+- **Zero-friction anonymous auth** — Supabase anonymous sign-in; no email, password, or phone ever required
+- **6-character short code** — generated on first launch from a disambiguated alphabet (no `O`, `0`, `I`, `1`, `L`) and cached locally; survives app restarts
+- **Collision-safe provisioning** — unique DB constraint retry loop (up to 10 attempts)
+- **Animated onboarding** — Welcome → code reveal → permission requests → ready in one linear flow
 
-- **Anonymous onboarding**: no email/password/phone; device gets an anonymous Supabase auth identity.
-- **Safe short recipient code**: 6-character code from a disambiguated alphabet (`DFG5HR`).
-- **Collision-safe code creation**: unique-constraint retries up to 10 attempts for code generation.
-- **Session continuity**: token refresh + session recovery logic prevent most auth interruptions.
+### File Transfers
+- Share up to **20 files** per transfer (max **100 MB** per file)
+- **All file types supported** — images, videos, documents, archives, binaries
+- **TUS resumable uploads** — fingerprint + byte-offset persisted locally; resumes from exact interruption point after connectivity loss
+- **Streaming SHA-256** — hash computed during upload, independently verified during download; no full-file RAM buffering at any stage
+- **Live progress** — per-file and aggregate progress visible to both sender and receiver via Postgres CDC subscriptions
+- **Transfer history** — paginated log of all sent and received transfers with status badges and 24-hour TTL expiry indicators
 
-### 2) Sending and receiving files
+### Notifications & Real-Time
+- **FCM push notifications** — delivered via a Supabase Edge Function (TypeScript + FCM HTTP v1) when upload completes
+- **Background isolate handler** — receives and displays notifications even when the app is fully closed
+- **Deep-link navigation** — tapping a notification opens directly to the Receive screen for that transfer (`transfer_id` + `sender_code` payload)
+- **Duplicate prevention** — stable notification IDs per transfer; downloaded file IDs persisted to `SharedPreferences`
 
-- **Recipient-code based send flow** with validation and self-send blocking.
-- **All file types supported** (`FileType.any`) with multi-file transfers (up to 20 files).
-- **Cross-network sharing** via Supabase cloud (not restricted to local Wi-Fi/LAN).
-- **Transfer history and status** for both sent and received flows.
+### Offline Resilience
+- **Persistent job queue** — failed backend operations (FCM token sync, push triggers) queued to `SharedPreferences` and retried on reconnect
+- **Offline sync coordinator** — triggers on connectivity recovery (debounced 450 ms), app lifecycle resume, and coordinator startup
+- **Connectivity-aware UI** — live online/offline badge on Home; send operations blocked gracefully when offline
 
-### 3) Transfer engine and reliability
+### Settings & Diagnostics
+- **Theme toggle** — Light / Dark / System
+- **Push readiness check** — verifies FCM token is synced and notification permission is granted
+- **Startup diagnostics** — DNS resolution, auth health probe, session refresh validation, IP lookup
+- **App reset** — wipes local state + anonymous session for a completely clean slate
 
-- **Resumable uploads (TUS)** with persistent fingerprint/offset resume semantics.
-- **Streaming I/O** for uploads/downloads to avoid loading whole files into memory.
-- **SHA-256 verification** before upload and after download for integrity guarantees.
-- **Progress visibility** per file plus aggregate transfer progress.
-- **Automatic retries** for transient failures with bounded outer retry attempts.
-- **Safety checks** for file-size limits, duplicate additions, and filename sanitization.
+---
 
-### 4) Real-time and notifications
+## Architecture
 
-- **Realtime transfer updates** through Postgres CDC subscription on `transfers`.
-- **Push notifications (FCM)** for incoming transfer awareness while app is backgrounded/closed.
-- **Deep-link-ready payload contract** using transfer metadata (`transfer_id`, `sender_code`).
+ZenSend uses a **client-driven cloud-relay** model — the Flutter app orchestrates all transfer logic; Supabase provides identity, storage, real-time messaging, and push delivery.
 
-### 5) Offline behavior and resilience
+```
+┌──────────────────────────────────────────────────────────────┐
+│                       Flutter Client                          │
+│                                                              │
+│   Identity      Transfer      Notifications    Offline Sync  │
+│   Service       Service       Service          Coordinator   │
+└─────┬──────────────┬──────────────┬────────────────┬─────────┘
+      │              │              │                │
+ ┌────▼──────────────▼──────────────▼────────────────▼────────┐
+ │                        Supabase                             │
+ │                                                             │
+ │  Postgres DB (RLS)    Storage (private bucket)              │
+ │  Anonymous Auth       Realtime (Postgres CDC)               │
+ │  Edge Functions       Row Level Security                    │
+ └──────────────────────────────┬──────────────────────────────┘
+                                │
+                   ┌────────────▼────────────┐
+                   │   Firebase (FCM v1)      │
+                   │   Push Notifications     │
+                   └─────────────────────────┘
+```
 
-- **Connectivity awareness** with pre-flight network checks and online/offline status indicators.
-- **Deferred backend job queue** for operations that fail while offline.
-- **When-online sync coordinator** to replay pending jobs (FCM sync + edge function retries).
-- **Persistent duplicate-delivery prevention** for already downloaded file records.
+**Transfer data flow:**
 
-### 6) Error handling and UX safety
+```
+[Sender]                              [Supabase]                        [Receiver]
+   │                                      │                                  │
+   ├─ Connectivity pre-check              │                                  │
+   ├─ Pick files (path only, no RAM)      │                                  │
+   ├─ Validate sizes / count / dupes      │                                  │
+   ├─ Stream SHA-256 hash                 │                                  │
+   ├─ TUS stream upload ────────────────► │ Storage (transfers bucket)       │
+   ├─ Insert transfer + files rows ──────►│ Postgres                        │
+   ├─ Invoke Edge Function ──────────────►│ FCM push ──────────────────────►│
+   │                                      ├─ Realtime CDC ─────────────────►│
+   │                                      │◄──────────── Stream download ───┤
+   │                                      │             Verify SHA-256      │
+   │                                      │             Save to device      │
+```
 
-- Domain-specific exceptions and user-facing actionable messages.
-- Defensive handling for auth failures, network drops, integrity mismatches, and permission issues.
-- Expiration-aware rendering for stale/expired transfers.
+**Key design principles:**
 
-### Error handling matrix
+- **Stateless resume** — TUS fingerprint + byte offset stored locally; uploads resume from the last confirmed offset after any interruption
+- **Streaming I/O** — all file operations (hash, upload, download, save) use streams; no full-file heap allocation
+- **Persistent job queues** — failed backend calls queued to `SharedPreferences` and replayed automatically on recovery
+- **Connectivity-aware** — preflight checks gate major operations; recovery is automatic and silent
+- **Data isolation** — Postgres Row Level Security ensures users only access their own transfers
 
-| Scenario | Behavior |
-|----------|----------|
-| Invalid recipient code | Immediate inline error: `No user found with code "XYZ"` |
-| Self-send attempt | Blocked: `You cannot send files to yourself` |
-| No internet | Pre-flight check: `No internet connection. Please try again.` |
-| File too large | Specific error with file name and size limit |
-| Too many files | Specific error with count and limit |
-| Duplicate files | Alert dialog listing already-added file names |
-| Upload failure | Per-file error state with retry attempt count |
-| Download failure | Error state with retry button |
-| SHA-256 mismatch | `Integrity check failed — file may be corrupted` |
-| Permission denied | Descriptive message (e.g., `Gallery access denied. Please enable in Settings.`) |
-| Network error | Descriptive message, retry available; lists auto-refresh when back online if the last load failed |
-| FCM token not saved (offline) | Pending flag; retried when device is online (`OfflineSyncCoordinator`) |
-| Push edge function failed after upload | Job queued; retried when online (non-network errors dropped) |
-| Anonymous auth failure | `Ensure anonymous auth is enabled in Supabase` |
-| Short code collision | Transparent retry (up to 10 attempts) |
-| Code validation failure | `Could not validate code. Check your connection.` |
-| Transfer expired | Visual dimming with "Expired" status badge |
+---
 
-### File Saving
+## Tech Stack
 
-- **Images / videos** → saved to device gallery via `Gal` (ZenSend album)
-- **Other files (Android)** → saved to `/Download/` or external storage with unique naming
-- **Other files (iOS)** → saved to app Documents (`ZenSend/` directory)
-- **Unique file names** — existing files are not overwritten; a `_(1)`, `_(2)` suffix is appended
-- **Permissions** — Android: `permission_handler` resolves the correct permission level automatically based on the device's SDK version (granular media for API 33+, storage for older). iOS: `photosAddOnly` with Info.plist descriptions.
+| Category | Technology | Version | Purpose |
+|----------|-----------|---------|---------|
+| **Framework** | Flutter | 3.x | Cross-platform mobile (Android + iOS) |
+| **Language** | Dart | 3.0+ | Client-side logic |
+| **Backend** | Supabase (`supabase_flutter`) | ^2.3.4 | Auth, Postgres DB, Storage, Realtime |
+| **Resumable Upload** | `tus_client_dart` | ^2.5.0 | TUS protocol with resume support |
+| **File I/O** | `file_picker` | ^11.0.2 | Device file selection |
+| | `gal` | ^2.3.0 | Save to gallery (Android MediaStore / iOS Photos) |
+| | `path_provider` | ^2.1.3 | App storage paths |
+| | `cross_file` | ^0.3.5+2 | Cross-platform file abstraction |
+| **Integrity** | `crypto` | ^3.0.3 | Streaming SHA-256 hashing |
+| **Networking** | `connectivity_plus` | ^7.1.1 | Network path detection |
+| **Local Storage** | `shared_preferences` | ^2.2.3 | Code cache, offline queues, settings |
+| | `disk_space_plus` | ^0.2.4 | Free disk space preflight check |
+| **Notifications** | `firebase_core` | ^4.7.0 | Firebase initialization |
+| | `firebase_messaging` | ^16.2.0 | FCM push token + background isolate handler |
+| | `flutter_local_notifications` | ^21.0.0 | In-app and system tray alerts |
+| **Permissions** | `permission_handler` | ^12.0.1 | Android/iOS runtime permissions |
+| **Device** | `battery_plus` | ^7.0.0 | Battery level + power-save mode detection |
+| **Config** | `flutter_dotenv` | ^5.2.1 | `.env` file loading |
+| **UI** | `google_fonts` | ^6.2.1 | Inter, Instrument Serif, JetBrains Mono |
+| **Edge Functions** | Deno / TypeScript | — | FCM v1 push delivery via Supabase Edge |
 
-### Transfer History
+---
 
-- **Sent transfers** — home screen displays recent sent transfers with recipient code, status, and timestamp
-- **Received transfers** — paginated list with infinite scroll, expired transfers shown with visual dimming
-- **TTL enforcement** — transfers older than 24 hours are marked as expired client-side
+## Project Structure
 
-## Setup
+```
+lib/
+├── main.dart                               # App entry point, Supabase init, FCM background handler
+├── app.dart                                # MaterialApp, theming, bottom nav shell
+│
+├── core/
+│   ├── constants.dart                      # App limits, code alphabet, validation rules
+│   ├── supabase_config.dart                # Supabase client singleton, session management
+│   ├── theme.dart                          # AppColors, ZenColors palette, ThemeController
+│   ├── app_reset.dart                      # Full device reset (local data + anonymous session)
+│   ├── network/
+│   │   ├── connection_status.dart          # Connectivity notifier (coarse online/offline)
+│   │   └── network_errors.dart             # Retryable error classification (DNS, timeouts, TLS)
+│   ├── offline/
+│   │   ├── offline_sync_coordinator.dart   # Orchestrates retry of queued jobs on reconnect
+│   │   └── pending_backend_jobs.dart       # SharedPreferences queue (FCM sync, push retries)
+│   ├── navigation/
+│   │   └── root_navigator.dart             # Global navigator key for deep-link routing
+│   ├── notifications/
+│   │   ├── notification_service.dart       # FCM token, local notifications, token sync
+│   │   ├── fcm_background.dart             # Background isolate handler (closed app)
+│   │   ├── incoming_transfer_notification_style.dart
+│   │   └── pending_push.dart               # Deep-link payload management
+│   └── utils/
+│       └── short_code_generator.dart       # Collision-safe 6-character code generation
+│
+├── features/
+│   ├── identity/
+│   │   └── identity_service.dart           # Anonymous auth bootstrap, session refresh, code provisioning
+│   ├── home/
+│   │   └── home_screen.dart                # Code display, copy/share, online badge, send button
+│   ├── send/
+│   │   └── send_screen.dart                # Code validation, file picker, upload pipeline + progress
+│   ├── receive/
+│   │   ├── receive_screen.dart             # Realtime subscriber, download, SHA-256 verify, save
+│   │   ├── received_tab_screen.dart        # Paginated list of incoming transfers
+│   │   └── save_file.dart                  # Platform-specific file save (Android / iOS)
+│   ├── transfer/
+│   │   ├── transfer_service.dart           # Core: SHA-256, TUS upload, stream download, Realtime
+│   │   └── transfer_progress_widgets.dart  # Progress bars, per-file status cards
+│   ├── history/
+│   │   └── history_screen.dart             # All transfers, filters, pagination, TTL expiry UI
+│   ├── settings/
+│   │   └── settings_screen.dart            # Theme toggle, push readiness, diagnostics, app reset
+│   └── onboarding/
+│       └── onboarding_screen.dart          # Welcome → code animation → permissions → ready
+│
+└── zensend/
+    ├── theme/
+    │   └── zen_theme.dart                  # ZenColors (paper, ink, blue600, sand, etc.)
+    └── widgets/
+        └── zen_widgets.dart                # Shared UI components (buttons, cards, dialogs)
+
+supabase/
+└── functions/
+    └── send-transfer-fcm/
+        └── index.ts                        # Edge Function: FCM v1 push on transfer completion
+```
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- Flutter SDK >= 3.0.0
-- A Supabase project ([supabase.com](https://supabase.com))
+- Flutter SDK `>= 3.0.0` / Dart SDK `>= 3.0.0`
+- A [Supabase](https://supabase.com) project (free tier works)
+- A [Firebase](https://console.firebase.google.com) project with Cloud Messaging enabled
+- Android Studio / Xcode for platform builds
 
-### Environment
+### 1. Clone the repository
 
-1. Copy `.env.example` to `.env`
-2. Fill in your Supabase project URL and anon key
-3. Run with compile-time defines:
-   - `flutter run --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
-4. Do not commit secrets. `lib/core/constants.dart` now reads from `--dart-define`.
+```bash
+git clone https://github.com/your-org/zensend.git
+cd zensend
+```
 
-### Supabase Configuration
+### 2. Install dependencies
 
-#### 1. Enable Anonymous Auth
+```bash
+flutter pub get
+```
 
-Supabase Dashboard → Authentication → Settings → Enable "Allow anonymous sign-ins"
+### 3. Configure environment
 
-#### 2. Create Tables
+```bash
+cp .env.example .env
+```
+
+Fill in your Supabase credentials:
+
+```dotenv
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### 4. Run the app
+
+```bash
+# Pass credentials at compile time (recommended)
+flutter run \
+  --dart-define=SUPABASE_URL=https://your-project-id.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=eyJ...
+
+# Or rely on the .env file (development only)
+flutter run
+```
+
+---
+
+## Supabase Setup
+
+### 1. Enable Anonymous Auth
+
+Supabase Dashboard → **Authentication → Settings** → enable **"Allow anonymous sign-ins"**
+
+### 2. Create Tables
 
 ```sql
--- Users table
+-- Identity: one anonymous user per device + short recipient code
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_uid UUID NOT NULL UNIQUE,
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth_uid   UUID NOT NULL UNIQUE,
   short_code VARCHAR(8) NOT NULL UNIQUE,
-  fcm_token TEXT,
+  fcm_token  TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Transfers table
+-- Transfer session: status + live progress JSON
 CREATE TABLE transfers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sender_id UUID REFERENCES users(id),
-  receiver_id UUID REFERENCES users(id),
-  status VARCHAR(20) DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id       UUID REFERENCES users(id),
+  receiver_id     UUID REFERENCES users(id),
+  status          VARCHAR(20) DEFAULT 'pending',
+  upload_progress TEXT,
+  created_at      TIMESTAMPTZ DEFAULT now()
 );
 
--- Transfer files table
+-- Per-file metadata and integrity record
 CREATE TABLE transfer_files (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  transfer_id UUID REFERENCES transfers(id),
-  file_name VARCHAR(255) NOT NULL,
-  file_size BIGINT NOT NULL,
-  mime_type VARCHAR(100),
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transfer_id  UUID REFERENCES transfers(id),
+  file_name    VARCHAR(255) NOT NULL,
+  file_size    BIGINT NOT NULL,
+  mime_type    VARCHAR(100),
   storage_path VARCHAR(500) NOT NULL,
-  sha256_hash VARCHAR(64),
-  created_at TIMESTAMPTZ DEFAULT now()
+  sha256_hash  VARCHAR(64),
+  created_at   TIMESTAMPTZ DEFAULT now()
 );
 ```
 
-#### 3. Fix ENUM (if you used an ENUM for status)
+> **Note:** If `transfers.status` was created as a Postgres ENUM, convert it to `VARCHAR(20)`:
+> ```sql
+> ALTER TABLE transfers ALTER COLUMN status TYPE VARCHAR(20) USING status::VARCHAR(20);
+> DROP TYPE IF EXISTS transfer_status;
+> ```
 
-If you created `transfers.status` as a Postgres ENUM type (e.g. `transfer_status`), it must include all values the app uses. Run this in the SQL Editor:
+### 3. Enable Realtime
 
-```sql
--- Option A (recommended): Convert ENUM to VARCHAR for flexibility
-ALTER TABLE transfers ALTER COLUMN status TYPE VARCHAR(20) USING status::VARCHAR(20);
-DROP TYPE IF EXISTS transfer_status;
-```
+Supabase Dashboard → **Database → Replication** → enable Realtime for the `transfers` table.
 
-Or if you want to keep the ENUM, add the missing values:
+### 4. Create Storage Bucket
 
-```sql
--- Option B: Add missing ENUM values
-ALTER TYPE transfer_status ADD VALUE IF NOT EXISTS 'failed';
-ALTER TYPE transfer_status ADD VALUE IF NOT EXISTS 'partial';
-ALTER TYPE transfer_status ADD VALUE IF NOT EXISTS 'uploading';
-```
+Supabase Dashboard → **Storage → New Bucket** → name it `transfers` → set as **private** (not public).
 
-#### 4. Create Storage Bucket
-
-Supabase Dashboard → Storage → New Bucket → Name: `transfers` (set as **private**, NOT public)
-
-#### 5. Enable Realtime
-
-Supabase Dashboard → Database → Replication → Enable Realtime for the `transfers` table.
-
-#### 5b. Push Notifications (Incoming while app closed)
-
-1. **Replace** the checked-in Android placeholder with your real Firebase Android app file:
-   - Firebase Console → Project settings → Your apps → Android — the app **package name must match** `applicationId` in `android/app/build.gradle.kts` (currently `com.Zen.app`). Download `google-services.json` → `android/app/google-services.json`.
-   - iOS: add `ios/Runner/GoogleService-Info.plist` from the same console (enable Push Notifications + Background Modes → Remote notifications in Xcode).
-2. Ensure `users.fcm_token` exists (see schema above). The app registers `FirebaseMessaging.onBackgroundMessage` **before** `Firebase.initializeApp()`, requests Android 13+ notification permission, creates the `incoming_transfers` channel, shows **data-only** pushes in the background isolate, and merges **notification + data** payloads for deep-linking (`transfer_id`, `sender_code`).
-3. **Deploy the included Edge Function** `supabase/functions/send-transfer-fcm/` (FCM HTTP v1). Set secrets `FCM_PROJECT_ID` and `FCM_SERVICE_ACCOUNT_JSON` (Firebase service account JSON with *Firebase Cloud Messaging API Admin*). The **app invokes this after upload** — do **not** add a duplicate **Database Webhook** on `transfers` INSERT (that caused multiple notifications per transfer). See `index.ts` header comments.
-4. **FCM payload contract** (what the function already sends): `data.transfer_id`, `data.sender_code`, plus `notification.title/body` for system tray display on Android/iOS.
-
-#### 6. RLS Policies (Database Tables)
+### 5. Row Level Security — Database Tables
 
 ```sql
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transfer_files ENABLE ROW LEVEL SECURITY;
 
--- Users: anyone can read (for code lookup), auth users can insert their own
+-- Users: anyone can look up by code; auth users can insert themselves
 CREATE POLICY "Anyone can look up users" ON users FOR SELECT USING (true);
 CREATE POLICY "Auth users can insert themselves" ON users FOR INSERT
   WITH CHECK (auth_uid = auth.uid());
 
--- Transfers: participants can read, auth users can insert
+-- Transfers: participants can read; sender can insert and update
 CREATE POLICY "Participants can view transfers" ON transfers FOR SELECT
   USING (
-    sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
+    sender_id   IN (SELECT id FROM users WHERE auth_uid = auth.uid())
     OR receiver_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
   );
 CREATE POLICY "Auth users can create transfers" ON transfers FOR INSERT
@@ -290,74 +347,226 @@ CREATE POLICY "Auth users can create transfers" ON transfers FOR INSERT
 CREATE POLICY "Sender can update transfer status" ON transfers FOR UPDATE
   USING (sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid()));
 
--- Transfer files: linked to transfers the user can see
+-- Transfer files: scoped to transfers the user can see
 CREATE POLICY "Participants can view files" ON transfer_files FOR SELECT
-  USING (transfer_id IN (SELECT id FROM transfers WHERE
-    sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-    OR receiver_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
+  USING (transfer_id IN (
+    SELECT id FROM transfers WHERE
+      sender_id   IN (SELECT id FROM users WHERE auth_uid = auth.uid())
+      OR receiver_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
   ));
 CREATE POLICY "Sender can insert files" ON transfer_files FOR INSERT
-  WITH CHECK (transfer_id IN (SELECT id FROM transfers WHERE
-    sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
+  WITH CHECK (transfer_id IN (
+    SELECT id FROM transfers WHERE
+      sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
   ));
 ```
 
-#### 7. Storage Policies (REQUIRED — upload will fail with 403 without these)
+### 6. Row Level Security — Storage Bucket
 
-Run this in the **SQL Editor** (not the Storage UI):
+Run in the **SQL Editor** (the Storage UI does not expose these policies):
 
 ```sql
--- Allow authenticated users to upload to the transfers bucket
 CREATE POLICY "Auth users can upload"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
 
--- Allow authenticated users to read/download from the transfers bucket
 CREATE POLICY "Auth users can read"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
 
--- Allow authenticated users to update (upsert) files in the transfers bucket
 CREATE POLICY "Auth users can update"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
 ```
 
-### Run
+---
+
+## Firebase & Push Notifications
+
+### 1. Android
+
+1. Firebase Console → **Project settings → Your apps → Android**
+2. The package name must match `applicationId` in `android/app/build.gradle.kts` (e.g. `com.zen.app`)
+3. Download `google-services.json` → place at `android/app/google-services.json`
+
+### 2. iOS
+
+1. Firebase Console → add an iOS app with the correct bundle ID
+2. Download `GoogleService-Info.plist` → place at `ios/Runner/GoogleService-Info.plist`
+3. In Xcode: enable **Push Notifications** capability and **Background Modes → Remote notifications**
+
+### 3. Deploy the Edge Function
 
 ```bash
-flutter pub get
-flutter run
+supabase functions deploy send-transfer-fcm
 ```
 
-### Run Tests
+Set the required secrets in Supabase Dashboard → **Edge Functions → Secrets**:
 
-```bash
-flutter test
-```
+| Secret | Value |
+|--------|-------|
+| `FCM_PROJECT_ID` | Firebase project ID |
+| `FCM_SERVICE_ACCOUNT_JSON` | Full Firebase service account JSON (with FCM Admin role) |
+
+> **Important:** The Flutter client invokes this Edge Function directly after upload completes. Do **not** add a Database Webhook on `transfers` INSERT — that would cause duplicate notifications per transfer.
+
+### 4. FCM Payload Contract
+
+| Field | Value | Purpose |
+|-------|-------|---------|
+| `data.transfer_id` | UUID | Deep-link to the specific transfer |
+| `data.sender_code` | String | Display sender identity |
+| `notification.title` | String | System tray title |
+| `notification.body` | String | System tray body |
+
+---
+
+## Configuration Reference
+
+### App Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| Code alphabet | `ABCDEFGHJKMNPQRSTUVWXYZ23456789` | 32 characters — ambiguous chars excluded |
+| Code length | `6` | Recipient short code length |
+| Max file size | `100 MB` | Per-file upload limit |
+| Max files per transfer | `20` | Files per send operation |
+| Transfer TTL | `24 hours` | Transfers expire and are purged after this |
+| Large upload threshold | `10 MB` (Wi-Fi) / `5 MB` (cellular) | Warns before uploading on metered connections |
+
+### Design System (ZenColors)
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `paper` | `#FBFAF7` | Light mode background |
+| `ink` | `#1A2230` | Primary text |
+| `blue600` | `#1558D6` | Primary CTA buttons |
+| `sand` | earthy tones | Dividers, secondary surfaces |
+
+**Typography:** Instrument Serif (display) · Inter (body) · JetBrains Mono (short codes)
+
+---
+
+## Permissions
+
+### Android
+
+| Permission | API Level | Reason |
+|-----------|-----------|--------|
+| `POST_NOTIFICATIONS` | 13+ | Display incoming transfer alerts |
+| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` | 33+ | Save received files to gallery |
+| `WRITE_EXTERNAL_STORAGE` | < 33 | Save received files to Downloads |
+
+### iOS
+
+| Permission | Reason |
+|-----------|--------|
+| `NSPhotoLibraryAddUsageDescription` | Save images/videos to Photos |
+| Local notifications | Display incoming transfer alerts (Info.plist) |
+
+Permissions are requested contextually — never upfront — with explanatory dialogs before each prompt.
+
+### File Save Destinations
+
+| Platform | File Type | Destination |
+|----------|-----------|-------------|
+| Android | Image / Video | Device gallery (via `gal`, ZenSend album) |
+| Android | Other | `/Download/` folder |
+| iOS | Image / Video | Photos app (via `gal`) |
+| iOS | Other | App Documents (`ZenSend/` directory) |
+
+Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended automatically.
+
+---
 
 ## Security
 
 | Concern | Implementation |
 |---------|---------------|
-| Transport encryption | All Supabase endpoints use **TLS 1.2+** (HTTPS). No plaintext communication. `HttpClient` used for streaming communicates exclusively over HTTPS. |
-| Authentication | Supabase Anonymous Auth with **JWT tokens**. Each device gets a unique auth identity. Tokens auto-refreshed before expiry. |
-| Storage access | Download URLs are **signed** with 1-hour expiry. No public bucket access. |
-| File integrity | **SHA-256** hash computed before upload (streaming) and verified after download. Failures shown in UI. |
-| Data isolation | **Row Level Security** policies ensure users can only access their own transfers. |
-| Path traversal | File names sanitized — `..`, `<>`, pipes, wildcards stripped before storage path construction. |
-| API keys | The `supabase_anon_key` is a **public/anonymous key** (not a service role key). Data security is enforced via RLS on the server. |
-| Duplicate delivery | Transfer file IDs persisted to `SharedPreferences` — survives app restarts. |
+| **Transport** | TLS 1.2+ enforced for all connections. No plaintext communication. |
+| **Authentication** | Supabase Anonymous Auth + JWT tokens. Auto-refreshed 60 seconds before expiry. Graceful fallback to cached identity on transient failures. |
+| **Storage access** | Private bucket. Clients receive 1-hour signed download URLs — no public access. |
+| **File integrity** | SHA-256 computed streaming during upload; independently verified streaming during download. Mismatches surfaced as hard errors in the UI. |
+| **Data isolation** | Postgres Row Level Security on all tables. Users can only read and write their own transfers. |
+| **Path traversal** | File names sanitized before storage path construction — `..`, `<>`, pipes, wildcards, and control characters stripped. |
+| **API keys** | Only the Supabase anonymous key (a public, RLS-scoped key) is bundled in the app. The service role key never leaves the server. |
+| **Duplicate delivery** | Downloaded file IDs persisted to `SharedPreferences`. Survives app restarts; prevents re-delivery on notification re-tap. |
 
+---
+
+## Offline Resilience
+
+ZenSend recovers gracefully from connectivity interruptions at every stage of a transfer.
+
+### Upload Interruption
+- TUS protocol persists a **fingerprint and byte offset** locally
+- If the connection drops mid-upload, the next attempt resumes from the last confirmed byte
+- A `PendingUploadJob` is persisted to `SharedPreferences` and recovered on app relaunch
+
+### Backend Job Queue
+
+Failed backend operations are queued and retried automatically by the `OfflineSyncCoordinator`:
+
+| Queued Job | Retry Trigger |
+|-----------|---------------|
+| FCM token sync to `users.fcm_token` | Connectivity recovery, app resume |
+| Edge Function invocation (push send) | Connectivity recovery, app resume |
+
+**Trigger conditions:**
+1. Connectivity flips from offline → online (debounced 450 ms)
+2. App lifecycle transitions to resumed
+3. Coordinator startup when already online
+
+Non-network failures (auth errors, bad data) are dropped immediately to prevent queue wedging.
+
+### Retry Strategy
+
+| Operation | Max Attempts | Backoff |
+|-----------|-------------|---------|
+| Supabase DB calls | 4 | Exponential (400 ms base) |
+| TUS upload chunks | Configurable | TUS client retry logic |
+| Short code generation | 10 | Immediate (collision retry) |
+| FCM token sync | Unlimited | Retried on each reconnect |
+
+---
+
+## Error Handling
+
+| Scenario | User-Facing Behavior |
+|----------|----------------------|
+| Invalid recipient code | Inline error: `No user found with code "XYZ"` |
+| Self-send attempt | Blocked: `You cannot send files to yourself` |
+| No internet (pre-flight) | `No internet connection. Please try again.` |
+| File exceeds 100 MB | Specific error with file name and limit |
+| Too many files (> 20) | Specific error with count and limit |
+| Duplicate files selected | Alert dialog listing already-added file names |
+| Upload failure | Per-file error state with retry attempt count |
+| Download failure | Error state with manual retry button |
+| SHA-256 mismatch | `Integrity check failed — file may be corrupted` |
+| Gallery permission denied | `Gallery access denied. Enable in Settings.` |
+| Anonymous auth failure | `Ensure anonymous auth is enabled in Supabase` |
+| Short code collision | Transparent retry (up to 10 attempts, then exception) |
+| FCM token not saved (offline) | Queued silently; retried when device is online |
+| Push Edge Function failed | Job queued; retried on connectivity recovery |
+| Transfer expired | Visual dimming with "Expired" status badge |
+
+---
 
 ## Testing
 
-Unit tests cover:
-- `ShortCodeGenerator` — correct length, safe alphabet, ambiguous char exclusion, statistical uniqueness
-- `TransferService.sanitizeFileName` — path traversal, XSS, control chars, normal names, empty input
-- `TransferService.formatFileSize` — bytes, KB, MB, GB formatting
-- `AppConstants` — alphabet exclusions, code length, file size limits, TTL
+```bash
+flutter test
+```
+
+| Suite | What is tested |
+|-------|---------------|
+| `ShortCodeGenerator` | Code length, alphabet constraints, ambiguous character exclusion, statistical uniqueness |
+| `TransferService.sanitizeFileName` | Path traversal sequences, XSS payloads, control characters, Unicode edge cases |
+| `TransferService.formatFileSize` | Bytes → KB / MB / GB formatting at boundary values |
+| `AppConstants` | Validation rules: file size limits, code format, transfer limits |
+
+---
 
 ## License
 
-MIT
+Proprietary — All rights reserved. © 2025 ZenSend / Neosapien.

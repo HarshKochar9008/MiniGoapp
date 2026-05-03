@@ -1179,7 +1179,7 @@ class TransferService {
         return const PushReadinessResult(
           ready: false,
           reason: 'Recipient has not registered for push notifications yet. '
-              'Ask them to open ZenSend once with internet and allow notifications.',
+              'Ask them to open Whoosh once with internet and allow notifications.',
         );
       }
 

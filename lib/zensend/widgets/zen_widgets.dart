@@ -19,18 +19,19 @@ class CodeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: ZenColors.paper,
+        color: c.paper,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: ZenColors.divider),
+        border: Border.all(color: c.divider),
       ),
       child: Text(
         fmtCode(code),
         style: GoogleFonts.jetBrainsMono(
           fontSize: fontSize,
-          color: color ?? ZenColors.ink,
+          color: color ?? c.ink,
           letterSpacing: fontSize > 18 ? 2 : 1,
         ),
       ),
@@ -60,22 +61,23 @@ class ZenButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     final disabled = onPressed == null && !loading;
     Color bg, fg;
     Color border = Colors.transparent;
     switch (style) {
       case ZenBtnStyle.primary:
-        bg = ZenColors.ink;
-        fg = ZenColors.paper;
+        bg = c.ink;
+        fg = c.paper;
       case ZenBtnStyle.secondary:
-        bg = ZenColors.paper;
-        fg = ZenColors.ink;
-        border = ZenColors.divider;
+        bg = c.paper;
+        fg = c.ink;
+        border = c.divider;
       case ZenBtnStyle.ghost:
         bg = Colors.transparent;
-        fg = ZenColors.inkSoft;
+        fg = c.inkSoft;
       case ZenBtnStyle.danger:
-        bg = ZenColors.paper;
+        bg = c.paper;
         fg = ZenColors.danger;
         border = const Color(0x33B44A4A);
     }
@@ -179,26 +181,27 @@ class ZenFileRow extends StatelessWidget {
     }
   }
 
-  List<Color> get _tone {
+  List<Color> _tone(ZenThemeExtension c) {
     switch (mimeCategory) {
       case 'Image':
         return [ZenColors.blue200, ZenColors.blue50];
       case 'Video':
-        return [const Color(0xFFF2DFDF), ZenColors.paperDeep];
+        return [const Color(0xFFF2DFDF), c.paperDeep];
       case 'Audio':
-        return [const Color(0xFFE0EFE6), ZenColors.paperDeep];
+        return [const Color(0xFFE0EFE6), c.paperDeep];
       case 'PDF':
       case 'Document':
-        return [const Color(0xFFE6DFF2), ZenColors.paperDeep];
+        return [const Color(0xFFE6DFF2), c.paperDeep];
       case 'Archive':
-        return [const Color(0xFFDCE8F6), ZenColors.paperDeep];
+        return [const Color(0xFFDCE8F6), c.paperDeep];
       default:
-        return [ZenColors.sand, ZenColors.paperDeep];
+        return [c.sand, c.paperDeep];
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Padding(
       padding: padding,
       child: Row(
@@ -209,12 +212,12 @@ class ZenFileRow extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               gradient: LinearGradient(
-                colors: _tone,
+                colors: _tone(c),
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
-            child: Icon(_icon, color: ZenColors.ink.withOpacity(0.55), size: 22),
+            child: Icon(_icon, color: c.ink.withOpacity(0.55), size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -225,13 +228,13 @@ class ZenFileRow extends StatelessWidget {
                   name,
                   style: GoogleFonts.inter(
                     fontSize: 14,
-                    color: ZenColors.ink,
+                    color: c.ink,
                     fontWeight: FontWeight.w500,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(size, style: ZenText.small),
+                Text(size, style: ZenText.small.copyWith(color: c.inkSoft)),
               ],
             ),
           ),
@@ -258,6 +261,7 @@ class ProgressArc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     final pct = (progress * 100).round();
     return SizedBox(
       width: size,
@@ -272,7 +276,7 @@ class ProgressArc extends StatelessWidget {
               value: progress,
               strokeWidth: 5,
               strokeCap: StrokeCap.round,
-              backgroundColor: ZenColors.paperDeep,
+              backgroundColor: c.paperDeep,
               valueColor: AlwaysStoppedAnimation(color ?? ZenColors.blue500),
             ),
           ),
@@ -284,13 +288,13 @@ class ProgressArc extends StatelessWidget {
                 style: GoogleFonts.instrumentSerif(
                   fontSize: size * 0.28,
                   height: 1,
-                  color: ZenColors.ink,
+                  color: c.ink,
                   letterSpacing: -1,
                 ),
               ),
               if (label != null) ...[
                 const SizedBox(height: 4),
-                Text(label!, style: ZenText.small),
+                Text(label!, style: ZenText.small.copyWith(color: c.inkSoft)),
               ],
             ],
           ),
@@ -308,6 +312,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
@@ -317,11 +322,11 @@ class SectionHeader extends StatelessWidget {
           Text(title,
               style: GoogleFonts.instrumentSerif(
                 fontSize: 18,
-                color: ZenColors.ink,
+                color: c.ink,
               )),
           if (counter != null) ...[
             const SizedBox(width: 8),
-            Text(counter!, style: ZenText.label),
+            Text(counter!, style: ZenText.label.copyWith(color: c.inkSoft)),
           ],
         ],
       ),
@@ -337,7 +342,7 @@ class HairLine extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 1,
         margin: EdgeInsets.only(left: indent),
-        color: ZenColors.dividerSoft,
+        color: context.zen.dividerSoft,
       );
 }
 
@@ -388,7 +393,7 @@ class StatusBanner extends StatelessWidget {
   }
 }
 
-/// Pill-style tab selector (Type / Scan QR / Recents).
+/// Pill-style tab selector.
 class ZenTabPill extends StatelessWidget {
   final String label;
   final bool active;
@@ -401,6 +406,7 @@ class ZenTabPill extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -408,7 +414,7 @@ class ZenTabPill extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: active ? ZenColors.paper : Colors.transparent,
+          color: active ? c.paper : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           boxShadow: active
               ? const [
@@ -426,7 +432,7 @@ class ZenTabPill extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: active ? ZenColors.ink : ZenColors.inkSoft,
+            color: active ? c.ink : c.inkSoft,
           ),
         ),
       ),
