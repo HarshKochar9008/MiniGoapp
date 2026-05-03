@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -172,8 +171,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       width: double.infinity,
                       padding: const EdgeInsets.all(28),
                       decoration: BoxDecoration(
-                        color: const Color.fromARGB(255, 126, 175, 255),
+                        color: c.sand,
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: ZenColors.success.withValues(alpha: 0.22),
+                          width: 1,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -181,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             'YOUR CODE',
                             style: ZenText.label.copyWith(
-                              color: ZenColors.blue200,
+                              color: ZenColors.success,
                               letterSpacing: 2,
                             ),
                           ),
@@ -189,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Text(
                             fmtCode(code),
                             style: ZenText.codeLarge.copyWith(
-                              color: ZenColors.paper,
+                              color: c.ink,
                               letterSpacing: 4,
                             ),
                             textAlign: TextAlign.center,
@@ -202,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   icon: Icons.copy_rounded,
                                   label: 'Copy',
                                   onTap: _copyCode,
-                                  dark: true,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -211,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   icon: Icons.share_rounded,
                                   label: 'Share',
                                   onTap: _shareCode,
-                                  dark: true,
                                 ),
                               ),
                             ],
@@ -285,51 +286,12 @@ class _OutlineBtn extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool dark;
   const _OutlineBtn(
-      {required this.icon,
-      required this.label,
-      required this.onTap,
-      this.dark = false});
+      {required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
-    if (dark) {
-      return GestureDetector(
-        onTap: onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.07),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 15, color: Colors.white.withOpacity(0.75)),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white.withOpacity(0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     return GestureDetector(
       onTap: onTap,
       child: Container(

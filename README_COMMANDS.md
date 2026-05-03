@@ -174,6 +174,12 @@ Android APK (release):
 flutter build apk --release
 ```
 
+Latest release APK: run the command above, then install or copy `build\app\outputs\flutter-apk\app-release.apk`. On Windows, build and open that folder in one step:
+
+```powershell
+flutter build apk --release; explorer build\app\outputs\flutter-apk
+```
+
 Android App Bundle (Play Store):
 
 ```bash
