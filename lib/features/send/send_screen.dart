@@ -15,6 +15,7 @@ import '../../core/network/network_errors.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
+import '../qr/qr_widgets.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
 
@@ -350,6 +351,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _scanCode() async {
+    final code = await QrScannerSheet.show(context);
+    if (code == null || !mounted) return;
+    setState(() {
+      _codeController.text = code;
+      _codeValidated = false;
+      _validatedRecipientId = null;
+      _codeError = null;
+    });
+    await _validateCode();
+  }
+
   Future<void> _validateCode() async {
     final code = AppConstants.normalizeShortCode(_codeController.text);
     if (code.isEmpty) {
@@ -632,6 +645,20 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       },
                     ),
                   ),
+                  if (!_codeValidated && !_sending)
+                    SizedBox(
+                      width: 40,
+                      height: 44,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 20,
+                        ),
+                        color: ZenColors.inkSoft,
+                        onPressed: _scanCode,
+                        tooltip: 'Scan QR code',
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: SizedBox(
@@ -800,12 +827,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                             size: 16, color: ZenColors.inkFaint),
                       ),
                     )
-                  : ZenButton(
-                      label: 'Send',
-                      leading: const Icon(Icons.north_east_rounded,
-                          size: 16, color: ZenColors.paper),
-                      onPressed: _send,
-                    ),
+                  : _HoldToSendButton(onSend: _send),
             ),
         ],
       ),
@@ -886,4 +908,164 @@ class _UpperCaseFormatter extends TextInputFormatter {
       TextEditingValue oldValue, TextEditingValue newValue) {
     return newValue.copyWith(text: newValue.text.toUpperCase());
   }
+}
+
+class _HoldToSendButton extends StatefulWidget {
+  final VoidCallback onSend;
+  const _HoldToSendButton({required this.onSend});
+
+  @override
+  State<_HoldToSendButton> createState() => _HoldToSendButtonState();
+}
+
+class _HoldToSendButtonState extends State<_HoldToSendButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  bool _holding = false;
+  bool _fired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed && !_fired) {
+          _fired = true;
+          HapticFeedback.heavyImpact();
+          widget.onSend();
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onPressDown() {
+    if (_fired) return;
+    HapticFeedback.lightImpact();
+    setState(() => _holding = true);
+    _ctrl.forward();
+  }
+
+  void _cancelHold() {
+    if (_fired) return;
+    setState(() => _holding = false);
+    _ctrl.animateTo(0,
+        duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+  }
+
+  String get _label {
+    if (_ctrl.value >= 0.85) return 'Release!';
+    if (_holding) return 'Keep holding…';
+    return 'Hold to send';
+  }
+
+  IconData get _icon => Icons.north_east_rounded;
+
+  @override
+  Widget build(BuildContext context) {
+    // Listener fires onPointerUp unconditionally — GestureDetector.onTapUp
+    // can be dropped by the arena if a parent scroll view wins the gesture.
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => _onPressDown(),
+      onPointerUp: (_) => _cancelHold(),
+      onPointerCancel: (_) => _cancelHold(),
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, _) {
+          final p = _ctrl.value;
+          final nearDone = p >= 0.85;
+          return Center(
+            child: AnimatedScale(
+              scale: _holding ? 1.05 : 1.0,
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              child: SizedBox(
+                height: 50,
+                width: 210,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(100),
+                    boxShadow: _holding
+                        ? [
+                            BoxShadow(
+                              color: (nearDone
+                                      ? const Color(0xFF00C896)
+                                      : ZenColors.blue600)
+                                  .withOpacity(0.45 * p),
+                              blurRadius: 20,
+                            ),
+                          ]
+                        : const [],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Container(color: ZenColors.ink),
+                        if (p > 0)
+                          ClipRect(
+                            clipper: _HorizontalProgressClipper(p),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    ZenColors.blue600,
+                                    nearDone
+                                        ? const Color(0xFF00C896)
+                                        : const Color(0xFF3B9EFF),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_icon, size: 14, color: ZenColors.paper),
+                              const SizedBox(width: 6),
+                              Text(
+                                _label,
+                                style: GoogleFonts.inter(
+                                  color: ZenColors.paper,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HorizontalProgressClipper extends CustomClipper<Rect> {
+  final double progress;
+  const _HorizontalProgressClipper(this.progress);
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTWH(0, 0, size.width * progress, size.height);
+
+  @override
+  bool shouldReclip(_HorizontalProgressClipper old) =>
+      old.progress != progress;
 }

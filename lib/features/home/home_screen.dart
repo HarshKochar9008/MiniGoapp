@@ -9,6 +9,7 @@ import '../../core/native/native_share.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
+import '../qr/qr_widgets.dart';
 import '../send/send_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -66,6 +67,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  void _showQr() => QrCodeSheet.show(context, widget.identity.shortCode);
+
   void _openSend() {
     Navigator.push(
       context,
@@ -74,6 +77,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
+   Future<void> _scanCode() async {
+    final code = await QrScannerSheet.show(context);
+    if (code == null || !mounted) return;
+   
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +148,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               shape: BoxShape.circle,
                             ),
                           ),
+                          SizedBox(
+                      width: 40,
+                      height: 44,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 20,
+                        ),
+                        color: ZenColors.inkSoft,
+                        onPressed: _scanCode,
+                        tooltip: 'Scan QR code',
+                      ),
+                    ),
                           const SizedBox(width: 5),
                           Text(
                             _isOnline ? 'Online' : 'Offline',
@@ -207,7 +229,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   onTap: _copyCode,
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.qr_code_rounded,
+                                  label: 'QR',
+                                  onTap: _showQr,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: _OutlineBtn(
                                   icon: Icons.share_rounded,

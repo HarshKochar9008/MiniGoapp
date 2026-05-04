@@ -323,7 +323,7 @@ class _OnbPermissions extends StatelessWidget {
     final items = const [
       ['Notifications', 'so files arrive when you\'re away'],
       ['Files & photos', 'to pick what to send or save what you receive'],
-      ['Camera', 'for scanning QR codes (optional)'],
+      ['Camera', 'for scanning QR codes'],
     ];
     return Scaffold(
       backgroundColor: ZenColors.paper,

@@ -45,6 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Whoosh uses the camera to scan recipient QR codes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Whoosh needs access to save received images and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

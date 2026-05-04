@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
 import '../../core/constants.dart';
@@ -475,8 +476,30 @@ class _HistoryTile extends StatelessWidget {
                     children: [
                       Text(isOut ? 'To ' : 'From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      Text(fmtCode(counterpartyCode),
-                          style: ZenText.codeSmall.copyWith(color: c.ink)),
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(
+                              ClipboardData(text: counterpartyCode));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  'Copied ${fmtCode(counterpartyCode)}'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(fmtCode(counterpartyCode),
+                                style:
+                                    ZenText.codeSmall.copyWith(color: c.ink)),
+                            const SizedBox(width: 4),
+                            Icon(Icons.copy_rounded,
+                                size: 11, color: c.inkFaint),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 3),
