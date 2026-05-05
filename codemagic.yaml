@@ -10,7 +10,11 @@ workflows:
 
     scripts:
       - name: Create .env file
-        script: echo "$ENV_FILE" > $CM_BUILD_DIR/.env
+        script: |
+          cat > "$CM_BUILD_DIR/.env" << EOF
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          EOF
 
       - name: Get Flutter packages
         script: flutter pub get
@@ -22,9 +26,6 @@ workflows:
 
       - name: Build for iOS Simulator
         script: |
-          set -a
-          source "$CM_BUILD_DIR/.env"
-          set +a
           flutter build ios --simulator --debug --no-codesign \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
