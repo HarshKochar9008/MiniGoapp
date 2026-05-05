@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RemoteViews only supports: FrameLayout, LinearLayout, RelativeLayout, GridLayout,
+     AnalogClock, Button, Chronometer, ImageButton, ImageView, ProgressBar, TextView,
+     ViewFlipper, ListView, GridView, StackView, AdapterViewFlipper.
+     Do NOT use View, Space, or any descendant that is not in this list. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background"
+    android:padding="14dp">
+
+    <!-- Header label -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="WHOOSH"
+        android:textColor="#8A93A4"
+        android:textSize="10sp"
+        android:textStyle="bold" />
+
+    <!-- Code + subtitle, flex-fills remaining space, vertically centred -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/widget_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="— — —"
+            android:textColor="#1A2230"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="your receive code"
+            android:textColor="#8A93A4"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
+
+    <!-- Action buttons row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_btn_send"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Send"
+            android:textColor="#1558D6"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_bg" />
+
+        <TextView
+            android:id="@+id/widget_btn_qr"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="My QR"
+            android:textColor="#1558D6"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_bg" />
+
+        <TextView
+            android:id="@+id/widget_btn_copy"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="Copy"
+            android:textColor="#1558D6"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_bg" />
+
+    </LinearLayout>
+
+</LinearLayout>

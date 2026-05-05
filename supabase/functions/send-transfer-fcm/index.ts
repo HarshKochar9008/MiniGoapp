@@ -2,7 +2,7 @@
  * Sends an FCM v1 push when a new row is inserted into `transfers`.
  *
  * Deploy:
- *   supabase functions deploy send-transfer-fcm --no-verify-jwt
+ *   npx supabase functions deploy send-transfer-fcm --no-verify-jwt
  *
  * Secrets (Dashboard → Edge Functions → Secrets):
  *   FCM_PROJECT_ID          Firebase project id (same as GCP project)
@@ -14,13 +14,87 @@
  * would send duplicate FCMs for the same transfer (multiple notifications).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { GoogleAuth } from "npm:google-auth-library@9.14.2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+// ---------------------------------------------------------------------------
+// Google OAuth2 via service account — uses only Web Crypto (no npm deps)
+// ---------------------------------------------------------------------------
+
+function b64url(data: ArrayBuffer | string): string {
+  const bytes =
+    typeof data === "string"
+      ? new TextEncoder().encode(data)
+      : new Uint8Array(data);
+  let str = "";
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function pemToDer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "");
+  const binary = atob(b64);
+  const buf = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+  return buf.buffer;
+}
+
+async function getGoogleAccessToken(saJson: string): Promise<string> {
+  const sa = JSON.parse(saJson);
+  const now = Math.floor(Date.now() / 1000);
+
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = b64url(
+    JSON.stringify({
+      iss: sa.client_email,
+      sub: sa.client_email,
+      aud: "https://oauth2.googleapis.com/token",
+      iat: now,
+      exp: now + 3600,
+      scope: "https://www.googleapis.com/auth/firebase.messaging",
+    }),
+  );
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToDer(sa.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const sig = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(`${header}.${claims}`),
+  );
+
+  const jwt = `${header}.${claims}.${b64url(sig)}`;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Token exchange failed: ${JSON.stringify(data)}`);
+  return data.access_token as string;
+}
+
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -79,33 +153,21 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           ready: false,
-          reason:
-            "Recipient has no FCM token yet (app not opened / notifications not granted).",
+          reason: "Recipient has no FCM token yet (app not opened / notifications not granted).",
         }),
-        {
-          status: 200,
-          headers: { ...cors, "Content-Type": "application/json" },
-        },
+        { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
     return new Response(
       JSON.stringify({ ok: true, skipped: "no_fcm_token" }),
-      {
-        status: 200,
-        headers: { ...cors, "Content-Type": "application/json" },
-      },
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
 
   if (dryRun) {
     return new Response(
-      JSON.stringify({
-        ready: true,
-      }),
-      {
-        status: 200,
-        headers: { ...cors, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ ready: true }),
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
 
@@ -119,14 +181,12 @@ Deno.serve(async (req) => {
     senderCode = (sender?.short_code as string) ?? "";
   }
 
-  const auth = new GoogleAuth({
-    credentials: JSON.parse(saJson),
-    scopes: ["https://www.googleapis.com/auth/firebase.messaging"],
-  });
-  const client = await auth.getClient();
-  const access = await client.getAccessToken();
-  if (!access.token) {
-    return new Response(JSON.stringify({ error: "No OAuth access token" }), {
+  let accessToken: string;
+  try {
+    accessToken = await getGoogleAccessToken(saJson);
+  } catch (e) {
+    console.error("OAuth token error", e);
+    return new Response(JSON.stringify({ error: "Failed to obtain OAuth token" }), {
       status: 500,
       headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -136,15 +196,15 @@ Deno.serve(async (req) => {
   // Flutter local notification (logo + single slot per transfer_id). Title/body live in
   // `data` for the app and in `apns` for iOS banner when backgrounded.
   const title = "Incoming transfer";
-  const body = "Tap to open Whoosh and download your files.";
-  const fcmBody = {
+  const msgBody = "Tap to open Whoosh and download your files.";
+  const fcmPayload = {
     message: {
       token,
       data: {
         transfer_id: record.id,
         sender_code: senderCode,
         title,
-        body,
+        body: msgBody,
       },
       android: {
         priority: "HIGH" as const,
@@ -153,10 +213,7 @@ Deno.serve(async (req) => {
         headers: { "apns-priority": "10" },
         payload: {
           aps: {
-            alert: {
-              title,
-              body,
-            },
+            alert: { title, body: msgBody },
             sound: "default",
           },
         },
@@ -169,10 +226,10 @@ Deno.serve(async (req) => {
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${access.token}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(fcmBody),
+      body: JSON.stringify(fcmPayload),
     },
   );
 
@@ -181,7 +238,7 @@ Deno.serve(async (req) => {
     console.error("FCM", fcmRes.status, text);
     return new Response(text, {
       status: 502,
-      headers: { ...cors, "Content-Type": "application/plain" },
+      headers: { ...cors, "Content-Type": "text/plain" },
     });
   }
 

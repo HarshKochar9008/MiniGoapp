@@ -12,9 +12,18 @@ import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import '../send/send_screen.dart';
 
+enum HomeAutoAction { showQr, openSend }
+
 class HomeScreen extends StatefulWidget {
   final UserIdentity identity;
-  const HomeScreen({super.key, required this.identity});
+  final HomeAutoAction? autoAction;
+  final VoidCallback? onActionConsumed;
+  const HomeScreen({
+    super.key,
+    required this.identity,
+    this.autoAction,
+    this.onActionConsumed,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _scheduleAutoAction(widget.autoAction);
     ConnectionStatus.instance.ensureStarted();
     _isOnline = ConnectionStatus.instance.online.value;
     _onConnectionChanged = () {
@@ -37,6 +47,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     };
     ConnectionStatus.instance.online.addListener(_onConnectionChanged);
     unawaited(ConnectionStatus.instance.refresh());
+  }
+
+  void _scheduleAutoAction(HomeAutoAction? action) {
+    if (action == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (action == HomeAutoAction.showQr) _showQr();
+      if (action == HomeAutoAction.openSend) _openSend();
+      widget.onActionConsumed?.call();
+    });
+  }
+
+  @override
+  void didUpdateWidget(HomeScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.autoAction != null && widget.autoAction != old.autoAction) {
+      _scheduleAutoAction(widget.autoAction);
+    }
   }
 
   @override

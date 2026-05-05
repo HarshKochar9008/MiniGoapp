@@ -6,11 +6,16 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "whoosh/native_share"
+    private val shareChannel = "whoosh/native_share"
+    private val widgetChannel = "whoosh/widget"
+
+    // Last widget action from the intent that launched (or re-launched) this activity
+    private var pendingWidgetAction: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, shareChannel)
             .setMethodCallHandler { call, result ->
                 if (call.method == "shareText") {
                     val text = call.argument<String>("text")
@@ -30,5 +35,30 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, widgetChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Flutter calls this after identity loads to push the code to the widget
+                    "refreshWidget" -> {
+                        WhooshWidgetProvider.refreshAll(this)
+                        result.success(null)
+                    }
+                    // Flutter calls this on start to check if the app was opened from a widget button
+                    "getAndClearAction" -> {
+                        val action = pendingWidgetAction ?: intent?.getStringExtra("widget_action")
+                        pendingWidgetAction = null
+                        result.success(action)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Capture widget action when app is already running and user taps a widget button
+        val action = intent.getStringExtra("widget_action")
+        if (action != null) pendingWidgetAction = action
     }
 }

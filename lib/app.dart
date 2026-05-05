@@ -8,13 +8,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants.dart';
 import 'core/navigation/root_navigator.dart';
+import 'core/widget_bridge.dart';
 import 'core/network/connection_status.dart';
 import 'core/network/network_errors.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/offline/offline_sync_coordinator.dart';
 import 'core/supabase_config.dart';
 import 'core/theme.dart';
-import 'features/home/home_screen.dart';
+import 'features/home/home_screen.dart' show HomeScreen, HomeAutoAction;
 import 'features/history/history_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/receive/received_tab_screen.dart';
@@ -94,6 +95,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   UserIdentity? _identity;
   bool _loading = true;
   String? _error;
+  HomeAutoAction? _widgetAction;
   Timer? _networkRetryTimer;
   static const Duration _networkRetryDelay = Duration(seconds: 5);
   static const int _maxAutoRetryAttempts = 3;
@@ -116,9 +118,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   String _buildStartupErrorMessage(Object error, {required bool willAutoRetry}) {
     if (_isNetworkLookupFailure(error)) {
       if (willAutoRetry) {
-        return 'Could not reach Supabase. Check your internet connection. Retrying…';
+        return 'Could not reach Server. Check your internet connection. Retrying…';
       }
-      return 'Could not reach Supabase. Check your internet connection, then tap Retry.';
+      return 'Could not reach Server. Check your internet connection, then tap Retry.';
     }
     return kDebugMode
         ? 'Startup failed: $error'
@@ -161,6 +163,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       } else if (_identity != null) {
         NotificationService.syncFcmToken(_identity!.id);
         unawaited(OfflineSyncCoordinator.instance.onAppResumed());
+        WidgetBridge.getAndClearAction().then((rawAction) {
+          if (!mounted || rawAction == null) return;
+          HomeAutoAction? action;
+          if (rawAction == 'send') action = HomeAutoAction.openSend;
+          if (rawAction == 'qr') action = HomeAutoAction.showQr;
+          if (action != null) {
+            setState(() {
+              _currentIndex = 0;
+              _widgetAction = action;
+            });
+          }
+        });
       }
     }
   }
@@ -183,10 +197,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         NotificationService.handleLaunchAndPendingNavigation();
         OfflineSyncCoordinator.instance.start(userId: identity.id);
         unawaited(OfflineSyncCoordinator.instance.runPendingWork());
+        unawaited(WidgetBridge.refresh());
+        final rawAction = await WidgetBridge.getAndClearAction();
+        HomeAutoAction? widgetAction;
+        if (rawAction == 'send') widgetAction = HomeAutoAction.openSend;
+        if (rawAction == 'qr') widgetAction = HomeAutoAction.showQr;
         setState(() {
           _identity = identity;
           _loading = false;
           _autoRetryAttempts = 0;
+          _widgetAction = widgetAction;
+          if (widgetAction != null) _currentIndex = 0;
         });
       }
     } on AuthFailedException catch (e) {
@@ -376,7 +397,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
 
     final tabs = [
-      HomeScreen(identity: _identity!),
+      HomeScreen(
+        identity: _identity!,
+        autoAction: _widgetAction,
+        onActionConsumed: () => setState(() => _widgetAction = null),
+      ),
       ReceivedTabScreen(identity: _identity!),
       HistoryScreen(identity: _identity!),
       SettingsScreen(identity: _identity!),

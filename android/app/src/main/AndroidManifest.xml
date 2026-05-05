@@ -54,6 +54,19 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="incoming_transfers" />
+
+        <!-- Home screen widget -->
+        <receiver
+            android:name=".WhooshWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.Zen.app.WIDGET_COPY_CODE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_whoosh_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
