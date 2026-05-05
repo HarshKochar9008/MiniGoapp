@@ -35,10 +35,22 @@ Future<void> initSupabase() async {
     url: url,
     anonKey: key,
   );
+  SupabaseConfig._initialized = true;
 }
 
 class SupabaseConfig {
-  static SupabaseClient get client => Supabase.instance.client;
+  static bool _initialized = false;
+
+  static bool get isInitialized => _initialized;
+
+  static SupabaseClient get client {
+    if (!_initialized) {
+      throw StateError(
+        'Supabase is not initialized. Check that .env contains valid SUPABASE_URL and SUPABASE_ANON_KEY.',
+      );
+    }
+    return Supabase.instance.client;
+  }
 
   static StreamSubscription<AuthState>? _authSub;
 
