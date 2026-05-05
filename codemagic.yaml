@@ -1,13 +1,12 @@
 workflows:
   ios-simulator:
-    name: iOS Simulator (Appetize)
-    max_build_duration: 60
+    name: iOS Simulator Build
     instance_type: mac_mini_m2
+    max_build_duration: 30
 
     environment:
       flutter: stable
       xcode: latest
-      cocoapods: default
 
     scripts:
       - name: Create .env file
@@ -16,9 +15,17 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
 
-      - name: Build iOS Simulator app
+      - name: Install CocoaPods
         script: |
-          flutter build ios --simulator --debug
+          cd ios
+          pod install
+
+      - name: Build for iOS Simulator
+        script: |
+          flutter build ios --simulator --debug --no-codesign
+
+      - name: Compress .app bundle
+        script: |
           cd build/ios/iphonesimulator
           zip -r Runner.app.zip Runner.app
 
