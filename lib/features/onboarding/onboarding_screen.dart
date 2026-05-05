@@ -61,6 +61,9 @@ class _CodeShuffler extends StatefulWidget {
   const _CodeShuffler({
     this.settle,
     required this.style,
+    this.onSettled,
+    this.shuffleDuration = const Duration(seconds: 2),
+    this.lockInterval = const Duration(milliseconds: 80),
   });
 
   @override
