@@ -22,7 +22,12 @@ workflows:
 
       - name: Build for iOS Simulator
         script: |
-          flutter build ios --simulator --debug --no-codesign
+          set -a
+          source "$CM_BUILD_DIR/.env"
+          set +a
+          flutter build ios --simulator --debug --no-codesign \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Compress .app bundle
         script: |
