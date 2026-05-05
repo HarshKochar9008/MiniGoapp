@@ -1,0 +1,26 @@
+workflows:
+  ios-simulator:
+    name: iOS Simulator (Appetize)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Create .env file
+        script: echo "$ENV_FILE" > $CM_BUILD_DIR/.env
+
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Build iOS Simulator app
+        script: |
+          flutter build ios --simulator --debug
+          cd build/ios/iphonesimulator
+          zip -r Runner.app.zip Runner.app
+
+    artifacts:
+      - build/ios/iphonesimulator/Runner.app.zip
