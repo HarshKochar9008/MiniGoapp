@@ -11,10 +11,16 @@ workflows:
     scripts:
       - name: Create .env file
         script: |
-          cat > "$CM_BUILD_DIR/.env" << EOF
-          SUPABASE_URL=$SUPABASE_URL
-          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
-          EOF
+          set -e
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "ERROR: SUPABASE_URL and SUPABASE_ANON_KEY must be set as env vars in Codemagic." >&2
+            exit 1
+          fi
+          {
+            echo "SUPABASE_URL=$SUPABASE_URL"
+            echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          } > .env
+          echo ".env created at $(pwd)/.env ($(wc -c < .env) bytes)"
 
       - name: Get Flutter packages
         script: flutter pub get
