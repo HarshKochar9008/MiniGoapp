@@ -32,6 +32,14 @@ workflows:
 
       - name: Build for iOS Simulator
         script: |
+          set -e
+          echo "SUPABASE_URL length: ${#SUPABASE_URL}"
+          echo "SUPABASE_ANON_KEY length: ${#SUPABASE_ANON_KEY}"
+          echo "SUPABASE_URL host: $(echo "$SUPABASE_URL" | sed -E 's#https?://([^/]+).*#\1#')"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "ERROR: SUPABASE_URL / SUPABASE_ANON_KEY missing at build step" >&2
+            exit 1
+          fi
           flutter build ios --simulator --debug --no-codesign \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
