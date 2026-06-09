@@ -1,4 +1,9 @@
-platform :ios, '15.0'
+platform :ios, '15.5'
+
+# Pin Firebase iOS SDK to a version that still compiles with Swift 5.7 (Xcode 14.2).
+# Firebase 11.x+ uses Swift 5.10/6.0 (`sending`, `consuming`) which Xcode 14 cannot parse.
+# Lift this once the dev box can install Xcode 15+.
+$FirebaseSDKVersion = '10.29.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -33,13 +38,19 @@ target 'Runner' do
   target 'RunnerTests' do
     inherit! :search_paths
   end
+
+  # Pin transitive iOS pods that have switched to iOS 17+-only APIs in their
+  # latest versions. Xcode 14.2 ships the iOS 16.2 SDK and cannot compile
+  # those symbols (e.g. UIImage.isHighDynamicRange, NWPath.isUltraConstrained).
+  # Bump these once the dev box moves to Xcode 15+.
+  pod 'SDWebImage', '~> 5.18.0'
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_CAMERA=1',

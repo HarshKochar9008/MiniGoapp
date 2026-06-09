@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/supabase_config.dart';
@@ -360,6 +362,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     setState(() => _dlStates[fileId] = const _FileDownloadState(
           status: _DownloadStatus.downloading,
         ));
+    Analytics.instance.logEvent(AnalyticsEvents.downloadStarted, {
+      'bytes': fileSize,
+    });
 
     try {
       final downloadedFile = await TransferService.downloadToFile(
@@ -414,6 +419,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       await _markDownloaded(fileId);
 
       if (mounted) {
+        HapticFeedback.mediumImpact();
+        Analytics.instance.logEvent(AnalyticsEvents.downloadCompleted, {
+          'bytes': fileSize,
+          'verified': hashVerified == true,
+        });
         setState(() => _dlStates[fileId] = _FileDownloadState(
               status: _DownloadStatus.completed,
               progress: 1.0,
@@ -433,6 +443,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         );
       }
     } on TransferCancelledException catch (_) {
+      Analytics.instance.logEvent(AnalyticsEvents.downloadCancelled);
       if (mounted) {
         setState(() => _dlStates[fileId] = const _FileDownloadState(
               status: _DownloadStatus.failed,
@@ -440,6 +451,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ));
       }
     } on PermissionDeniedException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.downloadFailed, e);
       if (mounted) {
         setState(() => _dlStates[fileId] = _FileDownloadState(
               status: _DownloadStatus.failed,
@@ -447,7 +459,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ));
       }
     } catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.downloadFailed, e);
       if (mounted) {
+        HapticFeedback.lightImpact();
         setState(() => _dlStates[fileId] = _FileDownloadState(
               status: _DownloadStatus.failed,
               error:
@@ -531,6 +545,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Future<void> _downloadAll() async {
     if (_files == null || _files!.isEmpty) return;
+    HapticFeedback.selectionClick();
+    Analytics.instance.logEvent(AnalyticsEvents.downloadAllRequested, {
+      'pending': _files!.length,
+    });
     final aggregateOk = await _hasAggregateStorageForPendingDownloads();
     if (!aggregateOk) {
       if (mounted) {
@@ -633,14 +651,13 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             // Content
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: ZenColors.blue500,
-                        ),
+                  ? ListView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: 4,
+                      itemBuilder: (_, __) => const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: TransferTileSkeleton(),
                       ),
                     )
                   : _loadError != null

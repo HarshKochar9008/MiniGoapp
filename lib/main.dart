@@ -8,6 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app.dart';
+import 'core/analytics/analytics.dart';
 import 'core/notifications/fcm_background.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/supabase_config.dart';
@@ -41,6 +42,9 @@ void main() async {
   } catch (e) {
     if (kDebugMode) debugPrint('Supabase init failed during startup: $e');
   }
+
+  Analytics.instance.init();
+  Analytics.instance.logEvent(AnalyticsEvents.appOpened);
 
   runApp(const WhooshApp());
   unawaited(_initializeServices());

@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
+import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/network/network_errors.dart';
@@ -399,6 +400,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (!mounted) return;
 
       if (recipient == null) {
+        Analytics.instance
+            .logEvent(AnalyticsEvents.sendCodeInvalid, {'reason': 'not_found'});
+        HapticFeedback.lightImpact();
         setState(() {
           _codeError = 'No user found with code "$code"';
           _validatingCode = false;
@@ -411,6 +415,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         _codeValidated = true;
         _validatedRecipientId = recipient['id'] as String;
       });
+      HapticFeedback.lightImpact();
+      Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated);
     } on PostgrestException catch (e) {
       if (mounted) {
         setState(() {
@@ -439,11 +445,15 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     );
     if (!pushReadiness.ready) {
       if (!mounted) return;
-      setState(() {
-        _error = pushReadiness.reason ??
-            'Incoming delivery while recipient app is closed is not configured.';
-      });
-      return;
+      final reason = pushReadiness.reason ??
+          'Incoming delivery while recipient app is closed is not configured.';
+      final proceed = await _confirmSendWithoutPush(reason);
+      if (proceed != true || !mounted) {
+        setState(() => _error = reason);
+        return;
+      }
+      // User chose to send anyway — clear stale error and continue.
+      setState(() => _error = null);
     }
 
     final powerApproved = await _confirmPowerSaveUploadIfNeeded();
@@ -466,6 +476,11 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       _uploadCancellationToken = TransferCancellationToken();
     });
 
+    Analytics.instance.logEvent(AnalyticsEvents.sendStarted, {
+      'file_count': _selectedFiles.length,
+      'total_bytes': _totalSize,
+    });
+
     try {
       final result = await TransferService.sendFiles(
         senderId: widget.identity.id,
@@ -482,20 +497,29 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (!mounted) return;
 
       if (result.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${result.completedFiles} file(s) sent successfully'),
-          ),
-        );
+        HapticFeedback.heavyImpact();
+        Analytics.instance.logEvent(AnalyticsEvents.sendCompleted, {
+          'file_count': result.completedFiles,
+          'total_bytes': _totalSize,
+        });
+        await _showSendSuccessSheet(result.completedFiles);
+        if (!mounted) return;
         Navigator.pop(context);
       } else {
         final failureMessage = _buildPartialFailureMessage(result);
+        Analytics.instance.logEvent(AnalyticsEvents.sendFailed, {
+          'partial': true,
+          'completed': result.completedFiles,
+          'reason': failureMessage,
+        });
+        HapticFeedback.lightImpact();
         setState(() {
           _error = failureMessage;
           _sending = false;
         });
       }
     } on TransferCancelledException catch (_) {
+      Analytics.instance.logEvent(AnalyticsEvents.sendCancelled);
       if (mounted) {
         setState(() {
           _error = 'Transfer cancelled';
@@ -503,6 +527,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         });
       }
     } on FileTooLargeException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendFailed, e);
       if (mounted) {
         setState(() {
           _error = _toUserFriendlyError(e.toString());
@@ -510,6 +535,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         });
       }
     } on TooManyFilesException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendFailed, e);
       if (mounted) {
         setState(() {
           _error = _toUserFriendlyError(e.toString());
@@ -517,7 +543,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendFailed, e);
       if (mounted) {
+        HapticFeedback.lightImpact();
         setState(() {
           _error = _toUserFriendlyError(e.toString());
           _sending = false;
@@ -526,6 +554,51 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     } finally {
       _uploadCancellationToken = null;
     }
+  }
+
+  /// Asked before sending when the recipient hasn't registered for push.
+  /// They can still receive files via the realtime channel if their app is open,
+  /// so this is a confirmation, not a hard block.
+  Future<bool?> _confirmSendWithoutPush(String reason) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Recipient may not be notified'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(reason, style: ZenText.bodySoft),
+            const SizedBox(height: 12),
+            Text(
+              'If their Whoosh app is open right now, they will still see '
+              'the transfer and can download it. Otherwise it will only '
+              'arrive the next time they open the app.',
+              style: ZenText.small,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send anyway'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSendSuccessSheet(int fileCount) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _SendSuccessDialog(fileCount: fileCount),
+    );
   }
 
   String _buildPartialFailureMessage(TransferResult result) {
@@ -1055,6 +1128,167 @@ class _HoldToSendButtonState extends State<_HoldToSendButton>
       ),
     );
   }
+}
+
+class _SendSuccessDialog extends StatefulWidget {
+  final int fileCount;
+  const _SendSuccessDialog({required this.fileCount});
+
+  @override
+  State<_SendSuccessDialog> createState() => _SendSuccessDialogState();
+}
+
+class _SendSuccessDialogState extends State<_SendSuccessDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _check;
+  Timer? _autoCloseTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _scale = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0.0, 0.55, curve: Curves.elasticOut),
+    );
+    _check = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0.35, 1.0, curve: Curves.easeOutCubic),
+    );
+    _ctrl.forward();
+    _autoCloseTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) Navigator.of(context).maybePop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoCloseTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.all(40),
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, _) {
+          final scaleVal = 0.6 + 0.4 * _scale.value;
+          return Center(
+            child: Transform.scale(
+              scale: scaleVal,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+                decoration: BoxDecoration(
+                  color: ZenColors.paper,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: ZenColors.success.withOpacity(0.18),
+                      blurRadius: 32,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 72,
+                      height: 72,
+                      child: CustomPaint(
+                        painter: _CheckmarkPainter(_check.value),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Sent',
+                      style: GoogleFonts.instrumentSerif(
+                        fontSize: 26,
+                        color: ZenColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.fileCount == 1
+                          ? '1 file delivered'
+                          : '${widget.fileCount} files delivered',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: ZenColors.inkSoft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CheckmarkPainter extends CustomPainter {
+  final double progress;
+  const _CheckmarkPainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final center = Offset(r, r);
+
+    final ringPaint = Paint()
+      ..color = ZenColors.success.withOpacity(0.18)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, r, ringPaint);
+
+    final innerPaint = Paint()
+      ..color = ZenColors.success
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, r * 0.78, innerPaint);
+
+    final strokePaint = Paint()
+      ..color = ZenColors.paper
+      ..strokeWidth = 4.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final p1 = Offset(r * 0.62, r * 1.02);
+    final p2 = Offset(r * 0.90, r * 1.28);
+    final p3 = Offset(r * 1.42, r * 0.78);
+
+    if (progress <= 0) return;
+    final path = Path()..moveTo(p1.dx, p1.dy);
+    if (progress <= 0.5) {
+      final t = progress / 0.5;
+      path.lineTo(
+        p1.dx + (p2.dx - p1.dx) * t,
+        p1.dy + (p2.dy - p1.dy) * t,
+      );
+    } else {
+      path.lineTo(p2.dx, p2.dy);
+      final t = (progress - 0.5) / 0.5;
+      path.lineTo(
+        p2.dx + (p3.dx - p2.dx) * t,
+        p2.dy + (p3.dy - p2.dy) * t,
+      );
+    }
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckmarkPainter old) => old.progress != progress;
 }
 
 class _HorizontalProgressClipper extends CustomClipper<Rect> {

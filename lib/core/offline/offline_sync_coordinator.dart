@@ -113,6 +113,9 @@ class OfflineSyncCoordinator {
       await _maybeNotifyPendingUpload(userId);
     } finally {
       _running = false;
+      // Always recompute so the UI banner reflects post-drain state, even on
+      // partial failures where some jobs remain queued.
+      await PendingBackendJobs.refreshPendingCount();
     }
   }
 

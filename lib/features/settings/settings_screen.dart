@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               foregroundColor: c.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reset this device'),
+            child: const Text('Reset this app'),
           ),
         ],
       ),

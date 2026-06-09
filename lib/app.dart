@@ -7,14 +7,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants.dart';
+import 'core/analytics/analytics.dart';
 import 'core/navigation/root_navigator.dart';
 import 'core/widget_bridge.dart';
 import 'core/network/connection_status.dart';
 import 'core/network/network_errors.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/offline/offline_sync_coordinator.dart';
+import 'core/offline/pending_backend_jobs.dart';
 import 'core/supabase_config.dart';
 import 'core/theme.dart';
+import 'core/widgets/global_status_banner.dart';
 import 'features/home/home_screen.dart' show HomeScreen, HomeAutoAction;
 import 'features/history/history_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -192,11 +195,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     try {
       final identity = await _initializeIdentityWithRetry();
       if (mounted) {
+        Analytics.instance
+            .identify(identity.id, shortCode: identity.shortCode);
+        Analytics.instance.logEvent(AnalyticsEvents.identityReady);
         NotificationService.setUserId(identity.id);
         await NotificationService.syncFcmToken(identity.id);
         NotificationService.handleLaunchAndPendingNavigation();
         OfflineSyncCoordinator.instance.start(userId: identity.id);
         unawaited(OfflineSyncCoordinator.instance.runPendingWork());
+        unawaited(PendingBackendJobs.refreshPendingCount());
         unawaited(WidgetBridge.refresh());
         final rawAction = await WidgetBridge.getAndClearAction();
         HomeAutoAction? widgetAction;
@@ -409,9 +416,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     return Scaffold(
       backgroundColor: context.zen.paper,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: tabs,
+      body: Column(
+        children: [
+          const GlobalStatusBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: tabs,
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _ZenBottomNav(
         currentIndex: _currentIndex,

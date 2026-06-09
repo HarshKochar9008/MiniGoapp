@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
+import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../zensend/theme/zen_theme.dart';
@@ -28,6 +29,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _hasMore = true;
   _HistoryFilter _filter = _HistoryFilter.all;
   late final VoidCallback _onConnectionChanged;
+  final Set<String> _hiddenIds = <String>{};
 
   @override
   void initState() {
@@ -187,17 +189,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   List<Map<String, dynamic>> _applyFilter(
       List<Map<String, dynamic>> transfers) {
+    final visible = transfers
+        .where((t) => !_hiddenIds.contains((t['id'] ?? '').toString()))
+        .toList();
     switch (_filter) {
       case _HistoryFilter.sent:
-        return transfers
-            .where((t) => t['_direction'] == 'sent')
-            .toList();
+        return visible.where((t) => t['_direction'] == 'sent').toList();
       case _HistoryFilter.received:
-        return transfers
-            .where((t) => t['_direction'] == 'received')
-            .toList();
+        return visible.where((t) => t['_direction'] == 'received').toList();
       case _HistoryFilter.all:
-        return transfers;
+        return visible;
     }
   }
 
@@ -281,14 +282,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             // Content
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: ZenColors.blue500,
-                        ),
+                  ? ListView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 6,
+                      itemBuilder: (_, __) => Column(
+                        children: const [
+                          TransferTileSkeleton(),
+                          HairLine(indent: 72),
+                        ],
                       ),
                     )
                   : _error != null
@@ -325,20 +326,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   itemBuilder: (context, index) {
                                     if (index == visible.length) {
                                       _loadMore();
-                                      return const Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(16),
-                                          child: SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child:
-                                                CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: ZenColors.blue500,
-                                            ),
-                                          ),
-                                        ),
-                                      );
+                                      return const TransferTileSkeleton();
                                     }
                                     final t = visible[index];
                                     final dir = (t['_direction'] ??
@@ -352,8 +340,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     final createdAt =
                                         (t['created_at'] ?? '').toString();
                                     final isExpired = status == 'expired';
+                                    final id = (t['id'] ?? '').toString();
+                                    final canDismiss = status == 'completed' ||
+                                        status == 'expired' ||
+                                        status == 'failed' ||
+                                        status == 'partial';
 
-                                    return Column(
+                                    final tile = Column(
                                       children: [
                                         _HistoryTile(
                                           direction: dir,
@@ -364,6 +357,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         ),
                                         const HairLine(indent: 72),
                                       ],
+                                    );
+                                    if (!canDismiss || id.isEmpty) {
+                                      return tile;
+                                    }
+                                    return Dismissible(
+                                      key: ValueKey('history-$id'),
+                                      direction:
+                                          DismissDirection.endToStart,
+                                      background: Container(
+                                        alignment: Alignment.centerRight,
+                                        padding: const EdgeInsets.only(
+                                            right: 24),
+                                        color: ZenColors.danger
+                                            .withOpacity(0.10),
+                                        child: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: ZenColors.danger,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      onDismissed: (_) {
+                                        HapticFeedback.mediumImpact();
+                                        setState(() {
+                                          _hiddenIds.add(id);
+                                        });
+                                      },
+                                      child: tile,
                                     );
                                   },
                                 );
@@ -480,6 +500,10 @@ class _HistoryTile extends StatelessWidget {
                         onTap: () {
                           Clipboard.setData(
                               ClipboardData(text: counterpartyCode));
+                          HapticFeedback.selectionClick();
+                          Analytics.instance.logEvent(
+                              AnalyticsEvents.codeCopied,
+                              {'source': 'history'});
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(

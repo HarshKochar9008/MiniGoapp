@@ -84,4 +84,8 @@ supabase/.temp/
 
 # Firebase service account keys
 android/app/*firebase-adminsdk*.json
-google-services.json
+
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+/google-services.json
