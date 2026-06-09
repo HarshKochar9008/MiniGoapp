@@ -393,6 +393,107 @@ class StatusBanner extends StatelessWidget {
   }
 }
 
+/// Shimmer-style skeleton block. Self-animates while in the tree.
+class ZenSkeleton extends StatefulWidget {
+  final double width;
+  final double height;
+  final BorderRadius? borderRadius;
+  const ZenSkeleton({
+    super.key,
+    this.width = double.infinity,
+    this.height = 14,
+    this.borderRadius,
+  });
+
+  @override
+  State<ZenSkeleton> createState() => _ZenSkeletonState();
+}
+
+class _ZenSkeletonState extends State<ZenSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.zen;
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        final t = _ctrl.value;
+        return ClipRRect(
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+          child: SizedBox(
+            width: widget.width,
+            height: widget.height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment(-1 + 2 * t, 0),
+                  end: Alignment(0 + 2 * t, 0),
+                  colors: [
+                    c.paperDeep,
+                    c.sand.withOpacity(0.55),
+                    c.paperDeep,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton tile that mirrors the shape of a transfer list row.
+class TransferTileSkeleton extends StatelessWidget {
+  const TransferTileSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      child: Row(
+        children: [
+          ZenSkeleton(
+            width: 44,
+            height: 44,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                ZenSkeleton(width: 140, height: 12),
+                SizedBox(height: 8),
+                ZenSkeleton(width: 80, height: 10),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const ZenSkeleton(width: 38, height: 10),
+        ],
+      ),
+    );
+  }
+}
+
 /// Pill-style tab selector.
 class ZenTabPill extends StatelessWidget {
   final String label;

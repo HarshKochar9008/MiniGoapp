@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persisted work that must run once the device has connectivity again.
@@ -10,14 +11,30 @@ class PendingBackendJobs {
   static const _pushQueueKey = 'pending_transfer_fcm_invoke_v1';
   static const _maxPushJobs = 32;
 
+  /// Live-updating count of queued work the UI can subscribe to.
+  /// Updated by enqueue/clear paths and by [refreshPendingCount].
+  static final ValueNotifier<int> pendingCount = ValueNotifier<int>(0);
+
+  /// Reload count from persistent storage. Call at startup and after drains.
+  static Future<int> refreshPendingCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final push = await _loadPushQueue(prefs);
+    final fcm = prefs.getString(_fcmPendingUserIdKey);
+    final total = push.length + (fcm != null && fcm.isNotEmpty ? 1 : 0);
+    if (pendingCount.value != total) pendingCount.value = total;
+    return total;
+  }
+
   static Future<void> markFcmTokenSyncPending(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_fcmPendingUserIdKey, userId);
+    await refreshPendingCount();
   }
 
   static Future<void> clearFcmTokenSyncPending() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_fcmPendingUserIdKey);
+    await refreshPendingCount();
   }
 
   static Future<String?> peekPendingFcmUserId() async {
@@ -46,6 +63,7 @@ class PendingBackendJobs {
         ? deduped.sublist(deduped.length - _maxPushJobs)
         : deduped;
     await prefs.setString(_pushQueueKey, jsonEncode(capped));
+    await refreshPendingCount();
   }
 
   static Future<List<Map<String, String>>> loadTransferPushQueue() async {
@@ -59,11 +77,13 @@ class PendingBackendJobs {
     final prefs = await SharedPreferences.getInstance();
     if (jobs.isEmpty) {
       await prefs.remove(_pushQueueKey);
+      await refreshPendingCount();
       return;
     }
     final capped =
         jobs.length > _maxPushJobs ? jobs.sublist(jobs.length - _maxPushJobs) : jobs;
     await prefs.setString(_pushQueueKey, jsonEncode(capped));
+    await refreshPendingCount();
   }
 
   static Future<List<Map<String, String>>> _loadPushQueue(

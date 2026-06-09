@@ -218,14 +218,14 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
             // Content
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: ZenColors.blue500,
-                        ),
+                  ? ListView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      itemCount: 5,
+                      itemBuilder: (_, __) => const Padding(
+                        padding: EdgeInsets.only(bottom: 6),
+                        child: TransferTileSkeleton(),
                       ),
                     )
                   : _error != null

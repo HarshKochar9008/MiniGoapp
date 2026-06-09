@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/native/native_share.dart';
 import '../../zensend/theme/zen_theme.dart';
@@ -83,32 +84,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.identity.shortCode));
+    HapticFeedback.selectionClick();
+    Analytics.instance.logEvent(AnalyticsEvents.codeCopied, {'source': 'home'});
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Code copied')),
     );
   }
 
   void _shareCode() {
+    HapticFeedback.selectionClick();
+    Analytics.instance.logEvent(AnalyticsEvents.codeShared, {'source': 'home'});
     NativeShareService.shareText(
       'Send me files on Whoosh using my code: ${widget.identity.shortCode}',
       subject: 'Whoosh invite',
     );
   }
 
-  void _showQr() => QrCodeSheet.show(context, widget.identity.shortCode);
+  void _showQr() {
+    HapticFeedback.selectionClick();
+    Analytics.instance.logEvent(AnalyticsEvents.qrShown);
+    QrCodeSheet.show(context, widget.identity.shortCode);
+  }
 
   void _openSend() {
+    HapticFeedback.selectionClick();
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => SendScreen(identity: widget.identity),
       ),
     );
-  }
-   Future<void> _scanCode() async {
-    final code = await QrScannerSheet.show(context);
-    if (code == null || !mounted) return;
-   
   }
 
 
@@ -158,50 +163,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
-                  // Online status dot
-                  GestureDetector(
-                    onTap: _shareCode,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: _isOnline
-                                  ? ZenColors.success
-                                  : ZenColors.danger,
-                              shape: BoxShape.circle,
-                            ),
+                  // Online status badge
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _isOnline
+                                ? ZenColors.success
+                                : ZenColors.danger,
+                            shape: BoxShape.circle,
                           ),
-                          SizedBox(
-                      width: 40,
-                      height: 44,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          size: 20,
                         ),
-                        color: ZenColors.inkSoft,
-                        onPressed: _scanCode,
-                        tooltip: 'Scan QR code',
-                      ),
-                    ),
-                          const SizedBox(width: 5),
-                          Text(
-                            _isOnline ? 'Online' : 'Offline',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: _isOnline
-                                  ? ZenColors.success
-                                  : ZenColors.danger,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        const SizedBox(width: 5),
+                        Text(
+                          _isOnline ? 'Online' : 'Offline',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: _isOnline
+                                ? ZenColors.success
+                                : ZenColors.danger,
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

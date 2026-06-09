@@ -172,7 +172,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
                     MobileScanner(
                       controller: _ctrl,
                       onDetect: _onDetect,
-                      errorBuilder: (context, error) => Container(
+                      errorBuilder: (context, error, child) => Container(
                         color: Colors.black87,
                         alignment: Alignment.center,
                         child: Text(
