@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -219,7 +219,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Battery saver is on',
-          style: GoogleFonts.instrumentSerif(color: ZenColors.ink, fontSize: 18),
+          style: GoogleFonts.outfit(color: ZenColors.ink, fontSize: 18),
         ),
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
@@ -296,10 +296,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           const SizedBox(width: 5),
           Text(
             levelText,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.outfit(
               color: ZenColors.inkSoft,
               fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
             ),
           ),
         ],
@@ -632,7 +632,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                             const SizedBox(width: 5),
                             Text(
                               'All',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.outfit(
                                 fontSize: 12,
                                 color: ZenColors.blue600,
                                 fontWeight: FontWeight.w500,
@@ -765,7 +765,7 @@ class _FileDownloadTile extends StatelessWidget {
                       fileName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         color: ZenColors.ink,
@@ -801,13 +801,13 @@ class _FileDownloadTile extends StatelessWidget {
           if (status == _DownloadStatus.verifying) ...[
             const SizedBox(height: 6),
             Text('Verifying integrity…',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                     color: ZenColors.blue600, fontSize: 11)),
           ],
           if (status == _DownloadStatus.saving) ...[
             const SizedBox(height: 6),
             Text('Saving to device…',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                     color: ZenColors.warn, fontSize: 11)),
           ],
           if (status == _DownloadStatus.completed) ...[
@@ -819,7 +819,7 @@ class _FileDownloadTile extends StatelessWidget {
                       color: ZenColors.success, size: 12),
                   const SizedBox(width: 4),
                   Text('SHA-256 verified',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                           color: ZenColors.success, fontSize: 11)),
                 ] else ...[
                   const Icon(Icons.check_circle_outline,
@@ -845,7 +845,7 @@ class _FileDownloadTile extends StatelessWidget {
             Text(
               state!.error!,
               style:
-                  GoogleFonts.inter(color: ZenColors.danger, fontSize: 11),
+                  GoogleFonts.outfit(color: ZenColors.danger, fontSize: 11),
             ),
           ],
         ],

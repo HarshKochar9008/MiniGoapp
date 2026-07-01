@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../zensend/theme/zen_theme.dart';
@@ -28,7 +28,7 @@ class AboutScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Whoosh',
+                        Text('MiniGo',
                             style: ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('About', style: ZenText.title.copyWith(color: c.ink)),
@@ -66,8 +66,8 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Whoosh',
-                    style: GoogleFonts.instrumentSerif(
+                    'MiniGo',
+                    style: GoogleFonts.outfit(
                       fontSize: 22,
                       color: c.ink,
                       letterSpacing: -0.2,
@@ -95,7 +95,7 @@ class AboutScreen extends StatelessWidget {
                 'Whoosh lets you transfer files directly to another person '
                 'using a short 6-character code — no accounts, no cloud storage, '
                 'no email required. Files are sent peer-to-peer via an encrypted relay.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 14,
                   height: 1.6,
                   color: c.inkSoft,
@@ -146,7 +146,7 @@ class AboutScreen extends StatelessWidget {
                 'Whoosh is provided as-is. We do not store files permanently — '
                 'transfers expire after 24 hours. You are responsible for the '
                 'content you share.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 13,
                   height: 1.6,
                   color: c.inkSoft,
@@ -192,9 +192,9 @@ class _StepRow extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               step,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w400,
                 color: ZenColors.blue600,
               ),
             ),
@@ -206,7 +206,7 @@ class _StepRow extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: c.ink,
@@ -215,7 +215,7 @@ class _StepRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 12,
                     height: 1.5,
                     color: c.inkSoft,
@@ -244,10 +244,10 @@ class _InfoRow extends StatelessWidget {
         children: [
           Expanded(
             child: Text(label,
-                style: GoogleFonts.inter(fontSize: 14, color: c.ink)),
+                style: GoogleFonts.outfit(fontSize: 14, color: c.ink)),
           ),
           Text(value,
-              style: GoogleFonts.inter(fontSize: 13, color: c.inkSoft)),
+              style: GoogleFonts.outfit(fontSize: 13, color: c.inkSoft)),
         ],
       ),
     );

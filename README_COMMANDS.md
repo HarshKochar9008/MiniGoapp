@@ -2,11 +2,7 @@
 
 Quick command reference for local development, debugging, cleaning, building, and dependency management.
 
-Run all commands from the project root:
-
-`D:\Snapit\neosapien_share`
-
----
+***
 
 ## 1) First-time setup
 
@@ -22,7 +18,7 @@ Create local env file (if missing):
 copy .env.example .env
 ```
 
----
+***
 
 ## 2) Run the app
 
@@ -50,7 +46,7 @@ Run on a specific device:
 flutter run -d <device-id>
 ```
 
----
+***
 
 ## 3) Devices and emulators
 
@@ -72,7 +68,7 @@ Launch an emulator:
 flutter emulators --launch <emulator-id>
 ```
 
----
+***
 
 ## 4) Hot reload / restart (from running terminal)
 
@@ -82,7 +78,7 @@ While `flutter run` is active:
 - `R` -> hot restart
 - `q` -> quit app run
 
----
+***
 
 ## 5) Clean cache and rebuild
 
@@ -108,7 +104,7 @@ Repair global pub cache (if package cache is corrupted):
 flutter pub cache repair
 ```
 
----
+***
 
 ## 6) Dependency commands
 
@@ -136,7 +132,7 @@ Upgrade to latest resolvable versions:
 flutter pub upgrade --major-versions
 ```
 
----
+***
 
 ## 7) Code quality and tests
 
@@ -158,7 +154,7 @@ Run a specific test file:
 flutter test test/<file_name>_test.dart
 ```
 
----
+***
 
 ## 8) Build commands
 
@@ -192,7 +188,7 @@ iOS release build:
 flutter build ios --release
 ```
 
----
+***
 
 ## 9) Firebase / notifications helpers
 
@@ -209,7 +205,7 @@ Confirm required Firebase files exist:
 - `android/app/google-services.json`
 - `ios/Runner/GoogleService-Info.plist`
 
----
+***
 
 ## 10) Supabase quick commands (SQL via dashboard)
 
@@ -227,7 +223,7 @@ scripts/recreate_transfers_bucket.sql
 
 Use that file content in Supabase SQL Editor.
 
----
+***
 
 ## 11) Useful troubleshooting sequence
 
@@ -246,7 +242,7 @@ If startup still hangs:
 3. Test on Wi-Fi and mobile data both
 4. Re-check `.env` and `--dart-define` values
 
----
+***
 
 ## 12) Windows command notes
 

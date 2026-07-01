@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../zensend/theme/zen_theme.dart';
@@ -92,7 +92,7 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
                 Expanded(
                   child: Text(
                     text,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.outfit(
                       fontSize: 12,
                       color: color,
                       fontWeight: FontWeight.w500,
@@ -113,9 +113,9 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
                           )
                         : Text(
                             'Retry now',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.outfit(
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w400,
                               color: color,
                             ),
                           ),

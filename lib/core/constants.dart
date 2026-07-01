@@ -57,6 +57,7 @@ class AppConstants {
   static const prefShortCode = 'short_code';
   static const prefUserDbId = 'user_db_id';
   static const prefAuthUid = 'auth_uid';
+  static const prefNickname = 'nickname';
 
   static String normalizeShortCode(String value) => value.trim().toUpperCase();
 

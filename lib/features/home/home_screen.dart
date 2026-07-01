@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -139,6 +139,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Text('You are',
                             style: ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
+                        if (widget.identity.nickname != null) ...[
+                          Text(
+                            widget.identity.nickname!,
+                            style: ZenText.title,
+                          ),
+                          const SizedBox(height: 2),
+                        ],
                         Row(
                           children: [
                             Text(
@@ -182,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         const SizedBox(width: 5),
                         Text(
                           _isOnline ? 'Online' : 'Offline',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.outfit(
                             fontSize: 12,
                             color: _isOnline
                                 ? ZenColors.success
@@ -286,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             child: Text(
                               'Share this code so others can send you files. '
                               'Tap Send below to send files to someone else.',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.outfit(
                                 fontSize: 12,
                                 color: ZenColors.blue600,
                                 height: 1.5,
@@ -314,8 +321,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const EdgeInsets.symmetric(horizontal: 28, vertical: 0),
           label: Text(
             'Send',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w400,
               letterSpacing: 0.5,
               fontSize: 15,
               color: ZenColors.paper,
@@ -355,7 +362,7 @@ class _OutlineBtn extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: c.ink,

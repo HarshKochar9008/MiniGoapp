@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -196,7 +196,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                         const SizedBox(width: 5),
                         Text(
                           'Live',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.outfit(
                             fontSize: 11,
                             color: ZenColors.success,
                             fontWeight: FontWeight.w500,
@@ -333,7 +333,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                   ),
                   const SizedBox(width: 6),
                   Text('Listening for incoming files',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 11,
                         color: ZenColors.success,
                       )),

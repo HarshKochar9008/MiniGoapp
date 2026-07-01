@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Whoosh</string>
+	<string>MiniGo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Whoosh</string>
+	<string>MiniGo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,11 +46,11 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Whoosh uses the camera to scan recipient QR codes.</string>
+	<string>MiniGo uses the camera to scan recipient QR codes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Whoosh needs access to save received images and videos to your photo library.</string>
+	<string>MiniGo needs access to save received images and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Whoosh needs access to your photo library to save received media files.</string>
+	<string>MiniGo needs access to your photo library to save received media files.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

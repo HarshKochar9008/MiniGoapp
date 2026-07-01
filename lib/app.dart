@@ -25,8 +25,8 @@ import 'features/receive/received_tab_screen.dart';
 import 'features/identity/identity_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
 
-class WhooshApp extends StatelessWidget {
-  const WhooshApp({super.key});
+class MiniGoApp extends StatelessWidget {
+  const MiniGoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class WhooshApp extends StatelessWidget {
       valueListenable: ThemeController.themeMode,
       builder: (context, themeMode, _) => MaterialApp(
         navigatorKey: rootNavigatorKey,
-        title: 'Whoosh',
+        title: 'MiniGo',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
         darkTheme: buildDarkAppTheme(),
@@ -332,7 +332,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               Text(
                 'Setting up…',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   color: context.zen.inkSoft,
                   fontSize: 14,
                 ),
@@ -358,7 +358,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     color: context.zen.inkSoft,
                     fontSize: 14,
                     height: 1.5,
@@ -521,9 +521,9 @@ class _ZenNavTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 fontSize: 10,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: isActive ? FontWeight.w500 : FontWeight.w300,
                 color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
                 letterSpacing: 0.2,
               ),
@@ -555,9 +555,9 @@ class _ZenActionButton extends StatelessWidget {
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w400,
                   color: context.zen.paper,
                 ),
               ),
@@ -589,9 +589,9 @@ class _ZenGhostButton extends StatelessWidget {
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w300,
                   color: context.zen.inkSoft,
                 ),
               ),

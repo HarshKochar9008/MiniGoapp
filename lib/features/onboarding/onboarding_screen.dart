@@ -1,9 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
+import '../../features/identity/identity_service.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 
@@ -17,14 +18,26 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _step = 0;
+  String? _nickname;
+  final _nicknameController = TextEditingController();
 
   Future<void> _finish() async {
+    final trimmedNick = _nickname?.trim();
+    if (trimmedNick != null && trimmedNick.isNotEmpty) {
+      await IdentityService.setNickname(trimmedNick);
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
     widget.onComplete();
   }
 
   void _next() => setState(() => _step++);
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +49,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case 2:
         return _OnbCode(onNext: _next);
       case 3:
-        return _OnbPermissions(onNext: _next);
+        return _OnbNickname(
+          onNext: _next,
+          onSkip: _next,
+          onNicknameChanged: (nick) => _nickname = nick,
+          controller: _nicknameController,
+        );
       case 4:
+        return _OnbPermissions(onNext: _next);
+      case 5:
         return _OnbReady(onDone: _finish);
       default:
         return _OnbReady(onDone: _finish);
@@ -61,10 +81,7 @@ class _CodeShuffler extends StatefulWidget {
   const _CodeShuffler({
     this.settle,
     required this.style,
-    this.onSettled,
-    this.shuffleDuration = const Duration(seconds: 2),
-    this.lockInterval = const Duration(milliseconds: 80),
-  });
+  }) : onSettled = null, shuffleDuration = const Duration(seconds: 2), lockInterval = const Duration(milliseconds: 80);
 
   @override
   State<_CodeShuffler> createState() => _CodeShufflerState();
@@ -361,7 +378,7 @@ class _OnbPermissions extends StatelessWidget {
                             children: [
                               Text(
                                 r[0],
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.outfit(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: ZenColors.ink,
@@ -393,7 +410,85 @@ class _OnbPermissions extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 – Ready
+// Step 3 – Nickname
+// ---------------------------------------------------------------------------
+class _OnbNickname extends StatelessWidget {
+  final VoidCallback onNext;
+  final VoidCallback onSkip;
+  final ValueChanged<String?> onNicknameChanged;
+  final TextEditingController controller;
+
+  const _OnbNickname({
+    required this.onNext,
+    required this.onSkip,
+    required this.onNicknameChanged,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ZenColors.paper,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              Text('Pick a nickname', style: ZenText.title),
+              const SizedBox(height: 8),
+              Text(
+                'This helps others recognize you. Totally optional.',
+                textAlign: TextAlign.center,
+                style: ZenText.bodySoft,
+              ),
+              const SizedBox(height: 40),
+              TextField(
+                controller: controller,
+                onChanged: onNicknameChanged,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                style: ZenText.body.copyWith(fontSize: 18),
+                decoration: InputDecoration(
+                  hintText: 'e.g., Alex, BlueBunny, ...',
+                  filled: true,
+                  fillColor: ZenColors.paperDeep,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: ZenColors.blue500, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              ZenButton(label: 'Continue', onPressed: onNext),
+              const SizedBox(height: 8),
+              ZenButton(
+                label: 'Skip for now',
+                onPressed: onSkip,
+                style: ZenBtnStyle.ghost,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 – Ready
 // ---------------------------------------------------------------------------
 class _OnbReady extends StatelessWidget {
   final VoidCallback onDone;

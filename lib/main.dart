@@ -46,7 +46,7 @@ void main() async {
   Analytics.instance.init();
   Analytics.instance.logEvent(AnalyticsEvents.appOpened);
 
-  runApp(const WhooshApp());
+  runApp(const MiniGoApp());
   unawaited(_initializeServices());
 }
 
