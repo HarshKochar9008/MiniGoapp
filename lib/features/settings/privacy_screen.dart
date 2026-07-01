@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../zensend/theme/zen_theme.dart';
@@ -28,7 +28,7 @@ class PrivacyScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Whoosh',
+                        Text('MiniGo',
                             style: ZenText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('Privacy & Security',
@@ -60,7 +60,7 @@ class PrivacyScreen extends StatelessWidget {
                     child: Text(
                       'Whoosh is designed to minimise data collection. '
                       'No accounts. No permanent storage. No tracking.',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 13,
                         height: 1.5,
                         color: ZenColors.success,
@@ -155,7 +155,7 @@ class PrivacyScreen extends StatelessWidget {
                 'You can delete all local data at any time using "Clear all local data & '
                 'sign out" in Settings. This removes your code, identity, and queued transfers '
                 'from this device and signs you out of the backend.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 14,
                   height: 1.6,
                   color: c.inkSoft,
@@ -171,7 +171,7 @@ class PrivacyScreen extends StatelessWidget {
               child: Text(
                 'For privacy questions or data removal requests, '
                 'contact the developer through the app store listing.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 14,
                   height: 1.6,
                   color: c.inkSoft,
@@ -224,7 +224,7 @@ class _PolicySection extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: c.ink,
@@ -233,7 +233,7 @@ class _PolicySection extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 13,
                     height: 1.5,
                     color: c.inkSoft,
@@ -280,7 +280,7 @@ class _BulletList extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.outfit(
                           fontSize: 13,
                           height: 1.5,
                           color: c.inkSoft,

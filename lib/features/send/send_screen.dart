@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:battery_plus/battery_plus.dart';
@@ -763,7 +763,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               )
                             : Text(
                                 _codeValidated ? 'Verified ✓' : 'Validate',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.outfit(
                                   color: ZenColors.paper,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
@@ -964,7 +964,7 @@ class _GhostAction extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.outfit(
             fontSize: 13,
             color: color ?? ZenColors.inkSoft,
             fontWeight: FontWeight.w500,
@@ -1107,10 +1107,10 @@ class _HoldToSendButtonState extends State<_HoldToSendButton>
                               const SizedBox(width: 6),
                               Text(
                                 _label,
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.outfit(
                                   color: ZenColors.paper,
                                   fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w400,
                                   letterSpacing: 0.3,
                                 ),
                               ),
@@ -1212,7 +1212,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                     const SizedBox(height: 18),
                     Text(
                       'Sent',
-                      style: GoogleFonts.instrumentSerif(
+                      style: GoogleFonts.outfit(
                         fontSize: 26,
                         color: ZenColors.ink,
                       ),
@@ -1222,7 +1222,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                       widget.fileCount == 1
                           ? '1 file delivered'
                           : '${widget.fileCount} files delivered',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 13,
                         color: ZenColors.inkSoft,
                       ),

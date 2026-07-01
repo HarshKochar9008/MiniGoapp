@@ -28,60 +28,67 @@ String fmtCode(String code) {
 }
 
 class ZenText {
-  static TextStyle get display => GoogleFonts.instrumentSerif(
+  static TextStyle get display => GoogleFonts.outfit(
         fontSize: 32,
+        fontWeight: FontWeight.w300,
         height: 1.1,
+        color: ZenColors.ink,
+        letterSpacing: -0.5,
+      );
+
+  static TextStyle get displayItalic => GoogleFonts.outfit(
+        fontSize: 32,
+        fontWeight: FontWeight.w300,
+        height: 1.1,
+        color: ZenColors.ink,
+        letterSpacing: -0.5,
+        fontStyle: FontStyle.italic,
+      );
+
+  static TextStyle get title => GoogleFonts.outfit(
+        fontSize: 24,
+        fontWeight: FontWeight.w300,
+        height: 1.2,
         color: ZenColors.ink,
         letterSpacing: -0.3,
       );
 
-  static TextStyle get displayItalic => GoogleFonts.instrumentSerif(
-        fontSize: 32,
-        height: 1.1,
+  static TextStyle get titleItalic => GoogleFonts.outfit(
+        fontSize: 24,
+        fontWeight: FontWeight.w300,
+        height: 1.2,
         color: ZenColors.ink,
         letterSpacing: -0.3,
         fontStyle: FontStyle.italic,
       );
 
-  static TextStyle get title => GoogleFonts.instrumentSerif(
-        fontSize: 24,
-        height: 1.2,
-        color: ZenColors.ink,
-        letterSpacing: -0.2,
-      );
-
-  static TextStyle get titleItalic => GoogleFonts.instrumentSerif(
-        fontSize: 24,
-        height: 1.2,
-        color: ZenColors.ink,
-        letterSpacing: -0.2,
-        fontStyle: FontStyle.italic,
-      );
-
-  static TextStyle get body => GoogleFonts.inter(
+  static TextStyle get body => GoogleFonts.outfit(
         fontSize: 14,
+        fontWeight: FontWeight.w300,
         height: 1.5,
         color: ZenColors.ink,
       );
 
-  static TextStyle get bodySoft => GoogleFonts.inter(
+  static TextStyle get bodySoft => GoogleFonts.outfit(
         fontSize: 14,
+        fontWeight: FontWeight.w300,
         height: 1.5,
         color: ZenColors.inkSoft,
       );
 
-  static TextStyle get small => GoogleFonts.inter(
+  static TextStyle get small => GoogleFonts.outfit(
         fontSize: 12,
+        fontWeight: FontWeight.w300,
         height: 1.4,
         color: ZenColors.inkSoft,
       );
 
-  static TextStyle get label => GoogleFonts.inter(
+  static TextStyle get label => GoogleFonts.outfit(
         fontSize: 11,
         height: 1,
         color: ZenColors.inkSoft,
         letterSpacing: 1.6,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
       );
 
   static TextStyle get code => GoogleFonts.jetBrainsMono(
@@ -96,7 +103,7 @@ class ZenText {
         height: 1.05,
         color: ZenColors.ink,
         letterSpacing: 3,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
       );
 
   static TextStyle get codeSmall => GoogleFonts.jetBrainsMono(
@@ -224,7 +231,9 @@ ThemeData buildZenTheme() {
     extensions: const [ZenThemeExtension.light],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
+    textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).apply(
+      fontSizeFactor: 1.0,
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: ZenColors.paper,
       foregroundColor: ZenColors.ink,
@@ -236,10 +245,11 @@ ThemeData buildZenTheme() {
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
       ),
-      titleTextStyle: GoogleFonts.instrumentSerif(
+      titleTextStyle: GoogleFonts.outfit(
         fontSize: 18,
+        fontWeight: FontWeight.w300,
         color: ZenColors.ink,
-        letterSpacing: -0.1,
+        letterSpacing: -0.2,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -247,7 +257,7 @@ ThemeData buildZenTheme() {
         backgroundColor: ZenColors.ink,
         foregroundColor: ZenColors.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -255,21 +265,22 @@ ThemeData buildZenTheme() {
         foregroundColor: ZenColors.ink,
         side: const BorderSide(color: ZenColors.divider),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: ZenColors.inkSoft,
-        textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w400),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: ZenColors.ink,
-      contentTextStyle: GoogleFonts.inter(
+      contentTextStyle: GoogleFonts.outfit(
         color: ZenColors.paper,
         fontSize: 13,
+        fontWeight: FontWeight.w300,
       ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
@@ -282,12 +293,15 @@ ThemeData buildZenTheme() {
     dialogTheme: DialogThemeData(
       backgroundColor: ZenColors.paper,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titleTextStyle: GoogleFonts.instrumentSerif(
+      titleTextStyle: GoogleFonts.outfit(
         fontSize: 20,
+        fontWeight: FontWeight.w300,
         color: ZenColors.ink,
+        letterSpacing: -0.2,
       ),
-      contentTextStyle: GoogleFonts.inter(
+      contentTextStyle: GoogleFonts.outfit(
         fontSize: 14,
+        fontWeight: FontWeight.w300,
         color: ZenColors.inkSoft,
         height: 1.5,
       ),
@@ -324,7 +338,7 @@ ThemeData buildZenDarkTheme() {
     extensions: const [c],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
     appBarTheme: AppBarTheme(
       backgroundColor: c.paper,
       foregroundColor: c.ink,
@@ -336,10 +350,11 @@ ThemeData buildZenDarkTheme() {
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
       ),
-      titleTextStyle: GoogleFonts.instrumentSerif(
+      titleTextStyle: GoogleFonts.outfit(
         fontSize: 18,
+        fontWeight: FontWeight.w300,
         color: c.ink,
-        letterSpacing: -0.1,
+        letterSpacing: -0.2,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -347,7 +362,7 @@ ThemeData buildZenDarkTheme() {
         backgroundColor: c.ink,
         foregroundColor: c.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -355,19 +370,23 @@ ThemeData buildZenDarkTheme() {
         foregroundColor: c.ink,
         side: BorderSide(color: c.divider),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: c.inkSoft,
-        textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
+        textStyle: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w400),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: c.ink,
-      contentTextStyle: GoogleFonts.inter(color: c.paper, fontSize: 13),
+      contentTextStyle: GoogleFonts.outfit(
+        color: c.paper,
+        fontSize: 13,
+        fontWeight: FontWeight.w300,
+      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
       ),
@@ -379,12 +398,15 @@ ThemeData buildZenDarkTheme() {
     dialogTheme: DialogThemeData(
       backgroundColor: c.paperDeep,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titleTextStyle: GoogleFonts.instrumentSerif(
+      titleTextStyle: GoogleFonts.outfit(
         fontSize: 20,
+        fontWeight: FontWeight.w300,
         color: c.ink,
+        letterSpacing: -0.2,
       ),
-      contentTextStyle: GoogleFonts.inter(
+      contentTextStyle: GoogleFonts.outfit(
         fontSize: 14,
+        fontWeight: FontWeight.w300,
         color: c.inkSoft,
         height: 1.5,
       ),

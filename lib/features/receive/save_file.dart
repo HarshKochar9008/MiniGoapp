@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -31,9 +31,9 @@ Future<String> saveFileToDevice(File file, String fileName) async {
     await _ensureGalleryPermission();
     try {
       if (isImage) {
-        await Gal.putImage(file.path, album: 'Whoosh');
+        await Gal.putImage(file.path, album: 'MiniGo');
       } else {
-        await Gal.putVideo(file.path, album: 'Whoosh');
+        await Gal.putVideo(file.path, album: 'MiniGo');
       }
       return 'Gallery (Whoosh album)';
     } catch (e) {

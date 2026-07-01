@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
 import '../theme/zen_theme.dart';
@@ -116,7 +116,7 @@ class ZenButton extends StatelessWidget {
                 ],
                 Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: disabled ? fg.withOpacity(0.4) : fg,
@@ -226,7 +226,7 @@ class ZenFileRow extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
                     color: c.ink,
                     fontWeight: FontWeight.w500,
@@ -285,7 +285,7 @@ class ProgressArc extends StatelessWidget {
             children: [
               Text(
                 '$pct%',
-                style: GoogleFonts.instrumentSerif(
+                style: GoogleFonts.outfit(
                   fontSize: size * 0.28,
                   height: 1,
                   color: c.ink,
@@ -320,7 +320,7 @@ class SectionHeader extends StatelessWidget {
         textBaseline: TextBaseline.alphabetic,
         children: [
           Text(title,
-              style: GoogleFonts.instrumentSerif(
+              style: GoogleFonts.outfit(
                 fontSize: 18,
                 color: c.ink,
               )),
@@ -379,7 +379,7 @@ class StatusBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   fontSize: 13,
                   height: 1.4,
                   color: tint,
@@ -530,7 +530,7 @@ class ZenTabPill extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.outfit(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: active ? c.ink : c.inkSoft,

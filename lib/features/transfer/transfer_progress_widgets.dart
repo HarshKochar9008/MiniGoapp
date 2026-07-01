@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../zensend/theme/zen_theme.dart';
@@ -77,13 +77,13 @@ class TransferFileProgressTile extends StatelessWidget {
                   state.fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                       fontSize: 13, color: ZenColors.ink),
                 ),
               ),
               Text(
                 _statusLabel(),
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   color: _statusColor(),
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -128,7 +128,7 @@ class TransferFileProgressTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               state.error!,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                   color: ZenColors.danger, fontSize: 11),
             ),
           ],

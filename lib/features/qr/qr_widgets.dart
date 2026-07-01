@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -35,9 +35,9 @@ class QrCodeSheet extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'YOUR QR CODE',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.outfit(
               fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
               letterSpacing: 2,
               color: c.inkFaint,
             ),
@@ -154,7 +154,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               "Scan recipient's QR code",
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 color: Colors.white70,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -172,13 +172,13 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
                     MobileScanner(
                       controller: _ctrl,
                       onDetect: _onDetect,
-                      errorBuilder: (context, error, child) => Container(
+                      errorBuilder: (context, error) => Container(
                         color: Colors.black87,
                         alignment: Alignment.center,
                         child: Text(
                           'Camera unavailable.\nCheck permissions in Settings.',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.outfit(
                             color: Colors.white54,
                             fontSize: 13,
                           ),
@@ -208,7 +208,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.outfit(
                   color: Colors.white54,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,

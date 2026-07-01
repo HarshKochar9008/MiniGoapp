@@ -9,8 +9,13 @@ import '../../core/utils/short_code_generator.dart';
 class UserIdentity {
   final String id;
   final String shortCode;
+  final String? nickname;
 
-  const UserIdentity({required this.id, required this.shortCode});
+  const UserIdentity({
+    required this.id,
+    required this.shortCode,
+    this.nickname,
+  });
 }
 
 class IdentityService {
@@ -178,6 +183,7 @@ class IdentityService {
     return UserIdentity(
       id: row['id'] as String,
       shortCode: row['short_code'] as String,
+      nickname: row['nickname'] as String?,
     );
   }
 
@@ -185,7 +191,7 @@ class IdentityService {
     await SupabaseConfig.ensureValidSession();
     return await SupabaseConfig.client
         .from('users')
-        .select('id, short_code, auth_uid')
+        .select('id, short_code, auth_uid, nickname')
         .eq('auth_uid', authUid)
         .maybeSingle()
         .timeout(const Duration(seconds: 20));
@@ -199,21 +205,64 @@ class IdentityService {
     await prefs.setString(AppConstants.prefShortCode, identity.shortCode);
     await prefs.setString(AppConstants.prefUserDbId, identity.id);
     await prefs.setString(AppConstants.prefAuthUid, authUid);
+    if (identity.nickname != null) {
+      await prefs.setString(AppConstants.prefNickname, identity.nickname!);
+    } else {
+      await prefs.remove(AppConstants.prefNickname);
+    }
   }
 
   static Future<void> _clearStoredIdentity(SharedPreferences prefs) async {
     await prefs.remove(AppConstants.prefShortCode);
     await prefs.remove(AppConstants.prefUserDbId);
     await prefs.remove(AppConstants.prefAuthUid);
+    await prefs.remove(AppConstants.prefNickname);
   }
 
   static UserIdentity? _identityFromPrefs(SharedPreferences prefs) {
     final id = prefs.getString(AppConstants.prefUserDbId);
     final shortCode = prefs.getString(AppConstants.prefShortCode);
+    final nickname = prefs.getString(AppConstants.prefNickname);
     if (id == null || id.isEmpty || shortCode == null || shortCode.isEmpty) {
       return null;
     }
-    return UserIdentity(id: id, shortCode: shortCode);
+    return UserIdentity(id: id, shortCode: shortCode, nickname: nickname);
+  }
+
+  // New methods to handle nickname
+  static Future<void> setNickname(String? nickname) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = await initialize();
+    final updated = UserIdentity(
+      id: current.id,
+      shortCode: current.shortCode,
+      nickname: nickname,
+    );
+    
+    // Update local cache and prefs first
+    _cached = updated;
+    await _persistIdentity(
+      prefs: prefs,
+      identity: updated,
+      authUid: prefs.getString(AppConstants.prefAuthUid)!,
+    );
+    
+    // Also update database if possible
+    try {
+      await SupabaseConfig.ensureValidSession();
+      await SupabaseConfig.client
+          .from('users')
+          .update({'nickname': nickname})
+          .eq('id', current.id)
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // Ignore network errors - local is source of truth
+    }
+  }
+
+  static Stream<UserIdentity> watchIdentity() async* {
+    yield await initialize();
+    // For now, just yield once; could add real-time later
   }
 }
 

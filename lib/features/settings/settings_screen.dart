@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,11 +23,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = ThemeController.themeMode.value == ThemeMode.dark;
   bool _checkingPush = false;
   PushReadinessResult? _pushReadiness;
+  final _nicknameController = TextEditingController();
+  bool _isEditingNickname = false;
+  String? _nickname;
 
   @override
   void initState() {
     super.initState();
+    _nickname = widget.identity.nickname;
+    _nicknameController.text = _nickname ?? '';
     _refreshPushReadiness();
+  }
+
+  @override
+  void dispose() {
+    _nicknameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveNickname() async {
+    final trimmed = _nicknameController.text.trim();
+    final newNick = trimmed.isEmpty ? null : trimmed;
+    await IdentityService.setNickname(newNick);
+    setState(() {
+      _nickname = newNick;
+      _isEditingNickname = false;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newNick == null ? 'Nickname removed' : 'Nickname saved'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _startEditingNickname() {
+    setState(() => _isEditingNickname = true);
+  }
+
+  void _cancelEditingNickname() {
+    _nicknameController.text = _nickname ?? '';
+    setState(() => _isEditingNickname = false);
   }
 
   Future<void> _setDarkMode(bool enabled) async {
@@ -117,6 +155,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
+                  // Nickname section
+                  if (_isEditingNickname)
+                    Column(
+                      children: [
+                        TextField(
+                          controller: _nicknameController,
+                          autofocus: true,
+                          textCapitalization: TextCapitalization.words,
+                          style: ZenText.body.copyWith(fontSize: 18),
+                          decoration: InputDecoration(
+                            hintText: 'Add a nickname',
+                            filled: true,
+                            fillColor: c.paper,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: ZenColors.blue500, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton(
+                              onPressed: _cancelEditingNickname,
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 16),
+                            FilledButton(
+                              onPressed: _saveNickname,
+                              child: const Text('Save'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_nickname != null)
+                          Text(
+                            _nickname!,
+                            style: ZenText.title,
+                          ),
+                        if (_nickname == null)
+                          Text(
+                            'No nickname',
+                            style: ZenText.bodySoft.copyWith(fontStyle: FontStyle.italic),
+                          ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          icon: Icon(Icons.edit_rounded, color: c.inkSoft, size: 20),
+                          onPressed: _startEditingNickname,
+                        ),
+                      ],
+                    ),
+                  if (!_isEditingNickname) const SizedBox(height: 18),
+                  // Code section
                   Text('Your code',
                       style: ZenText.label.copyWith(color: c.inkSoft)),
                   const SizedBox(height: 14),
@@ -276,7 +386,7 @@ class _CodeAction extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: c.ink,
@@ -312,7 +422,7 @@ class _ToggleRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
                     color: c.ink,
                     fontWeight: FontWeight.w500,
@@ -356,7 +466,7 @@ class _LinkRow extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.outfit(
                         fontSize: 14, color: c.ink),
                   ),
                   if (sub != null) ...[
