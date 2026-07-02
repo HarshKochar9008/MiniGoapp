@@ -29,7 +29,7 @@ class WhooshWidgetProvider : AppWidgetProvider() {
         if (intent.action == ACTION_COPY) {
             val code = intent.getStringExtra(EXTRA_CODE) ?: return
             val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clip.setPrimaryClip(ClipData.newPlainText("Whoosh code", code))
+            clip.setPrimaryClip(ClipData.newPlainText("MiniGo code", code))
             // Only show toast on older Android — 13+ shows its own clipboard banner
             if (Build.VERSION.SDK_INT < 33) {
                 Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()

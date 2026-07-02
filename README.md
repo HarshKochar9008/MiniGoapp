@@ -379,6 +379,12 @@ CREATE POLICY "Auth users can update"
   USING (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
 ```
 
+### 7. Rooms
+
+Rooms are group spaces users create and join with a 6-character code
+(max 10 members, enforced by a database trigger). Run the SQL in
+[`supabase/rooms_schema.sql`](supabase/rooms_schema.sql) in the SQL Editor.
+
 ---
 
 ## Firebase & Push Notifications

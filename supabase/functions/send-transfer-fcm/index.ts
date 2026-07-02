@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
   // Flutter local notification (logo + single slot per transfer_id). Title/body live in
   // `data` for the app and in `apns` for iOS banner when backgrounded.
   const title = "Incoming transfer";
-  const msgBody = "Tap to open Whoosh and download your files.";
+  const msgBody = "Tap to open MiniGo and download your files.";
   const fcmPayload = {
     message: {
       token,

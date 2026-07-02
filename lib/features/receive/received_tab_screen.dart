@@ -168,6 +168,15 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
               padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
               child: Row(
                 children: [
+                  if (Navigator.of(context).canPop())
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        icon: Icon(Icons.arrow_back_rounded,
+                            color: c.ink, size: 22),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

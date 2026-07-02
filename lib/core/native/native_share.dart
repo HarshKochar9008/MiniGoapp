@@ -6,7 +6,7 @@ class NativeShareService {
   static Future<void> shareText(String text, {String? subject}) async {
     await _channel.invokeMethod<void>('shareText', {
       'text': text,
-      'subject': subject ?? 'Whoosh code',
+      'subject': subject ?? 'MiniGo code',
     });
   }
 }

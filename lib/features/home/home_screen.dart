@@ -1,16 +1,14 @@
-﻿import 'dart:async';
-
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/analytics/analytics.dart';
-import '../../core/network/connection_status.dart';
 import '../../core/native/native_share.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
+import '../receive/received_tab_screen.dart';
 import '../send/send_screen.dart';
 
 enum HomeAutoAction { showQr, openSend }
@@ -30,24 +28,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  bool _isOnline = true;
-  late final VoidCallback _onConnectionChanged;
-
+class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _scheduleAutoAction(widget.autoAction);
-    ConnectionStatus.instance.ensureStarted();
-    _isOnline = ConnectionStatus.instance.online.value;
-    _onConnectionChanged = () {
-      final next = ConnectionStatus.instance.online.value;
-      if (!mounted || next == _isOnline) return;
-      setState(() => _isOnline = next);
-    };
-    ConnectionStatus.instance.online.addListener(_onConnectionChanged);
-    unawaited(ConnectionStatus.instance.refresh());
   }
 
   void _scheduleAutoAction(HomeAutoAction? action) {
@@ -68,20 +53,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  @override
-  void dispose() {
-    ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(ConnectionStatus.instance.refresh());
-    }
-  }
-
   void _copyCode() {
     Clipboard.setData(ClipboardData(text: widget.identity.shortCode));
     HapticFeedback.selectionClick();
@@ -95,8 +66,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     HapticFeedback.selectionClick();
     Analytics.instance.logEvent(AnalyticsEvents.codeShared, {'source': 'home'});
     NativeShareService.shareText(
-      'Send me files on Whoosh using my code: ${widget.identity.shortCode}',
-      subject: 'Whoosh invite',
+      'Send me files on MiniGo using my code: ${widget.identity.shortCode}',
+      subject: 'MiniGo invite',
     );
   }
 
@@ -112,6 +83,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context,
       MaterialPageRoute(
         builder: (_) => SendScreen(identity: widget.identity),
+      ),
+    );
+  }
+
+  void _openReceived() {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReceivedTabScreen(identity: widget.identity),
       ),
     );
   }
@@ -166,36 +147,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               ),
                             ),
                           ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Online status badge
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: _isOnline
-                                ? ZenColors.success
-                                : ZenColors.danger,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          _isOnline ? 'Online' : 'Offline',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: _isOnline
-                                ? ZenColors.success
-                                : ZenColors.danger,
-                            fontWeight: FontWeight.w500,
-                          ),
                         ),
                       ],
                     ),
@@ -312,24 +263,80 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: FloatingActionButton.extended(
-          onPressed: _openSend,
-          backgroundColor: ZenColors.blue600,
-          foregroundColor: ZenColors.paper,
-          elevation: 0,
-          extendedPadding:
-              const EdgeInsets.symmetric(horizontal: 28, vertical: 0),
-          label: Text(
-            'Send',
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.w400,
-              letterSpacing: 0.5,
-              fontSize: 15,
-              color: ZenColors.paper,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _PillButton(
+              icon: Icons.south_west_rounded,
+              label: 'Received',
+              background: c.paper,
+              foreground: c.ink,
+              border: c.divider,
+              onTap: _openReceived,
             ),
+            const SizedBox(width: 10),
+            _PillButton(
+              icon: Icons.north_east_rounded,
+              label: 'Send',
+              background: ZenColors.blue600,
+              foreground: ZenColors.paper,
+              onTap: _openSend,
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color background;
+  final Color foreground;
+  final Color? border;
+  final VoidCallback onTap;
+
+  const _PillButton({
+    required this.icon,
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+    this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      shape: StadiumBorder(
+        side: border != null ? BorderSide(color: border!) : BorderSide.none,
+      ),
+      elevation: border != null ? 0 : 2,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 15),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: foreground),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.5,
+                  fontSize: 15,
+                  color: foreground,
+                ),
+              ),
+            ],
           ),
-          icon: const Icon(Icons.north_east_rounded, size: 18),
-          shape: const StadiumBorder(),
         ),
       ),
     );

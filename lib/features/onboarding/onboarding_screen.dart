@@ -522,7 +522,7 @@ class _OnbReady extends StatelessWidget {
                 style: ZenText.bodySoft,
               ),
               const Spacer(),
-              ZenButton(label: 'Open Whoosh', onPressed: onDone),
+              ZenButton(label: 'Open MiniGo', onPressed: onDone),
             ],
           ),
         ),

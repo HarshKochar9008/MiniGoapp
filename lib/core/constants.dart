@@ -37,6 +37,10 @@ class AppConstants {
   static const codeAlphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   static const codeLength = 6;
 
+  // Rooms
+  static const maxRoomMembers = 10;
+  static const maxRoomNameLength = 50;
+
   // File limits
   static const maxFileSizeBytes = 100 * 1024 * 1024; // 100 MB
   static const maxFilesPerTransfer = 20;

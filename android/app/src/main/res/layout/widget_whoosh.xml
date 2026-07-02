@@ -14,7 +14,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="WHOOSH"
+        android:text="MINIGO"
         android:textColor="#8A93A4"
         android:textSize="10sp"
         android:textStyle="bold" />

@@ -58,7 +58,7 @@ class PrivacyScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Whoosh is designed to minimise data collection. '
+                      'MiniGo is designed to minimise data collection. '
                       'No accounts. No permanent storage. No tracking.',
                       style: GoogleFonts.outfit(
                         fontSize: 13,
@@ -77,7 +77,7 @@ class PrivacyScreen extends StatelessWidget {
               icon: Icons.fingerprint_rounded,
               title: 'Anonymous device identity',
               body:
-                  'When you first open Whoosh, a random 6-character code and anonymous '
+                  'When you first open MiniGo, a random 6-character code and anonymous '
                   'user ID are generated on your device and stored in Supabase. No name, '
                   'email, or phone number is ever collected.',
               c: c,
