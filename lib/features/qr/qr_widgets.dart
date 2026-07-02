@@ -5,7 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/constants.dart';
-import '../../zensend/theme/zen_theme.dart';
+import '../../Minigo/theme/mini_theme.dart';
 
 /// Bottom sheet that displays the user's own code as a scannable QR image.
 class QrCodeSheet extends StatelessWidget {

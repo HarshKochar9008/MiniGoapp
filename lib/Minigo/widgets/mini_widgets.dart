@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
-import '../theme/zen_theme.dart';
+import '../theme/mini_theme.dart';
 
 /// Code chip — formatted "A4X · 9K2" with subtle border.
 class CodeChip extends StatelessWidget {
@@ -78,7 +78,7 @@ class ZenButton extends StatelessWidget {
         fg = c.inkSoft;
       case ZenBtnStyle.danger:
         bg = c.paper;
-        fg = ZenColors.danger;
+        fg = MiniColors.danger;
         border = const Color(0x33B44A4A);
     }
     return Opacity(
@@ -184,7 +184,7 @@ class ZenFileRow extends StatelessWidget {
   List<Color> _tone(ZenThemeExtension c) {
     switch (mimeCategory) {
       case 'Image':
-        return [ZenColors.blue200, ZenColors.blue50];
+        return [MiniColors.blue200, MiniColors.blue50];
       case 'Video':
         return [const Color(0xFFF2DFDF), c.paperDeep];
       case 'Audio':
@@ -277,7 +277,7 @@ class ProgressArc extends StatelessWidget {
               strokeWidth: 5,
               strokeCap: StrokeCap.round,
               backgroundColor: c.paperDeep,
-              valueColor: AlwaysStoppedAnimation(color ?? ZenColors.blue500),
+              valueColor: AlwaysStoppedAnimation(color ?? MiniColors.blue500),
             ),
           ),
           Column(

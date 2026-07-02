@@ -8,8 +8,8 @@ import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
@@ -329,7 +329,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
-                              color: ZenColors.blue500,
+                              color: MiniColors.blue500,
                               child: Builder(builder: (context) {
                                 final visible =
                                     _applyFilter(_transfers!);
@@ -350,6 +350,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         .toString();
                                     final counterpartyId =
                                         t['_counterpartyId'] as String?;
+                                    final roomLabel =
+                                        t['room_name'] as String? ??
+                                            (t['room_id'] != null
+                                                ? 'room'
+                                                : null);
                                     final status = (t['status'] ?? 'pending')
                                         .toString();
                                     final createdAt =
@@ -372,6 +377,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           status: status,
                                           timeAgo: _timeAgo(createdAt),
                                           isExpired: isExpired,
+                                          roomLabel: roomLabel,
                                           onEditAlias: counterpartyId == null
                                               ? null
                                               : () => ContactAliasSheet.show(
@@ -394,11 +400,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         alignment: Alignment.centerRight,
                                         padding: const EdgeInsets.only(
                                             right: 24),
-                                        color: ZenColors.danger
+                                        color: MiniColors.danger
                                             .withOpacity(0.10),
                                         child: const Icon(
                                           Icons.delete_outline_rounded,
-                                          color: ZenColors.danger,
+                                          color: MiniColors.danger,
                                           size: 22,
                                         ),
                                       ),
@@ -458,6 +464,9 @@ class _HistoryTile extends StatelessWidget {
   final String status;
   final String timeAgo;
   final bool isExpired;
+
+  /// Room name (or 'room' fallback) when sent/received through a room.
+  final String? roomLabel;
   final VoidCallback? onEditAlias;
 
   const _HistoryTile({
@@ -467,23 +476,24 @@ class _HistoryTile extends StatelessWidget {
     required this.timeAgo,
     this.counterpartyAlias,
     this.isExpired = false,
+    this.roomLabel,
     this.onEditAlias,
   });
 
   Color get _tint {
     switch (status) {
       case 'completed':
-        return ZenColors.success;
+        return MiniColors.success;
       case 'uploading':
       case 'pending':
-        return ZenColors.warn;
+        return MiniColors.warn;
       case 'partial':
       case 'failed':
-        return ZenColors.danger;
+        return MiniColors.danger;
       case 'expired':
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
       default:
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
     }
   }
 
@@ -504,7 +514,7 @@ class _HistoryTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: isOut
-                      ? [ZenColors.blue200, ZenColors.blue50]
+                      ? [MiniColors.blue200, MiniColors.blue50]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -589,9 +599,10 @@ class _HistoryTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        isExpired
-                            ? 'Expired'
-                            : '${isOut ? 'Sent' : 'Received'} · $status',
+                        (isExpired
+                                ? 'Expired'
+                                : '${isOut ? 'Sent' : 'Received'} · $status') +
+                            (roomLabel != null ? ' · $roomLabel' : ''),
                         style: ZenText.small.copyWith(color: c.inkSoft),
                       ),
                     ],

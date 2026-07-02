@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class ZenColors {
+class MiniColors {
   static const paper = Color(0xFFFBFAF7);
   static const paperDeep = Color(0xFFF4F1EA);
   static const ink = Color(0xFF1A2230);
@@ -32,7 +32,7 @@ class ZenText {
         fontSize: 32,
         fontWeight: FontWeight.w300,
         height: 1.1,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.5,
       );
 
@@ -40,7 +40,7 @@ class ZenText {
         fontSize: 32,
         fontWeight: FontWeight.w300,
         height: 1.1,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.5,
         fontStyle: FontStyle.italic,
       );
@@ -49,7 +49,7 @@ class ZenText {
         fontSize: 24,
         fontWeight: FontWeight.w300,
         height: 1.2,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.3,
       );
 
@@ -57,7 +57,7 @@ class ZenText {
         fontSize: 24,
         fontWeight: FontWeight.w300,
         height: 1.2,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.3,
         fontStyle: FontStyle.italic,
       );
@@ -66,27 +66,27 @@ class ZenText {
         fontSize: 14,
         fontWeight: FontWeight.w300,
         height: 1.5,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
       );
 
   static TextStyle get bodySoft => GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w300,
         height: 1.5,
-        color: ZenColors.inkSoft,
+        color: MiniColors.inkSoft,
       );
 
   static TextStyle get small => GoogleFonts.outfit(
         fontSize: 12,
         fontWeight: FontWeight.w300,
         height: 1.4,
-        color: ZenColors.inkSoft,
+        color: MiniColors.inkSoft,
       );
 
   static TextStyle get label => GoogleFonts.outfit(
         fontSize: 11,
         height: 1,
-        color: ZenColors.inkSoft,
+        color: MiniColors.inkSoft,
         letterSpacing: 1.6,
         fontWeight: FontWeight.w400,
       );
@@ -94,14 +94,14 @@ class ZenText {
   static TextStyle get code => GoogleFonts.jetBrainsMono(
         fontSize: 18,
         height: 1.1,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: 1.2,
       );
 
   static TextStyle get codeLarge => GoogleFonts.jetBrainsMono(
         fontSize: 36,
         height: 1.05,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: 3,
         fontWeight: FontWeight.w400,
       );
@@ -109,13 +109,13 @@ class ZenText {
   static TextStyle get codeSmall => GoogleFonts.jetBrainsMono(
         fontSize: 13,
         height: 1.2,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: 0.8,
       );
 }
 
 // ---------------------------------------------------------------------------
-// Theme-adaptive color extension (replaces hardcoded ZenColors in widgets)
+// Theme-adaptive color extension (replaces hardcoded MiniColors in widgets)
 // ---------------------------------------------------------------------------
 
 class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
@@ -218,15 +218,15 @@ extension ZenContextX on BuildContext {
 ThemeData buildZenTheme() {
   return ThemeData(
     brightness: Brightness.light,
-    scaffoldBackgroundColor: ZenColors.paper,
+    scaffoldBackgroundColor: MiniColors.paper,
     colorScheme: const ColorScheme.light(
-      primary: ZenColors.blue600,
-      onPrimary: ZenColors.paper,
-      surface: ZenColors.paper,
-      onSurface: ZenColors.ink,
-      secondary: ZenColors.ink,
-      onSecondary: ZenColors.paper,
-      error: ZenColors.danger,
+      primary: MiniColors.blue600,
+      onPrimary: MiniColors.paper,
+      surface: MiniColors.paper,
+      onSurface: MiniColors.ink,
+      secondary: MiniColors.ink,
+      onSecondary: MiniColors.paper,
+      error: MiniColors.danger,
     ),
     extensions: const [ZenThemeExtension.light],
     splashFactory: NoSplash.splashFactory,
@@ -235,8 +235,8 @@ ThemeData buildZenTheme() {
       fontSizeFactor: 1.0,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: ZenColors.paper,
-      foregroundColor: ZenColors.ink,
+      backgroundColor: MiniColors.paper,
+      foregroundColor: MiniColors.ink,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: true,
@@ -248,37 +248,37 @@ ThemeData buildZenTheme() {
       titleTextStyle: GoogleFonts.outfit(
         fontSize: 18,
         fontWeight: FontWeight.w300,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.2,
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: ZenColors.ink,
-        foregroundColor: ZenColors.paper,
+        backgroundColor: MiniColors.ink,
+        foregroundColor: MiniColors.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: ZenColors.ink,
-        side: const BorderSide(color: ZenColors.divider),
+        foregroundColor: MiniColors.ink,
+        side: const BorderSide(color: MiniColors.divider),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w400),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: ZenColors.inkSoft,
+        foregroundColor: MiniColors.inkSoft,
         textStyle: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w400),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: ZenColors.ink,
+      backgroundColor: MiniColors.ink,
       contentTextStyle: GoogleFonts.outfit(
-        color: ZenColors.paper,
+        color: MiniColors.paper,
         fontSize: 13,
         fontWeight: FontWeight.w300,
       ),
@@ -287,33 +287,33 @@ ThemeData buildZenTheme() {
       ),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: ZenColors.blue500,
-      linearTrackColor: ZenColors.divider,
+      color: MiniColors.blue500,
+      linearTrackColor: MiniColors.divider,
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titleTextStyle: GoogleFonts.outfit(
         fontSize: 20,
         fontWeight: FontWeight.w300,
-        color: ZenColors.ink,
+        color: MiniColors.ink,
         letterSpacing: -0.2,
       ),
       contentTextStyle: GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w300,
-        color: ZenColors.inkSoft,
+        color: MiniColors.inkSoft,
         height: 1.5,
       ),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return ZenColors.paper;
-        return ZenColors.inkFaint;
+        if (states.contains(WidgetState.selected)) return MiniColors.paper;
+        return MiniColors.inkFaint;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return ZenColors.ink;
-        return ZenColors.divider;
+        if (states.contains(WidgetState.selected)) return MiniColors.ink;
+        return MiniColors.divider;
       }),
     ),
   );
@@ -326,11 +326,11 @@ ThemeData buildZenDarkTheme() {
     scaffoldBackgroundColor: c.paper,
     colorScheme: ColorScheme(
       brightness: Brightness.dark,
-      primary: ZenColors.blue600,
+      primary: MiniColors.blue600,
       onPrimary: c.paper,
       secondary: c.ink,
       onSecondary: c.paper,
-      error: ZenColors.danger,
+      error: MiniColors.danger,
       onError: c.paper,
       surface: c.paper,
       onSurface: c.ink,
@@ -392,7 +392,7 @@ ThemeData buildZenDarkTheme() {
       ),
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
-      color: ZenColors.blue500,
+      color: MiniColors.blue500,
       linearTrackColor: c.divider,
     ),
     dialogTheme: DialogThemeData(
@@ -417,7 +417,7 @@ ThemeData buildZenDarkTheme() {
         return c.inkFaint;
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) return ZenColors.blue600;
+        if (states.contains(WidgetState.selected)) return MiniColors.blue600;
         return c.divider;
       }),
     ),
