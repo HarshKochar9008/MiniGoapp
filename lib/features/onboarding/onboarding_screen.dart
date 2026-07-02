@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
 import '../../features/identity/identity_service.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -153,7 +153,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
           ..._buildChars(0, 3),
           TextSpan(
             text: ' · ',
-            style: widget.style.copyWith(color: ZenColors.inkFaint),
+            style: widget.style.copyWith(color: MiniColors.inkFaint),
           ),
           ..._buildChars(3, 6),
         ],
@@ -167,7 +167,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
       return TextSpan(
         text: _display[i],
         style: widget.style.copyWith(
-          color: _locked[i] ? ZenColors.ink : ZenColors.blue500,
+          color: _locked[i] ? MiniColors.ink : MiniColors.blue500,
         ),
       );
     });
@@ -185,7 +185,7 @@ class _OnbWelcome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -215,7 +215,7 @@ class _OnbWelcome extends StatelessWidget {
                 'to anyone, anywhere.',
                 style: ZenText.display.copyWith(
                   fontStyle: FontStyle.italic,
-                  color: ZenColors.blue600,
+                  color: MiniColors.blue600,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -257,7 +257,7 @@ class _OnbGenerateState extends State<_OnbGenerate> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -290,7 +290,7 @@ class _OnbCode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -308,7 +308,7 @@ class _OnbCode extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
-                  color: ZenColors.paperDeep,
+                  color: MiniColors.paperDeep,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
@@ -343,7 +343,7 @@ class _OnbPermissions extends StatelessWidget {
       ['Camera', 'for scanning QR codes'],
     ];
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -358,7 +358,7 @@ class _OnbPermissions extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: ZenColors.paperDeep,
+                      color: MiniColors.paperDeep,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -367,7 +367,7 @@ class _OnbPermissions extends StatelessWidget {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: ZenColors.blue500,
+                            color: MiniColors.blue500,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -381,7 +381,7 @@ class _OnbPermissions extends StatelessWidget {
                                 style: GoogleFonts.outfit(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: ZenColors.ink,
+                                  color: MiniColors.ink,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -428,7 +428,7 @@ class _OnbNickname extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -452,7 +452,7 @@ class _OnbNickname extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: 'e.g., Alex, BlueBunny, ...',
                   filled: true,
-                  fillColor: ZenColors.paperDeep,
+                  fillColor: MiniColors.paperDeep,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -463,7 +463,7 @@ class _OnbNickname extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: ZenColors.blue500, width: 2),
+                    borderSide: const BorderSide(color: MiniColors.blue500, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -497,7 +497,7 @@ class _OnbReady extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -507,7 +507,7 @@ class _OnbReady extends StatelessWidget {
               const Icon(
                 Icons.check_circle_outline_rounded,
                 size: 56,
-                color: ZenColors.success,
+                color: MiniColors.success,
               ),
               const SizedBox(height: 24),
               Text(

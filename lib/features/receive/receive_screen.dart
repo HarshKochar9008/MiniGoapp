@@ -12,8 +12,8 @@ import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/supabase_config.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
 import 'save_file.dart';
@@ -215,11 +215,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: ZenColors.paper,
+        backgroundColor: MiniColors.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Battery saver is on',
-          style: GoogleFonts.outfit(color: ZenColors.ink, fontSize: 18),
+          style: GoogleFonts.outfit(color: MiniColors.ink, fontSize: 18),
         ),
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
@@ -269,13 +269,13 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     return StatusBanner(
       icon: Icons.battery_saver_rounded,
       text: 'Battery saver is on. Large downloads may be slower or pause.',
-      tint: ZenColors.warn,
+      tint: MiniColors.warn,
     );
   }
 
   Widget _buildBatteryBadge() {
     final levelText = _batteryLevel != null ? '${_batteryLevel!}%' : '--%';
-    final tint = _powerSaveMode ? ZenColors.warn : ZenColors.blue600;
+    final tint = _powerSaveMode ? MiniColors.warn : MiniColors.blue600;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -297,7 +297,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           Text(
             levelText,
             style: GoogleFonts.outfit(
-              color: ZenColors.inkSoft,
+              color: MiniColors.inkSoft,
               fontSize: 11,
               fontWeight: FontWeight.w400,
             ),
@@ -492,7 +492,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.hourglass_empty_rounded,
-                  size: 40, color: ZenColors.inkFaint),
+                  size: 40, color: MiniColors.inkFaint),
               const SizedBox(height: 16),
               Text(
                 waiting
@@ -582,7 +582,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             (f) => _dlStates[f['id']]?.status == _DownloadStatus.completed);
 
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Column(
           children: [
@@ -594,7 +594,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Icon(Icons.arrow_back_rounded,
-                        color: ZenColors.inkFaint, size: 22),
+                        color: MiniColors.inkFaint, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -605,7 +605,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         const SizedBox(height: 2),
                         Text(
                           fmtCode(widget.senderCode),
-                          style: ZenText.codeSmall.copyWith(color: ZenColors.ink),
+                          style: ZenText.codeSmall.copyWith(color: MiniColors.ink),
                         ),
                       ],
                     ),
@@ -619,22 +619,22 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
-                          color: ZenColors.blue600.withOpacity(0.08),
+                          color: MiniColors.blue600.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: ZenColors.blue600.withOpacity(0.2)),
+                              color: MiniColors.blue600.withOpacity(0.2)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.download_rounded,
-                                size: 14, color: ZenColors.blue600),
+                                size: 14, color: MiniColors.blue600),
                             const SizedBox(width: 5),
                             Text(
                               'All',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: ZenColors.blue600,
+                                color: MiniColors.blue600,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -737,9 +737,9 @@ class _FileDownloadTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ZenColors.paperDeep,
+        color: MiniColors.paperDeep,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ZenColors.dividerSoft),
+        border: Border.all(color: MiniColors.dividerSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,7 +768,7 @@ class _FileDownloadTile extends StatelessWidget {
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: ZenColors.ink,
+                        color: MiniColors.ink,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -786,9 +786,9 @@ class _FileDownloadTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: state!.progress,
-                backgroundColor: ZenColors.divider,
+                backgroundColor: MiniColors.divider,
                 valueColor:
-                    const AlwaysStoppedAnimation(ZenColors.blue500),
+                    const AlwaysStoppedAnimation(MiniColors.blue500),
                 minHeight: 3,
               ),
             ),
@@ -802,13 +802,13 @@ class _FileDownloadTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Verifying integrity…',
                 style: GoogleFonts.outfit(
-                    color: ZenColors.blue600, fontSize: 11)),
+                    color: MiniColors.blue600, fontSize: 11)),
           ],
           if (status == _DownloadStatus.saving) ...[
             const SizedBox(height: 6),
             Text('Saving to device…',
                 style: GoogleFonts.outfit(
-                    color: ZenColors.warn, fontSize: 11)),
+                    color: MiniColors.warn, fontSize: 11)),
           ],
           if (status == _DownloadStatus.completed) ...[
             const SizedBox(height: 6),
@@ -816,14 +816,14 @@ class _FileDownloadTile extends StatelessWidget {
               children: [
                 if (state?.hashVerified == true) ...[
                   const Icon(Icons.verified_rounded,
-                      color: ZenColors.success, size: 12),
+                      color: MiniColors.success, size: 12),
                   const SizedBox(width: 4),
                   Text('SHA-256 verified',
                       style: GoogleFonts.outfit(
-                          color: ZenColors.success, fontSize: 11)),
+                          color: MiniColors.success, fontSize: 11)),
                 ] else ...[
                   const Icon(Icons.check_circle_outline,
-                      color: ZenColors.inkFaint, size: 12),
+                      color: MiniColors.inkFaint, size: 12),
                   const SizedBox(width: 4),
                   Text('Saved', style: ZenText.small),
                 ],
@@ -836,7 +836,7 @@ class _FileDownloadTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.jetBrainsMono(
-                    color: ZenColors.inkFaint, fontSize: 10),
+                    color: MiniColors.inkFaint, fontSize: 10),
               ),
             ],
           ],
@@ -845,7 +845,7 @@ class _FileDownloadTile extends StatelessWidget {
             Text(
               state!.error!,
               style:
-                  GoogleFonts.outfit(color: ZenColors.danger, fontSize: 11),
+                  GoogleFonts.outfit(color: MiniColors.danger, fontSize: 11),
             ),
           ],
         ],
@@ -867,22 +867,22 @@ class _FileDownloadTile extends StatelessWidget {
   Color _iconBg(_DownloadStatus status) {
     switch (status) {
       case _DownloadStatus.completed:
-        return ZenColors.success.withOpacity(0.1);
+        return MiniColors.success.withOpacity(0.1);
       case _DownloadStatus.failed:
-        return ZenColors.danger.withOpacity(0.1);
+        return MiniColors.danger.withOpacity(0.1);
       default:
-        return ZenColors.blue500.withOpacity(0.1);
+        return MiniColors.blue500.withOpacity(0.1);
     }
   }
 
   Color _iconColor(_DownloadStatus status) {
     switch (status) {
       case _DownloadStatus.completed:
-        return ZenColors.success;
+        return MiniColors.success;
       case _DownloadStatus.failed:
-        return ZenColors.danger;
+        return MiniColors.danger;
       default:
-        return ZenColors.blue600;
+        return MiniColors.blue600;
     }
   }
 
@@ -895,11 +895,11 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: ZenColors.blue500.withOpacity(0.1),
+              color: MiniColors.blue500.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.download_rounded,
-                color: ZenColors.blue600, size: 18),
+                color: MiniColors.blue600, size: 18),
           ),
         );
       case _DownloadStatus.downloading:
@@ -908,11 +908,11 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: ZenColors.danger.withOpacity(0.1),
+              color: MiniColors.danger.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.close_rounded,
-                color: ZenColors.danger, size: 18),
+                color: MiniColors.danger, size: 18),
           ),
         );
       case _DownloadStatus.verifying:
@@ -922,12 +922,12 @@ class _FileDownloadTile extends StatelessWidget {
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: ZenColors.blue500,
+            color: MiniColors.blue500,
           ),
         );
       case _DownloadStatus.completed:
         return const Icon(Icons.check_rounded,
-            color: ZenColors.success, size: 20);
+            color: MiniColors.success, size: 20);
     }
   }
 }

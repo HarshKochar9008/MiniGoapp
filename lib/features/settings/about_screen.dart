@@ -1,8 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -55,13 +55,13 @@ class AboutScreen extends StatelessWidget {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: ZenColors.blue600,
+                      color: MiniColors.blue600,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Icon(
                       Icons.north_east_rounded,
                       size: 32,
-                      color: ZenColors.paper,
+                      color: MiniColors.paper,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -186,7 +186,7 @@ class _StepRow extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: ZenColors.blue600.withOpacity(0.1),
+              color: MiniColors.blue600.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
@@ -195,7 +195,7 @@ class _StepRow extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
-                color: ZenColors.blue600,
+                color: MiniColors.blue600,
               ),
             ),
           ),

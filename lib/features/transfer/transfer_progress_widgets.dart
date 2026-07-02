@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../zensend/theme/zen_theme.dart';
+import '../../Minigo/theme/mini_theme.dart';
 import 'transfer_service.dart';
 
 class TransferUploadProgressList extends StatelessWidget {
@@ -36,8 +36,8 @@ class TransferUploadProgressList extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: states.isNotEmpty ? completed / states.length : 0,
                   minHeight: 3,
-                  backgroundColor: ZenColors.divider,
-                  valueColor: const AlwaysStoppedAnimation(ZenColors.blue500),
+                  backgroundColor: MiniColors.divider,
+                  valueColor: const AlwaysStoppedAnimation(MiniColors.blue500),
                 ),
               ),
             ],
@@ -61,9 +61,9 @@ class TransferFileProgressTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ZenColors.paperDeep,
+        color: MiniColors.paperDeep,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ZenColors.dividerSoft),
+        border: Border.all(color: MiniColors.dividerSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,7 +78,7 @@ class TransferFileProgressTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.outfit(
-                      fontSize: 13, color: ZenColors.ink),
+                      fontSize: 13, color: MiniColors.ink),
                 ),
               ),
               Text(
@@ -98,7 +98,7 @@ class TransferFileProgressTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: state.progress,
-                backgroundColor: ZenColors.divider,
+                backgroundColor: MiniColors.divider,
                 valueColor: AlwaysStoppedAnimation(_statusColor()),
                 minHeight: 3,
               ),
@@ -118,7 +118,7 @@ class TransferFileProgressTile extends StatelessWidget {
             Text(
               'SHA-256: ${state.sha256!.substring(0, 16)}…',
               style: GoogleFonts.jetBrainsMono(
-                color: ZenColors.inkFaint,
+                color: MiniColors.inkFaint,
                 fontSize: 10,
               ),
             ),
@@ -129,7 +129,7 @@ class TransferFileProgressTile extends StatelessWidget {
             Text(
               state.error!,
               style: GoogleFonts.outfit(
-                  color: ZenColors.danger, fontSize: 11),
+                  color: MiniColors.danger, fontSize: 11),
             ),
           ],
         ],
@@ -141,25 +141,25 @@ class TransferFileProgressTile extends StatelessWidget {
     switch (state.status) {
       case FileUploadStatus.pending:
         return const Icon(Icons.schedule_rounded,
-            color: ZenColors.inkFaint, size: 18);
+            color: MiniColors.inkFaint, size: 18);
       case FileUploadStatus.hashing:
         return const SizedBox(
           width: 18,
           height: 18,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: ZenColors.blue500,
+            color: MiniColors.blue500,
           ),
         );
       case FileUploadStatus.uploading:
         return const Icon(Icons.cloud_upload_outlined,
-            color: ZenColors.blue600, size: 18);
+            color: MiniColors.blue600, size: 18);
       case FileUploadStatus.completed:
         return const Icon(Icons.check_circle_rounded,
-            color: ZenColors.success, size: 18);
+            color: MiniColors.success, size: 18);
       case FileUploadStatus.failed:
         return const Icon(Icons.error_rounded,
-            color: ZenColors.danger, size: 18);
+            color: MiniColors.danger, size: 18);
     }
   }
 
@@ -181,15 +181,15 @@ class TransferFileProgressTile extends StatelessWidget {
   Color _statusColor() {
     switch (state.status) {
       case FileUploadStatus.pending:
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
       case FileUploadStatus.hashing:
-        return ZenColors.blue500;
+        return MiniColors.blue500;
       case FileUploadStatus.uploading:
-        return ZenColors.blue600;
+        return MiniColors.blue600;
       case FileUploadStatus.completed:
-        return ZenColors.success;
+        return MiniColors.success;
       case FileUploadStatus.failed:
-        return ZenColors.danger;
+        return MiniColors.danger;
     }
   }
 }

@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_reset.dart';
 import '../../core/theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../transfer/transfer_service.dart';
@@ -95,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: ZenColors.danger,
+              backgroundColor: MiniColors.danger,
               foregroundColor: c.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       width: 48,
                       height: 48,
                       decoration: const BoxDecoration(
-                        color: ZenColors.blue50,
+                        color: MiniColors.blue50,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -160,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: ZenColors.blue600,
+                            color: MiniColors.blue600,
                           ),
                         ),
                       ),
@@ -224,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.dark_mode_outlined,
-                  iconTint: ZenColors.blue600,
+                  iconTint: MiniColors.blue600,
                   label: 'Dark mode',
                   sub: 'Switch between light and dark theme',
                   trailing: Switch.adaptive(
@@ -240,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.info_outline_rounded,
-                  iconTint: ZenColors.blue600,
+                  iconTint: MiniColors.blue600,
                   label: 'About MiniGo',
                   sub: 'Version, how it works, and legal',
                   onTap: () => Navigator.of(context).push(
@@ -249,7 +249,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.play_circle_outline_rounded,
-                  iconTint: ZenColors.blue600,
+                  iconTint: MiniColors.blue600,
                   label: 'How it works',
                   sub: 'View the app walkthrough again',
                   onTap: () => Navigator.of(context).push(
@@ -262,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.shield_outlined,
-                  iconTint: ZenColors.success,
+                  iconTint: MiniColors.success,
                   label: 'Privacy & Security',
                   sub: 'Encryption, data collection & your rights',
                   onTap: () => Navigator.of(context).push(
@@ -271,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.tag_rounded,
-                  iconTint: ZenColors.inkFaint,
+                  iconTint: MiniColors.inkFaint,
                   label: 'Version',
                   trailingText: 'MiniGo 1.1.0',
                 ),
@@ -283,10 +283,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.delete_outline_rounded,
-                  iconTint: ZenColors.danger,
+                  iconTint: MiniColors.danger,
                   label: 'Clear all local data & sign out',
                   sub: 'Removes your code and settings from this device',
-                  labelColor: ZenColors.danger,
+                  labelColor: MiniColors.danger,
                   onTap: _confirmFullLocalReset,
                 ),
               ],
@@ -301,10 +301,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
     final tint = _checkingPush
-        ? ZenColors.blue600
+        ? MiniColors.blue600
         : ready
-            ? ZenColors.success
-            : ZenColors.warn;
+            ? MiniColors.success
+            : MiniColors.warn;
     final icon = _checkingPush
         ? Icons.sync_rounded
         : ready
