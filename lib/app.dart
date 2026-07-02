@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants.dart';
 import 'core/analytics/analytics.dart';
+import 'core/contacts/contact_aliases.dart';
 import 'core/native/share_intent_bridge.dart';
 import 'core/navigation/root_navigator.dart';
 import 'core/widget_bridge.dart';
@@ -168,6 +169,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       }
     };
     ConnectionStatus.instance.online.addListener(_connectivityListener!);
+    unawaited(ContactAliases.ensureLoaded());
     NotificationService.handleLaunchAndPendingNavigation();
     _loadIdentity();
   }
