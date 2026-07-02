@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
+import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/network/network_errors.dart';
 import '../../zensend/theme/zen_theme.dart';
@@ -55,6 +56,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ContactAliases.ensureLoaded();
     _applyInitialFiles();
     _refreshPowerSaveMode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -814,6 +816,15 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
               child: Text(_codeError!,
                   style: ZenText.small.copyWith(color: ZenColors.danger)),
+            ),
+          if (_codeValidated &&
+              ContactAliases.aliasFor(_validatedRecipientId) != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              child: Text(
+                'Sending to ${ContactAliases.aliasFor(_validatedRecipientId)}',
+                style: ZenText.small.copyWith(color: ZenColors.success),
+              ),
             ),
 
           // Power save banner

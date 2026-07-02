@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
+import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
+import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
 
@@ -42,12 +46,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     };
     ConnectionStatus.instance.online.addListener(_onConnectionChanged);
+    ContactAliases.ensureLoaded();
+    ContactAliases.revision.addListener(_onAliasesChanged);
     _loadTransfers();
     _subscribeToRealtime();
   }
 
+  void _onAliasesChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    ContactAliases.revision.removeListener(_onAliasesChanged);
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     if (_channel != null) TransferService.unsubscribe(_channel!);
     super.dispose();
@@ -143,12 +154,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             '_direction': 'received',
             '_counterpartyCode':
                 (t['sender'] as Map?)?['short_code'] ?? '???',
+            '_counterpartyId': t['sender_id'],
           }),
       ...sent.map((t) => {
             ...t,
             '_direction': 'sent',
             '_counterpartyCode':
                 (t['receiver'] as Map?)?['short_code'] ?? '???',
+            '_counterpartyId': t['receiver_id'],
           }),
     ];
     all.sort((a, b) {
@@ -335,6 +348,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     final code = (t['_counterpartyCode'] ??
                                             '???')
                                         .toString();
+                                    final counterpartyId =
+                                        t['_counterpartyId'] as String?;
                                     final status = (t['status'] ?? 'pending')
                                         .toString();
                                     final createdAt =
@@ -351,9 +366,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         _HistoryTile(
                                           direction: dir,
                                           counterpartyCode: code,
+                                          counterpartyAlias:
+                                              ContactAliases.aliasFor(
+                                                  counterpartyId),
                                           status: status,
                                           timeAgo: _timeAgo(createdAt),
                                           isExpired: isExpired,
+                                          onEditAlias: counterpartyId == null
+                                              ? null
+                                              : () => ContactAliasSheet.show(
+                                                    context,
+                                                    userId: counterpartyId,
+                                                    code: code,
+                                                  ),
                                         ),
                                         const HairLine(indent: 72),
                                       ],
@@ -429,16 +454,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
 class _HistoryTile extends StatelessWidget {
   final String direction;
   final String counterpartyCode;
+  final String? counterpartyAlias;
   final String status;
   final String timeAgo;
   final bool isExpired;
+  final VoidCallback? onEditAlias;
 
   const _HistoryTile({
     required this.direction,
     required this.counterpartyCode,
     required this.status,
     required this.timeAgo,
+    this.counterpartyAlias,
     this.isExpired = false,
+    this.onEditAlias,
   });
 
   Color get _tint {
@@ -496,7 +525,25 @@ class _HistoryTile extends StatelessWidget {
                     children: [
                       Text(isOut ? 'To ' : 'From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+                      if (counterpartyAlias != null) ...[
+                        Flexible(
+                          child: GestureDetector(
+                            onLongPress: onEditAlias,
+                            child: Text(
+                              counterpartyAlias!,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: c.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       GestureDetector(
+                        onLongPress: onEditAlias,
                         onTap: () {
                           Clipboard.setData(
                               ClipboardData(text: counterpartyCode));
@@ -516,8 +563,11 @@ class _HistoryTile extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(fmtCode(counterpartyCode),
-                                style:
-                                    ZenText.codeSmall.copyWith(color: c.ink)),
+                                style: counterpartyAlias != null
+                                    ? ZenText.codeSmall.copyWith(
+                                        color: c.inkFaint, fontSize: 11)
+                                    : ZenText.codeSmall
+                                        .copyWith(color: c.ink)),
                             const SizedBox(width: 4),
                             Icon(Icons.copy_rounded,
                                 size: 11, color: c.inkFaint),

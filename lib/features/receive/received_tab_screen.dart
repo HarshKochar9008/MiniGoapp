@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
+import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
+import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
 import 'receive_screen.dart';
@@ -41,13 +43,20 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
       }
     };
     ConnectionStatus.instance.online.addListener(_onConnectionChanged);
+    ContactAliases.ensureLoaded();
+    ContactAliases.revision.addListener(_onAliasesChanged);
     _loadTransfers();
     _subscribeToRealtime();
     _startRealtimeHealthChecks();
   }
 
+  void _onAliasesChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    ContactAliases.revision.removeListener(_onAliasesChanged);
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     WidgetsBinding.instance.removeObserver(this);
     _realtimeHealthTimer?.cancel();
@@ -273,6 +282,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                   final senderCode = (t['sender']
                                               as Map?)?['short_code'] ??
                                           '???';
+                                  final senderId =
+                                      t['sender_id'] as String?;
                                   final status =
                                       (t['status'] ?? 'pending') as String;
                                   final createdAt =
@@ -280,8 +291,17 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 
                                   return _ReceivedTile(
                                     senderCode: senderCode.toString(),
+                                    senderAlias:
+                                        ContactAliases.aliasFor(senderId),
                                     status: status,
                                     timeAgo: _timeAgo(createdAt),
+                                    onEditAlias: senderId == null
+                                        ? null
+                                        : () => ContactAliasSheet.show(
+                                              context,
+                                              userId: senderId,
+                                              code: senderCode.toString(),
+                                            ),
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -358,15 +378,19 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 
 class _ReceivedTile extends StatelessWidget {
   final String senderCode;
+  final String? senderAlias;
   final String status;
   final String timeAgo;
   final VoidCallback onTap;
+  final VoidCallback? onEditAlias;
 
   const _ReceivedTile({
     required this.senderCode,
     required this.status,
     required this.timeAgo,
     required this.onTap,
+    this.senderAlias,
+    this.onEditAlias,
   });
 
   Color get _tint {
@@ -440,8 +464,41 @@ class _ReceivedTile extends StatelessWidget {
                     children: [
                       Text('From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      Text(fmtCode(senderCode),
-                          style: ZenText.codeSmall.copyWith(color: c.ink)),
+                      if (senderAlias != null) ...[
+                        Flexible(
+                          child: Text(
+                            senderAlias!,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: c.ink,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(fmtCode(senderCode),
+                            style: ZenText.codeSmall
+                                .copyWith(color: c.inkFaint, fontSize: 11)),
+                      ] else
+                        Text(fmtCode(senderCode),
+                            style: ZenText.codeSmall.copyWith(color: c.ink)),
+                      if (onEditAlias != null) ...[
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: onEditAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+                            child: Icon(
+                              senderAlias != null
+                                  ? Icons.edit_outlined
+                                  : Icons.person_add_alt_outlined,
+                              size: 14,
+                              color: c.inkFaint,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),

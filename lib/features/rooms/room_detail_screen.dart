@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
+import '../../core/contacts/contact_aliases.dart';
 import '../../core/native/native_share.dart';
 import '../../zensend/theme/zen_theme.dart';
 import '../../zensend/widgets/zen_widgets.dart';
+import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import 'room_service.dart';
 
@@ -33,7 +35,19 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   @override
   void initState() {
     super.initState();
+    ContactAliases.ensureLoaded();
+    ContactAliases.revision.addListener(_onAliasesChanged);
     _loadMembers();
+  }
+
+  void _onAliasesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    ContactAliases.revision.removeListener(_onAliasesChanged);
+    super.dispose();
   }
 
   Future<void> _loadMembers() async {
@@ -221,6 +235,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         member: member,
                         isYou: member.userId == widget.identity.id,
                         isHost: member.userId == widget.room.ownerId,
+                        onLongPress: member.userId == widget.identity.id
+                            ? null
+                            : () => ContactAliasSheet.show(
+                                  context,
+                                  userId: member.userId,
+                                  code: member.shortCode,
+                                ),
                       ),
                       const HairLine(indent: 56),
                     ],
@@ -264,81 +285,88 @@ class _MemberRow extends StatelessWidget {
   final RoomMember member;
   final bool isYou;
   final bool isHost;
+  final VoidCallback? onLongPress;
 
   const _MemberRow({
     required this.member,
     required this.isYou,
     required this.isHost,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: isHost ? ZenColors.blue50 : c.paperDeep,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                member.displayName.characters.first.toUpperCase(),
-                style: GoogleFonts.outfit(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: isHost ? ZenColors.blue600 : c.inkSoft,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isYou ? '${member.displayName} (you)' : member.displayName,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: c.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  fmtCode(member.shortCode),
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11,
-                    letterSpacing: 1.5,
-                    color: c.inkFaint,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isHost)
+    // Local alias wins over the member's self-set nickname
+    final name = ContactAliases.aliasFor(member.userId) ?? member.displayName;
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: ZenColors.blue50,
-                borderRadius: BorderRadius.circular(20),
+                color: isHost ? ZenColors.blue50 : c.paperDeep,
+                shape: BoxShape.circle,
               ),
-              child: Text(
-                'Host',
-                style: GoogleFonts.outfit(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: ZenColors.blue600,
+              child: Center(
+                child: Text(
+                  name.characters.first.toUpperCase(),
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: isHost ? ZenColors.blue600 : c.inkSoft,
+                  ),
                 ),
               ),
             ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isYou ? '$name (you)' : name,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: c.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    fmtCode(member.shortCode),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      letterSpacing: 1.5,
+                      color: c.inkFaint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isHost)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ZenColors.blue50,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Host',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: ZenColors.blue600,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
