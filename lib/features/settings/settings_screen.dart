@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,49 +23,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = ThemeController.themeMode.value == ThemeMode.dark;
   bool _checkingPush = false;
   PushReadinessResult? _pushReadiness;
-  final _nicknameController = TextEditingController();
-  bool _isEditingNickname = false;
   String? _nickname;
 
   @override
   void initState() {
     super.initState();
     _nickname = widget.identity.nickname;
-    _nicknameController.text = _nickname ?? '';
     _refreshPushReadiness();
   }
 
-  @override
-  void dispose() {
-    _nicknameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveNickname() async {
-    final trimmed = _nicknameController.text.trim();
-    final newNick = trimmed.isEmpty ? null : trimmed;
+  Future<void> _editNickname() async {
+    HapticFeedback.selectionClick();
+    final result = await _NicknameSheet.show(context, _nickname);
+    if (result == null || !mounted) return;
+    final newNick = result.value;
     await IdentityService.setNickname(newNick);
-    setState(() {
-      _nickname = newNick;
-      _isEditingNickname = false;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(newNick == null ? 'Nickname removed' : 'Nickname saved'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    if (!mounted) return;
+    setState(() => _nickname = newNick);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(newNick == null ? 'Nickname removed' : 'Nickname saved'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
-  void _startEditingNickname() {
-    setState(() => _isEditingNickname = true);
-  }
-
-  void _cancelEditingNickname() {
-    _nicknameController.text = _nickname ?? '';
-    setState(() => _isEditingNickname = false);
+  void _copyCode() {
+    Clipboard.setData(ClipboardData(text: widget.identity.shortCode));
+    HapticFeedback.selectionClick();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Code copied')),
+    );
   }
 
   Future<void> _setDarkMode(bool enabled) async {
@@ -127,6 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: c.paper,
       body: SafeArea(
         child: ListView(
+          padding: const EdgeInsets.only(bottom: 32),
           children: [
             // Header
             Padding(
@@ -143,181 +132,164 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const HairLine(indent: 20),
-            const SizedBox(height: 8),
 
-            // Identity card
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: c.paperDeep,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                children: [
-                  // Nickname section
-                  if (_isEditingNickname)
-                    Column(
-                      children: [
-                        TextField(
-                          controller: _nicknameController,
-                          autofocus: true,
-                          textCapitalization: TextCapitalization.words,
-                          style: ZenText.body.copyWith(fontSize: 18),
-                          decoration: InputDecoration(
-                            hintText: 'Add a nickname',
-                            filled: true,
-                            fillColor: c.paper,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                  color: ZenColors.blue500, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            TextButton(
-                              onPressed: _cancelEditingNickname,
-                              child: const Text('Cancel'),
-                            ),
-                            const SizedBox(width: 16),
-                            FilledButton(
-                              onPressed: _saveNickname,
-                              child: const Text('Save'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  else
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_nickname != null)
-                          Text(
-                            _nickname!,
-                            style: ZenText.title,
-                          ),
-                        if (_nickname == null)
-                          Text(
-                            'No nickname',
-                            style: ZenText.bodySoft.copyWith(fontStyle: FontStyle.italic),
-                          ),
-                        const SizedBox(width: 12),
-                        IconButton(
-                          icon: Icon(Icons.edit_rounded, color: c.inkSoft, size: 20),
-                          onPressed: _startEditingNickname,
-                        ),
-                      ],
-                    ),
-                  if (!_isEditingNickname) const SizedBox(height: 18),
-                  // Code section
-                  Text('Your code',
-                      style: ZenText.label.copyWith(color: c.inkSoft)),
-                  const SizedBox(height: 14),
-                  Text(
-                    fmtCode(widget.identity.shortCode),
-                    style: ZenText.codeLarge.copyWith(color: c.ink),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _CodeAction(
-                        icon: Icons.copy_rounded,
-                        label: 'Copy',
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(
-                              text: widget.identity.shortCode));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Code copied')),
-                          );
-                        },
+            // Profile card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: c.paperDeep,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: ZenColors.blue50,
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Push readiness
-            _buildPushCard(),
-
-            SectionHeader(title: 'Preferences'),
-            const HairLine(indent: 20),
-
-            _ToggleRow(
-              label: 'Dark mode',
-              sub: 'Switch between light and dark theme',
-              value: _darkMode,
-              onChanged: _setDarkMode,
-            ),
-            const HairLine(indent: 20),
-
-            SectionHeader(title: 'About'),
-            const HairLine(indent: 20),
-
-            _LinkRow(
-              label: 'About Whoosh',
-              sub: 'Version, how it works, and legal',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AboutScreen()),
-              ),
-            ),
-            const HairLine(indent: 20),
-            _LinkRow(
-              label: 'How it works',
-              sub: 'View the app walkthrough again',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => OnboardingScreen(
-                    onComplete: () => Navigator.of(context).pop(),
-                  ),
+                      child: Center(
+                        child: Text(
+                          (_nickname ?? widget.identity.shortCode)
+                              .characters
+                              .first
+                              .toUpperCase(),
+                          style: GoogleFonts.outfit(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            color: ZenColors.blue600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _nickname ?? 'Add a nickname',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: _nickname != null ? c.ink : c.inkFaint,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          GestureDetector(
+                            onTap: _copyCode,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  fmtCode(widget.identity.shortCode),
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 13,
+                                    letterSpacing: 2,
+                                    color: c.inkSoft,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(Icons.copy_rounded,
+                                    size: 13, color: c.inkFaint),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.edit_outlined,
+                          size: 20, color: c.inkSoft),
+                      tooltip: 'Edit nickname',
+                      onPressed: _editNickname,
+                    ),
+                  ],
                 ),
               ),
             ),
-            const HairLine(indent: 20),
-            _LinkRow(
-              label: 'Privacy & Security',
-              sub: 'Encryption, data collection & your rights',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PrivacyScreen()),
-              ),
-            ),
-            const HairLine(indent: 20),
-            _LinkRow(
-              label: 'Version',
-              trailing: 'Whoosh 1.1.0',
-            ),
-            const HairLine(indent: 20),
 
-            const SizedBox(height: 32),
-
-            // Danger zone
+            // Delivery status card
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-              child: ZenButton(
-                label: 'Clear all local data & sign out',
-                style: ZenBtnStyle.danger,
-                leading: const Icon(Icons.delete_outline_rounded,
-                    size: 16, color: ZenColors.danger),
-                onPressed: _confirmFullLocalReset,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: _buildPushCard(c),
+            ),
+
+            _GroupLabel('Preferences'),
+            _SettingsGroup(
+              children: [
+                _SettingsTile(
+                  icon: Icons.dark_mode_outlined,
+                  iconTint: ZenColors.blue600,
+                  label: 'Dark mode',
+                  sub: 'Switch between light and dark theme',
+                  trailing: Switch.adaptive(
+                    value: _darkMode,
+                    onChanged: _setDarkMode,
+                  ),
+                ),
+              ],
+            ),
+
+            _GroupLabel('About'),
+            _SettingsGroup(
+              children: [
+                _SettingsTile(
+                  icon: Icons.info_outline_rounded,
+                  iconTint: ZenColors.blue600,
+                  label: 'About MiniGo',
+                  sub: 'Version, how it works, and legal',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AboutScreen()),
+                  ),
+                ),
+                _SettingsTile(
+                  icon: Icons.play_circle_outline_rounded,
+                  iconTint: ZenColors.blue600,
+                  label: 'How it works',
+                  sub: 'View the app walkthrough again',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => OnboardingScreen(
+                        onComplete: () => Navigator.of(context).pop(),
+                      ),
+                    ),
+                  ),
+                ),
+                _SettingsTile(
+                  icon: Icons.shield_outlined,
+                  iconTint: ZenColors.success,
+                  label: 'Privacy & Security',
+                  sub: 'Encryption, data collection & your rights',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                  ),
+                ),
+                _SettingsTile(
+                  icon: Icons.tag_rounded,
+                  iconTint: ZenColors.inkFaint,
+                  label: 'Version',
+                  trailingText: 'MiniGo 1.1.0',
+                ),
+              ],
+            ),
+
+            _GroupLabel('Danger zone'),
+            _SettingsGroup(
+              children: [
+                _SettingsTile(
+                  icon: Icons.delete_outline_rounded,
+                  iconTint: ZenColors.danger,
+                  label: 'Clear all local data & sign out',
+                  sub: 'Removes your code and settings from this device',
+                  labelColor: ZenColors.danger,
+                  onTap: _confirmFullLocalReset,
+                ),
+              ],
             ),
           ],
         ),
@@ -325,7 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildPushCard() {
+  Widget _buildPushCard(ZenThemeExtension c) {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
     final tint = _checkingPush
@@ -350,48 +322,163 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : (readiness?.reason ??
                 'Push pipeline is not fully configured yet.');
 
-    return StatusBanner(
-      icon: icon,
-      text: '$title\n$subtitle',
-      tint: tint,
-      onTap: _checkingPush ? null : _refreshPushReadiness,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: tint.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: tint),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: tint,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: c.inkSoft,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!_checkingPush)
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, size: 18, color: c.inkFaint),
+              tooltip: 'Re-check',
+              onPressed: _refreshPushReadiness,
+            ),
+        ],
+      ),
     );
   }
 }
 
-class _CodeAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _CodeAction(
-      {required this.icon, required this.label, required this.onTap});
+/// Nullable-result wrapper so "cancelled" (null) and "removed nickname"
+/// (value: null) can be told apart.
+class _NicknameResult {
+  final String? value;
+  const _NicknameResult(this.value);
+}
+
+class _NicknameSheet extends StatefulWidget {
+  final String? current;
+  const _NicknameSheet({this.current});
+
+  static Future<_NicknameResult?> show(BuildContext context, String? current) {
+    return showModalBottomSheet<_NicknameResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NicknameSheet(current: current),
+    );
+  }
+
+  @override
+  State<_NicknameSheet> createState() => _NicknameSheetState();
+}
+
+class _NicknameSheetState extends State<_NicknameSheet> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.current ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final trimmed = _controller.text.trim();
+    Navigator.pop(
+      context,
+      _NicknameResult(trimmed.isEmpty ? null : trimmed),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
-    return GestureDetector(
-      onTap: onTap,
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: c.paper,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.divider),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 16, color: c.ink),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: c.ink,
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.divider,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
+            const SizedBox(height: 18),
+            Text('Nickname', style: ZenText.title.copyWith(color: c.ink)),
+            const SizedBox(height: 4),
+            Text(
+              'Shown on your home screen. Leave empty to remove it.',
+              style: ZenText.small,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
+              decoration: InputDecoration(
+                hintText: 'Your nickname',
+                hintStyle:
+                    GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+                filled: true,
+                fillColor: c.paperDeep,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onSubmitted: (_) => _save(),
+            ),
+            const SizedBox(height: 16),
+            ZenButton(label: 'Save', onPressed: _save),
           ],
         ),
       ),
@@ -399,67 +486,96 @@ class _CodeAction extends StatelessWidget {
   }
 }
 
-class _ToggleRow extends StatelessWidget {
-  final String label;
-  final String sub;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _ToggleRow(
-      {required this.label,
-      required this.sub,
-      required this.value,
-      required this.onChanged});
+class _GroupLabel extends StatelessWidget {
+  final String text;
+  const _GroupLabel(this.text);
+
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 16, 14),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: c.ink,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(sub,
-                    style: ZenText.small.copyWith(color: c.inkSoft)),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+      child: Text(
+        text.toUpperCase(),
+        style: GoogleFonts.outfit(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
+          color: c.inkFaint,
+        ),
       ),
     );
   }
 }
 
-class _LinkRow extends StatelessWidget {
+class _SettingsGroup extends StatelessWidget {
+  final List<Widget> children;
+  const _SettingsGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.zen;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: c.paperDeep,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              children[i],
+              if (i < children.length - 1) const HairLine(indent: 60),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconTint;
   final String label;
   final String? sub;
-  final String? trailing;
+  final String? trailingText;
+  final Widget? trailing;
+  final Color? labelColor;
   final VoidCallback? onTap;
-  const _LinkRow(
-      {required this.label, this.sub, this.trailing, this.onTap});
+
+  const _SettingsTile({
+    required this.icon,
+    required this.iconTint,
+    required this.label,
+    this.sub,
+    this.trailingText,
+    this.trailing,
+    this.labelColor,
+    this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
         child: Row(
           children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconTint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: iconTint),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,7 +583,10 @@ class _LinkRow extends StatelessWidget {
                   Text(
                     label,
                     style: GoogleFonts.outfit(
-                        fontSize: 14, color: c.ink),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: labelColor ?? c.ink,
+                    ),
                   ),
                   if (sub != null) ...[
                     const SizedBox(height: 2),
@@ -478,11 +597,12 @@ class _LinkRow extends StatelessWidget {
               ),
             ),
             if (trailing != null)
-              Text(trailing!,
+              trailing!
+            else if (trailingText != null)
+              Text(trailingText!,
                   style: ZenText.small.copyWith(color: c.inkSoft))
             else if (onTap != null)
-              Icon(Icons.chevron_right_rounded,
-                  color: c.inkFaint, size: 20),
+              Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
           ],
         ),
       ),

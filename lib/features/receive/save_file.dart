@@ -35,7 +35,7 @@ Future<String> saveFileToDevice(File file, String fileName) async {
       } else {
         await Gal.putVideo(file.path, album: 'MiniGo');
       }
-      return 'Gallery (Whoosh album)';
+      return 'Gallery (MiniGo album)';
     } catch (e) {
       throw SaveFileException('Could not save to gallery: $e');
     }
@@ -95,11 +95,11 @@ Future<String> _saveNonMedia(File file, String fileName) async {
 
   // iOS or fallback
   final docsDir = await getApplicationDocumentsDirectory();
-  final whooshDir = Directory('${docsDir.path}/Whoosh');
-  if (!await whooshDir.exists()) {
-    await whooshDir.create(recursive: true);
+  final saveDir = Directory('${docsDir.path}/MiniGo');
+  if (!await saveDir.exists()) {
+    await saveDir.create(recursive: true);
   }
-  final savePath = _uniquePath(whooshDir.path, fileName);
+  final savePath = _uniquePath(saveDir.path, fileName);
   await file.copy(savePath);
   return savePath;
 }

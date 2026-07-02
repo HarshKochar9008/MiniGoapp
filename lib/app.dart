@@ -2,12 +2,14 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants.dart';
 import 'core/analytics/analytics.dart';
+import 'core/native/share_intent_bridge.dart';
 import 'core/navigation/root_navigator.dart';
 import 'core/widget_bridge.dart';
 import 'core/network/connection_status.dart';
@@ -20,10 +22,11 @@ import 'core/theme.dart';
 import 'core/widgets/global_status_banner.dart';
 import 'features/home/home_screen.dart' show HomeScreen, HomeAutoAction;
 import 'features/history/history_screen.dart';
+import 'features/rooms/rooms_screen.dart';
 import 'features/settings/settings_screen.dart';
-import 'features/receive/received_tab_screen.dart';
 import 'features/identity/identity_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/send/send_screen.dart';
 
 class MiniGoApp extends StatelessWidget {
   const MiniGoApp({super.key});
@@ -106,6 +109,29 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _runningDiagnostics = false;
   String? _diagnosticsReport;
   VoidCallback? _connectivityListener;
+  bool _consumingSharedFiles = false;
+
+  /// If another app shared files to us (share sheet), open the Send flow
+  /// with those files pre-selected.
+  Future<void> _consumeSharedFiles() async {
+    final identity = _identity;
+    if (identity == null || _consumingSharedFiles) return;
+    _consumingSharedFiles = true;
+    try {
+      final shared = await ShareIntentBridge.getAndClearSharedFiles();
+      if (shared.isEmpty || !mounted) return;
+      final files = shared
+          .map((f) => PlatformFile(path: f.path, name: f.name, size: f.size))
+          .toList();
+      rootNavigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (_) => SendScreen(identity: identity, initialFiles: files),
+        ),
+      );
+    } finally {
+      _consumingSharedFiles = false;
+    }
+  }
 
   Future<UserIdentity> _initializeIdentityWithRetry() async {
     // Keep startup responsive: one bounded attempt here, then let the
@@ -166,6 +192,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       } else if (_identity != null) {
         NotificationService.syncFcmToken(_identity!.id);
         unawaited(OfflineSyncCoordinator.instance.onAppResumed());
+        unawaited(_consumeSharedFiles());
         WidgetBridge.getAndClearAction().then((rawAction) {
           if (!mounted || rawAction == null) return;
           HomeAutoAction? action;
@@ -215,6 +242,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           _autoRetryAttempts = 0;
           _widgetAction = widgetAction;
           if (widgetAction != null) _currentIndex = 0;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_consumeSharedFiles());
         });
       }
     } on AuthFailedException catch (e) {
@@ -409,7 +439,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         autoAction: _widgetAction,
         onActionConsumed: () => setState(() => _widgetAction = null),
       ),
-      ReceivedTabScreen(identity: _identity!),
+      RoomsScreen(identity: _identity!),
       HistoryScreen(identity: _identity!),
       SettingsScreen(identity: _identity!),
     ];
@@ -443,7 +473,7 @@ class _ZenBottomNav extends StatelessWidget {
 
   static const _items = [
     _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    _NavItem(icon: Icons.south_west_outlined, activeIcon: Icons.south_west, label: 'Received'),
+    _NavItem(icon: Icons.groups_outlined, activeIcon: Icons.groups_rounded, label: 'Rooms'),
     _NavItem(icon: Icons.access_time_outlined, activeIcon: Icons.access_time_rounded, label: 'History'),
     _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings_rounded, label: 'Settings'),
   ];

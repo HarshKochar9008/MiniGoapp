@@ -87,12 +87,12 @@ class AboutScreen extends StatelessWidget {
               ),
             ),
 
-            SectionHeader(title: 'What is Whoosh?'),
+            SectionHeader(title: 'What is MiniGo?'),
             const HairLine(indent: 20),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Text(
-                'Whoosh lets you transfer files directly to another person '
+                'MiniGo lets you transfer files directly to another person '
                 'using a short 6-character code — no accounts, no cloud storage, '
                 'no email required. Files are sent peer-to-peer via an encrypted relay.',
                 style: GoogleFonts.outfit(
@@ -142,8 +142,8 @@ class AboutScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Text(
-                '© 2024 Whoosh. All rights reserved.\n\n'
-                'Whoosh is provided as-is. We do not store files permanently — '
+                '© 2024 MiniGo. All rights reserved.\n\n'
+                'MiniGo is provided as-is. We do not store files permanently — '
                 'transfers expire after 24 hours. You are responsible for the '
                 'content you share.',
                 style: GoogleFonts.outfit(

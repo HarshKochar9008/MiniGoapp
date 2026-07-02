@@ -22,7 +22,15 @@ import '../transfer/transfer_service.dart';
 
 class SendScreen extends StatefulWidget {
   final UserIdentity identity;
-  const SendScreen({super.key, required this.identity});
+
+  /// Files to pre-select, e.g. shared to the app via the system share sheet.
+  final List<PlatformFile> initialFiles;
+
+  const SendScreen({
+    super.key,
+    required this.identity,
+    this.initialFiles = const [],
+  });
 
   @override
   State<SendScreen> createState() => _SendScreenState();
@@ -47,10 +55,35 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _applyInitialFiles();
     _refreshPowerSaveMode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_checkInterruptedUploadRecovery());
     });
+  }
+
+  void _applyInitialFiles() {
+    if (widget.initialFiles.isEmpty) return;
+    final seenNames = <String>{};
+    final valid = <PlatformFile>[];
+    String? error;
+    for (final f in widget.initialFiles) {
+      if (f.path == null || !seenNames.add(f.name)) continue;
+      if (f.size > AppConstants.maxFileSizeBytes) {
+        error = '${f.name} exceeds '
+            '${AppConstants.maxFileSizeBytes ~/ 1024 ~/ 1024} MB limit '
+            'and was skipped';
+        continue;
+      }
+      if (valid.length >= AppConstants.maxFilesPerTransfer) {
+        error =
+            'Only the first ${AppConstants.maxFilesPerTransfer} files were added';
+        break;
+      }
+      valid.add(f);
+    }
+    _selectedFiles = valid;
+    _error = error;
   }
 
   @override
@@ -571,7 +604,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             Text(reason, style: ZenText.bodySoft),
             const SizedBox(height: 12),
             Text(
-              'If their Whoosh app is open right now, they will still see '
+              'If their MiniGo app is open right now, they will still see '
               'the transfer and can download it. Otherwise it will only '
               'arrive the next time they open the app.',
               style: ZenText.small,
