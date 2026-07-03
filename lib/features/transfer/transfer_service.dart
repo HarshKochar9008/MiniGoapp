@@ -1256,7 +1256,7 @@ class TransferService {
 
     final result = await SupabaseConfig.client
         .from('transfers')
-        .select('*, sender:users!transfers_sender_id_fkey(short_code)')
+        .select('*, sender:users!transfers_sender_id_fkey(short_code, deleted_at)')
         .eq('receiver_id', userId)
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);
@@ -1288,7 +1288,7 @@ class TransferService {
 
     final result = await SupabaseConfig.client
         .from('transfers')
-        .select('*, receiver:users!transfers_receiver_id_fkey(short_code)')
+        .select('*, receiver:users!transfers_receiver_id_fkey(short_code, deleted_at)')
         .eq('sender_id', userId)
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);

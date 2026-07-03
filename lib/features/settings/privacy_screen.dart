@@ -152,8 +152,7 @@ class PrivacyScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Text(
-                'You can delete all local data at any time using "Clear all local data & '
-                'sign out" in Settings. This removes your code, identity, and queued transfers '
+                'You can delete all local data at any time using "Clear all local data" in Settings. This removes your code, identity, and queued transfers '
                 'from this device and signs you out of the backend.',
                 style: GoogleFonts.outfit(
                   fontSize: 14,

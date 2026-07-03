@@ -129,6 +129,7 @@ class IdentityService {
             .from('users')
             .select('id, short_code')
             .eq('short_code', normalized)
+            .isFilter('deleted_at', null)
             .maybeSingle()
             .timeout(const Duration(seconds: 22));
       } catch (e) {
