@@ -34,7 +34,12 @@ class RoomMember {
     this.nickname,
   });
 
-  String get displayName => nickname ?? shortCode;
+  /// Falls back to the short code when the nickname is null OR blank —
+  /// callers take `.characters.first` of this, which throws on ''.
+  String get displayName {
+    final nick = nickname?.trim();
+    return (nick == null || nick.isEmpty) ? shortCode : nick;
+  }
 }
 
 class RoomFullException implements Exception {

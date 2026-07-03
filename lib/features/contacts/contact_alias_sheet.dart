@@ -89,7 +89,7 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
               'Only you see this name — it stays on this device. '
               'Their code is ${fmtCode(widget.code)}. '
               'Leave empty to remove the name.',
-              style: ZenText.small,
+              style: ZenText.small.copyWith(color: c.inkSoft),
             ),
             const SizedBox(height: 16),
             TextField(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,13 +23,23 @@ class IdentityService {
   static UserIdentity? _cached;
   static const _maxCodeAttempts = 10;
 
+  /// Fires whenever the current identity changes (startup, nickname edit,
+  /// reset). UI that holds an identity snapshot listens to stay in sync.
+  static final ValueNotifier<UserIdentity?> identityNotifier =
+      ValueNotifier<UserIdentity?>(null);
+
+  static void _setCached(UserIdentity? identity) {
+    _cached = identity;
+    identityNotifier.value = identity;
+  }
+
   static Future<UserIdentity> initialize() async {
     if (_cached != null) return _cached!;
 
     final prefs = await SharedPreferences.getInstance();
     final cachedIdentity = _identityFromPrefs(prefs);
     if (cachedIdentity != null) {
-      _cached = cachedIdentity;
+      _setCached(cachedIdentity);
     }
 
     Session session;
@@ -56,7 +67,7 @@ class IdentityService {
         identity: identity,
         authUid: authUid,
       );
-      _cached = identity;
+      _setCached(identity);
       return identity;
     }
 
@@ -80,7 +91,7 @@ class IdentityService {
           identity: identity,
           authUid: authUid,
         );
-        _cached = identity;
+        _setCached(identity);
         return identity;
       } on PostgrestException catch (e) {
         final isDuplicate = e.code == '23505';
@@ -96,7 +107,7 @@ class IdentityService {
             identity: identity,
             authUid: authUid,
           );
-          _cached = identity;
+          _setCached(identity);
           return identity;
         }
         if (attempt == _maxCodeAttempts - 1) rethrow;
@@ -140,7 +151,7 @@ class IdentityService {
     throw StateError('findUserByCode: unreachable');
   }
 
-  static void clearCache() => _cached = null;
+  static void clearCache() => _setCached(null);
 
   static Future<Session> _ensureSession() async {
     final current = SupabaseConfig.client.auth.currentSession;
@@ -181,10 +192,14 @@ class IdentityService {
   }
 
   static UserIdentity _identityFromDbRow(Map<String, dynamic> row) {
+    // Normalize blank nicknames to null so UI code that shows
+    // `nickname ?? fallback` (or takes `.characters.first`) never
+    // receives an empty string.
+    final rawNick = (row['nickname'] as String?)?.trim();
     return UserIdentity(
       id: row['id'] as String,
       shortCode: row['short_code'] as String,
-      nickname: row['nickname'] as String?,
+      nickname: (rawNick == null || rawNick.isEmpty) ? null : rawNick,
     );
   }
 
@@ -241,7 +256,7 @@ class IdentityService {
     );
     
     // Update local cache and prefs first
-    _cached = updated;
+    _setCached(updated);
     await _persistIdentity(
       prefs: prefs,
       identity: updated,

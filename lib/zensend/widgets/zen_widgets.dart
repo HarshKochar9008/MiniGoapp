@@ -182,18 +182,20 @@ class ZenFileRow extends StatelessWidget {
   }
 
   List<Color> _tone(ZenThemeExtension c) {
+    // Tint hue per file type, blended over the themed surface so the chip
+    // works on both light and dark grounds.
     switch (mimeCategory) {
       case 'Image':
-        return [ZenColors.blue200, ZenColors.blue50];
+        return [c.accent.withValues(alpha: 0.30), c.paperDeep];
       case 'Video':
-        return [const Color(0xFFF2DFDF), c.paperDeep];
+        return [ZenColors.danger.withValues(alpha: 0.22), c.paperDeep];
       case 'Audio':
-        return [const Color(0xFFE0EFE6), c.paperDeep];
+        return [ZenColors.success.withValues(alpha: 0.22), c.paperDeep];
       case 'PDF':
       case 'Document':
-        return [const Color(0xFFE6DFF2), c.paperDeep];
+        return [const Color(0xFF8B6FC9).withValues(alpha: 0.25), c.paperDeep];
       case 'Archive':
-        return [const Color(0xFFDCE8F6), c.paperDeep];
+        return [ZenColors.blue500.withValues(alpha: 0.20), c.paperDeep];
       default:
         return [c.sand, c.paperDeep];
     }

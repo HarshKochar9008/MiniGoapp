@@ -448,7 +448,10 @@ class _ReceivedTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: status == 'completed'
-                      ? [ZenColors.blue200, ZenColors.blue50]
+                      ? [
+                          c.accent.withValues(alpha: 0.30),
+                          c.accent.withValues(alpha: 0.08),
+                        ]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -459,7 +462,7 @@ class _ReceivedTile extends StatelessWidget {
                     ? Icons.download_done_rounded
                     : Icons.south_west_rounded,
                 size: 18,
-                color: c.ink.withOpacity(0.55),
+                color: c.ink.withValues(alpha: 0.55),
               ),
             ),
             const SizedBox(width: 12),

@@ -125,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.identity.nickname!,
-                            style: ZenText.title,
+                            style: ZenText.title.copyWith(color: c.ink),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -242,8 +242,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline_rounded,
-                              size: 18, color: ZenColors.blue600),
+                          Icon(Icons.info_outline_rounded,
+                              size: 18, color: c.accent),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -251,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Tap Send below to send files to someone else.',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: ZenColors.blue600,
+                                color: c.accent,
                                 height: 1.5,
                               ),
                             ),

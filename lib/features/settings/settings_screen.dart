@@ -448,7 +448,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
             const SizedBox(height: 4),
             Text(
               'Shown on your home screen. Leave empty to remove it.',
-              style: ZenText.small,
+              style: ZenText.small.copyWith(color: c.inkSoft),
             ),
             const SizedBox(height: 16),
             TextField(

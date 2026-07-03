@@ -169,14 +169,28 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       }
     };
     ConnectionStatus.instance.online.addListener(_connectivityListener!);
+    IdentityService.identityNotifier.addListener(_onIdentityChanged);
     unawaited(ContactAliases.ensureLoaded());
     NotificationService.handleLaunchAndPendingNavigation();
     _loadIdentity();
   }
 
+  /// Keeps the shell's identity snapshot in sync when it changes elsewhere
+  /// (e.g. nickname edited in Settings) so Home and other tabs update live.
+  void _onIdentityChanged() {
+    final updated = IdentityService.identityNotifier.value;
+    if (!mounted || updated == null || _identity == null) return;
+    if (updated.id != _identity!.id ||
+        updated.nickname != _identity!.nickname ||
+        updated.shortCode != _identity!.shortCode) {
+      setState(() => _identity = updated);
+    }
+  }
+
   @override
   void dispose() {
     OfflineSyncCoordinator.instance.stop();
+    IdentityService.identityNotifier.removeListener(_onIdentityChanged);
     if (_connectivityListener != null) {
       ConnectionStatus.instance.online.removeListener(_connectivityListener!);
     }
@@ -537,6 +551,7 @@ class _ZenNavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -548,7 +563,7 @@ class _ZenNavTile extends StatelessWidget {
             Icon(
               isActive ? activeIcon : icon,
               size: 22,
-              color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
+              color: isActive ? c.accent : c.inkFaint,
             ),
             const SizedBox(height: 4),
             Text(
@@ -556,7 +571,7 @@ class _ZenNavTile extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w300,
-                color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
+                color: isActive ? c.accent : c.inkFaint,
                 letterSpacing: 0.2,
               ),
             ),

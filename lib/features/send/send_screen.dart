@@ -361,17 +361,15 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              fileNames.length == 1
-                  ? 'Already added:'
-                  : 'Already added:',
-              style: ZenText.bodySoft,
+              'Already added:',
+              style: ZenText.bodySoft.copyWith(color: ctx.zen.inkSoft),
             ),
             const SizedBox(height: 8),
             ...fileNames.map(
               (name) => Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(name,
-                    style: ZenText.small,
+                    style: ZenText.small.copyWith(color: ctx.zen.inkSoft),
                     overflow: TextOverflow.ellipsis),
               ),
             ),
@@ -603,13 +601,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(reason, style: ZenText.bodySoft),
+            Text(reason,
+                style: ZenText.bodySoft.copyWith(color: ctx.zen.inkSoft)),
             const SizedBox(height: 12),
             Text(
               'If their MiniGo app is open right now, they will still see '
               'the transfer and can download it. Otherwise it will only '
               'arrive the next time they open the app.',
-              style: ZenText.small,
+              style: ZenText.small.copyWith(color: ctx.zen.inkSoft),
             ),
           ],
         ),
@@ -691,8 +690,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Scaffold(
-      backgroundColor: ZenColors.paper,
+      backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -708,7 +708,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: ZenColors.paperDeep,
+                color: c.paperDeep,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -729,13 +729,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         fontSize: 22,
                         letterSpacing: 3,
                         fontWeight: FontWeight.w500,
-                        color: ZenColors.ink,
+                        color: c.ink,
                       ),
                       decoration: InputDecoration(
                         hintText: '— — —   — — —',
                         hintStyle: GoogleFonts.jetBrainsMono(
                           fontSize: 18,
-                          color: ZenColors.inkFaint,
+                          color: c.inkFaint,
                           letterSpacing: 3,
                         ),
                         counterText: '',
@@ -762,7 +762,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           Icons.qr_code_scanner_rounded,
                           size: 20,
                         ),
-                        color: ZenColors.inkSoft,
+                        color: c.inkSoft,
                         onPressed: _scanCode,
                         tooltip: 'Scan QR code',
                       ),
@@ -850,12 +850,15 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Files', style: ZenText.label),
+                            Text('Files',
+                                style: ZenText.label
+                                    .copyWith(color: c.inkSoft)),
                             if (_selectedFiles.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 '${_selectedFiles.length} selected · ${_formatSize(_totalSize)}',
-                                style: ZenText.small,
+                                style: ZenText.small
+                                    .copyWith(color: c.inkSoft),
                               ),
                             ],
                           ],
@@ -884,7 +887,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: ZenColors.paperDeep.withOpacity(0.5),
+                          color: c.paperDeep.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: ZenFileRow(
@@ -896,11 +899,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               ? null
                               : GestureDetector(
                                   onTap: () => _removeFile(i),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
                                     child: Icon(Icons.close_rounded,
-                                        size: 16,
-                                        color: ZenColors.inkFaint),
+                                        size: 16, color: c.inkFaint),
                                   ),
                                 ),
                         ),
@@ -920,7 +922,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                     const SizedBox(height: 8),
                     Text(
                       'Keep the app open while uploading.',
-                      style: ZenText.small,
+                      style: ZenText.small.copyWith(color: c.inkSoft),
                     ),
                   ],
                 ],
@@ -931,7 +933,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           // Send button
           if (_codeValidated && _selectedFiles.isNotEmpty)
             Container(
-              color: ZenColors.paper,
+              color: c.paper,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: _sending
                   ? ZenButton(
@@ -940,8 +942,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       onPressed: null,
                       leading: GestureDetector(
                         onTap: _cancelUpload,
-                        child: const Icon(Icons.close_rounded,
-                            size: 16, color: ZenColors.inkFaint),
+                        child: Icon(Icons.close_rounded,
+                            size: 16, color: c.inkFaint),
                       ),
                     )
                   : _HoldToSendButton(onSend: _send),
@@ -966,26 +968,28 @@ class _EmptyFilesZen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return GestureDetector(
       onTap: onPick,
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          color: ZenColors.paperDeep,
+          color: c.paperDeep,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: ZenColors.divider),
+          border: Border.all(color: c.divider),
         ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add_circle_outline_rounded,
-                  size: 36, color: ZenColors.inkFaint),
+              Icon(Icons.add_circle_outline_rounded,
+                  size: 36, color: c.inkFaint),
               const SizedBox(height: 14),
-              Text('Tap to choose files', style: ZenText.bodySoft),
+              Text('Tap to choose files',
+                  style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
               const SizedBox(height: 4),
               Text('Images, videos, documents — any type',
-                  style: ZenText.small),
+                  style: ZenText.small.copyWith(color: c.inkSoft)),
             ],
           ),
         ),
@@ -1010,7 +1014,7 @@ class _GhostAction extends StatelessWidget {
           label,
           style: GoogleFonts.outfit(
             fontSize: 13,
-            color: color ?? ZenColors.inkSoft,
+            color: color ?? context.zen.inkSoft,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1219,6 +1223,8 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -1233,11 +1239,11 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
               child: Container(
                 padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
                 decoration: BoxDecoration(
-                  color: ZenColors.paper,
+                  color: isDark ? c.paperDeep : c.paper,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: ZenColors.success.withOpacity(0.18),
+                      color: ZenColors.success.withValues(alpha: 0.18),
                       blurRadius: 32,
                       spreadRadius: 4,
                     ),
@@ -1258,7 +1264,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                       'Sent',
                       style: GoogleFonts.outfit(
                         fontSize: 26,
-                        color: ZenColors.ink,
+                        color: c.ink,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1268,7 +1274,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                           : '${widget.fileCount} files delivered',
                       style: GoogleFonts.outfit(
                         fontSize: 13,
-                        color: ZenColors.inkSoft,
+                        color: c.inkSoft,
                       ),
                     ),
                   ],

@@ -129,6 +129,11 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
   final Color divider;
   final Color dividerSoft;
 
+  /// Blue used as *text or icon color on paper* — lighter in dark mode so it
+  /// stays readable on near-black. For filled-button backgrounds keep the
+  /// static [ZenColors.blue600] (the white-on-blue pairing works both ways).
+  final Color accent;
+
   const ZenThemeExtension({
     required this.paper,
     required this.paperDeep,
@@ -139,6 +144,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     required this.sandDeep,
     required this.divider,
     required this.dividerSoft,
+    required this.accent,
   });
 
   static const light = ZenThemeExtension(
@@ -151,6 +157,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     sandDeep: Color(0xFFDCD7C8),
     divider: Color(0x141A2230),
     dividerSoft: Color(0x0A1A2230),
+    accent: Color(0xFF1558D6),
   );
 
   static const dark = ZenThemeExtension(
@@ -163,6 +170,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     sandDeep: Color(0xFF1E2840),
     divider: Color(0x1AE8E4DA),
     dividerSoft: Color(0x0DE8E4DA),
+    accent: Color(0xFF7CA7F7),
   );
 
   @override
@@ -176,6 +184,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     Color? sandDeep,
     Color? divider,
     Color? dividerSoft,
+    Color? accent,
   }) =>
       ZenThemeExtension(
         paper: paper ?? this.paper,
@@ -187,6 +196,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
         sandDeep: sandDeep ?? this.sandDeep,
         divider: divider ?? this.divider,
         dividerSoft: dividerSoft ?? this.dividerSoft,
+        accent: accent ?? this.accent,
       );
 
   @override
@@ -202,6 +212,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
       sandDeep: Color.lerp(sandDeep, other.sandDeep, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
       dividerSoft: Color.lerp(dividerSoft, other.dividerSoft, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
     );
   }
 }
