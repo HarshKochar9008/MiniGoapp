@@ -1469,6 +1469,12 @@ class TransferService {
   /// Subscribe to incoming transfers via Postgres CDC.
   /// Listens for both INSERT (new transfer created) and UPDATE (status changed
   /// to completed) so the receiver is notified when files are actually ready.
+  /// Monotonic suffix so every subscription gets its own channel topic.
+  /// Two screens subscribing with the same name would share one topic, and
+  /// whichever screen disposed first would silently kill the other's
+  /// subscription via removeChannel.
+  static int _channelSeq = 0;
+
   static RealtimeChannel? subscribeToIncoming({
     required String userId,
     required void Function(
@@ -1477,7 +1483,8 @@ class TransferService {
     ) onTransferChange,
   }) {
     try {
-      final channel = SupabaseConfig.client.channel('incoming-$userId');
+      final channel = SupabaseConfig.client
+          .channel('incoming-$userId-${++_channelSeq}');
 
       // Notify on new transfer creation
       channel.onPostgresChanges(
@@ -1532,7 +1539,8 @@ class TransferService {
     required void Function(Map<String, dynamic> fileRow) onTransferFileInserted,
   }) {
     try {
-      final channel = SupabaseConfig.client.channel('xfer-detail-$transferId');
+      final channel = SupabaseConfig.client
+          .channel('xfer-detail-$transferId-${++_channelSeq}');
 
       channel.onPostgresChanges(
         event: PostgresChangeEvent.update,

@@ -281,11 +281,11 @@ class _RoomCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: ZenColors.blue50,
+                  color: c.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.groups_rounded,
-                    size: 20, color: ZenColors.blue600),
+                child: Icon(Icons.groups_rounded,
+                    size: 20, color: c.accent),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -355,10 +355,11 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: ZenColors.blue50,
+        color: c.accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -366,7 +367,7 @@ class _Chip extends StatelessWidget {
         style: GoogleFonts.outfit(
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: ZenColors.blue600,
+          color: c.accent,
         ),
       ),
     );
@@ -387,14 +388,15 @@ class _EmptyRooms extends StatelessWidget {
           children: [
             Icon(Icons.groups_outlined, size: 44, color: c.inkFaint),
             const SizedBox(height: 16),
-            Text('No rooms yet', style: ZenText.bodySoft),
+            Text('No rooms yet',
+                style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
             const SizedBox(height: 6),
             Text(
               'Create a room and share its code, or join one '
               'with a code from a friend. Up to '
               '${AppConstants.maxRoomMembers} people per room.',
               textAlign: TextAlign.center,
-              style: ZenText.small,
+              style: ZenText.small.copyWith(color: c.inkSoft),
             ),
           ],
         ),
@@ -480,14 +482,14 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         autofocus: true,
         maxLength: AppConstants.maxRoomNameLength,
         textCapitalization: TextCapitalization.sentences,
-        style: GoogleFonts.outfit(fontSize: 16, color: ZenColors.ink),
+        style: GoogleFonts.outfit(fontSize: 16, color: context.zen.ink),
         decoration: InputDecoration(
           hintText: 'Room name',
-          hintStyle:
-              GoogleFonts.outfit(fontSize: 16, color: ZenColors.inkFaint),
+          hintStyle: GoogleFonts.outfit(
+              fontSize: 16, color: context.zen.inkFaint),
           counterText: '',
           filled: true,
-          fillColor: ZenColors.paperDeep,
+          fillColor: context.zen.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -598,18 +600,18 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           fontSize: 22,
           letterSpacing: 3,
           fontWeight: FontWeight.w500,
-          color: ZenColors.ink,
+          color: context.zen.ink,
         ),
         decoration: InputDecoration(
           hintText: '— — —   — — —',
           hintStyle: GoogleFonts.jetBrainsMono(
             fontSize: 18,
-            color: ZenColors.inkFaint,
+            color: context.zen.inkFaint,
             letterSpacing: 3,
           ),
           counterText: '',
           filled: true,
-          fillColor: ZenColors.paperDeep,
+          fillColor: context.zen.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -666,7 +668,7 @@ class _RoomSheetScaffold extends StatelessWidget {
             const SizedBox(height: 18),
             Text(title, style: ZenText.title.copyWith(color: c.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, style: ZenText.small),
+            Text(subtitle, style: ZenText.small.copyWith(color: c.inkSoft)),
             const SizedBox(height: 16),
             child,
             if (error != null) ...[

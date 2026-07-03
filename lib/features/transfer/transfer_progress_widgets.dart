@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../zensend/theme/zen_theme.dart';
@@ -16,6 +16,7 @@ class TransferUploadProgressList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     final completed =
         states.where((s) => s.status == FileUploadStatus.completed).length;
     final tail = '$completed / ${states.length} uploaded';
@@ -29,14 +30,14 @@ class TransferUploadProgressList extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(header, style: ZenText.small),
+              Text(header, style: ZenText.small.copyWith(color: c.inkSoft)),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: states.isNotEmpty ? completed / states.length : 0,
                   minHeight: 3,
-                  backgroundColor: ZenColors.divider,
+                  backgroundColor: c.divider,
                   valueColor: const AlwaysStoppedAnimation(ZenColors.blue500),
                 ),
               ),
@@ -58,33 +59,33 @@ class TransferFileProgressTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.zen;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ZenColors.paperDeep,
+        color: c.paperDeep,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ZenColors.dividerSoft),
+        border: Border.all(color: c.dividerSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _statusIcon(),
+              _statusIcon(c),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   state.fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                      fontSize: 13, color: ZenColors.ink),
+                  style: GoogleFonts.outfit(fontSize: 13, color: c.ink),
                 ),
               ),
               Text(
                 _statusLabel(),
                 style: GoogleFonts.outfit(
-                  color: _statusColor(),
+                  color: _statusColor(c),
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -98,8 +99,8 @@ class TransferFileProgressTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: state.progress,
-                backgroundColor: ZenColors.divider,
-                valueColor: AlwaysStoppedAnimation(_statusColor()),
+                backgroundColor: c.divider,
+                valueColor: AlwaysStoppedAnimation(_statusColor(c)),
                 minHeight: 3,
               ),
             ),
@@ -109,7 +110,7 @@ class TransferFileProgressTile extends StatelessWidget {
                   ? 'Verifying… ${(state.progress * 100).toInt()}%'
                   : 'Uploading… ${(state.progress * 100).toInt()}%'
                       '${state.attempt > 1 ? ' (retry ${state.attempt})' : ''}',
-              style: ZenText.small,
+              style: ZenText.small.copyWith(color: c.inkSoft),
             ),
           ],
           if (state.status == FileUploadStatus.completed &&
@@ -118,7 +119,7 @@ class TransferFileProgressTile extends StatelessWidget {
             Text(
               'SHA-256: ${state.sha256!.substring(0, 16)}…',
               style: GoogleFonts.jetBrainsMono(
-                color: ZenColors.inkFaint,
+                color: c.inkFaint,
                 fontSize: 10,
               ),
             ),
@@ -137,11 +138,10 @@ class TransferFileProgressTile extends StatelessWidget {
     );
   }
 
-  Widget _statusIcon() {
+  Widget _statusIcon(ZenThemeExtension c) {
     switch (state.status) {
       case FileUploadStatus.pending:
-        return const Icon(Icons.schedule_rounded,
-            color: ZenColors.inkFaint, size: 18);
+        return Icon(Icons.schedule_rounded, color: c.inkFaint, size: 18);
       case FileUploadStatus.hashing:
         return const SizedBox(
           width: 18,
@@ -152,8 +152,7 @@ class TransferFileProgressTile extends StatelessWidget {
           ),
         );
       case FileUploadStatus.uploading:
-        return const Icon(Icons.cloud_upload_outlined,
-            color: ZenColors.blue600, size: 18);
+        return Icon(Icons.cloud_upload_outlined, color: c.accent, size: 18);
       case FileUploadStatus.completed:
         return const Icon(Icons.check_circle_rounded,
             color: ZenColors.success, size: 18);
@@ -178,14 +177,14 @@ class TransferFileProgressTile extends StatelessWidget {
     }
   }
 
-  Color _statusColor() {
+  Color _statusColor(ZenThemeExtension c) {
     switch (state.status) {
       case FileUploadStatus.pending:
-        return ZenColors.inkFaint;
+        return c.inkFaint;
       case FileUploadStatus.hashing:
         return ZenColors.blue500;
       case FileUploadStatus.uploading:
-        return ZenColors.blue600;
+        return c.accent;
       case FileUploadStatus.completed:
         return ZenColors.success;
       case FileUploadStatus.failed:

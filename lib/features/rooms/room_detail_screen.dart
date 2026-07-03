@@ -309,7 +309,9 @@ class _MemberRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isHost ? ZenColors.blue50 : c.paperDeep,
+                color: isHost
+                    ? c.accent.withValues(alpha: 0.12)
+                    : c.paperDeep,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -318,7 +320,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: isHost ? ZenColors.blue600 : c.inkSoft,
+                    color: isHost ? c.accent : c.inkSoft,
                   ),
                 ),
               ),
@@ -353,7 +355,7 @@ class _MemberRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: ZenColors.blue50,
+                  color: c.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -361,7 +363,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: ZenColors.blue600,
+                    color: c.accent,
                   ),
                 ),
               ),
