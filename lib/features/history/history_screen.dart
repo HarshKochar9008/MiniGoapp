@@ -155,6 +155,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             '_counterpartyCode':
                 (t['sender'] as Map?)?['short_code'] ?? '???',
             '_counterpartyId': t['sender_id'],
+            '_counterpartyDeleted':
+                (t['sender'] as Map?)?['deleted_at'] != null,
           }),
       ...sent.map((t) => {
             ...t,
@@ -162,6 +164,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             '_counterpartyCode':
                 (t['receiver'] as Map?)?['short_code'] ?? '???',
             '_counterpartyId': t['receiver_id'],
+            '_counterpartyDeleted':
+                (t['receiver'] as Map?)?['deleted_at'] != null,
           }),
     ];
     all.sort((a, b) {
@@ -350,6 +354,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         .toString();
                                     final counterpartyId =
                                         t['_counterpartyId'] as String?;
+                                    final counterpartyDeleted =
+                                        t['_counterpartyDeleted'] == true;
                                     final status = (t['status'] ?? 'pending')
                                         .toString();
                                     final createdAt =
@@ -369,10 +375,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           counterpartyAlias:
                                               ContactAliases.aliasFor(
                                                   counterpartyId),
+                                          counterpartyDeleted:
+                                              counterpartyDeleted,
                                           status: status,
                                           timeAgo: _timeAgo(createdAt),
                                           isExpired: isExpired,
-                                          onEditAlias: counterpartyId == null
+                                          onEditAlias: counterpartyId == null ||
+                                                  counterpartyDeleted
                                               ? null
                                               : () => ContactAliasSheet.show(
                                                     context,
@@ -455,6 +464,7 @@ class _HistoryTile extends StatelessWidget {
   final String direction;
   final String counterpartyCode;
   final String? counterpartyAlias;
+  final bool counterpartyDeleted;
   final String status;
   final String timeAgo;
   final bool isExpired;
@@ -466,6 +476,7 @@ class _HistoryTile extends StatelessWidget {
     required this.status,
     required this.timeAgo,
     this.counterpartyAlias,
+    this.counterpartyDeleted = false,
     this.isExpired = false,
     this.onEditAlias,
   });
@@ -525,55 +536,76 @@ class _HistoryTile extends StatelessWidget {
                     children: [
                       Text(isOut ? 'To ' : 'From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      if (counterpartyAlias != null) ...[
+                      if (counterpartyDeleted) ...[
                         Flexible(
-                          child: GestureDetector(
-                            onLongPress: onEditAlias,
-                            child: Text(
-                              counterpartyAlias!,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: c.ink,
-                              ),
+                          child: Text(
+                            counterpartyAlias != null
+                                ? '$counterpartyAlias (deleted)'
+                                : 'Deleted user',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                              color: c.inkFaint,
                             ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                      ],
-                      GestureDetector(
-                        onLongPress: onEditAlias,
-                        onTap: () {
-                          Clipboard.setData(
-                              ClipboardData(text: counterpartyCode));
-                          HapticFeedback.selectionClick();
-                          Analytics.instance.logEvent(
-                              AnalyticsEvents.codeCopied,
-                              {'source': 'history'});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Copied ${fmtCode(counterpartyCode)}'),
-                              duration: const Duration(seconds: 2),
+                        Text(fmtCode(counterpartyCode),
+                            style: ZenText.codeSmall
+                                .copyWith(color: c.inkFaint, fontSize: 11)),
+                      ] else ...[
+                        if (counterpartyAlias != null) ...[
+                          Flexible(
+                            child: GestureDetector(
+                              onLongPress: onEditAlias,
+                              child: Text(
+                                counterpartyAlias!,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.ink,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(fmtCode(counterpartyCode),
-                                style: counterpartyAlias != null
-                                    ? ZenText.codeSmall.copyWith(
-                                        color: c.inkFaint, fontSize: 11)
-                                    : ZenText.codeSmall
-                                        .copyWith(color: c.ink)),
-                            const SizedBox(width: 4),
-                            Icon(Icons.copy_rounded,
-                                size: 11, color: c.inkFaint),
-                          ],
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        GestureDetector(
+                          onLongPress: onEditAlias,
+                          onTap: () {
+                            Clipboard.setData(
+                                ClipboardData(text: counterpartyCode));
+                            HapticFeedback.selectionClick();
+                            Analytics.instance.logEvent(
+                                AnalyticsEvents.codeCopied,
+                                {'source': 'history'});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Copied ${fmtCode(counterpartyCode)}'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(fmtCode(counterpartyCode),
+                                  style: counterpartyAlias != null
+                                      ? ZenText.codeSmall.copyWith(
+                                          color: c.inkFaint, fontSize: 11)
+                                      : ZenText.codeSmall
+                                          .copyWith(color: c.ink)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.copy_rounded,
+                                  size: 11, color: c.inkFaint),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 3),

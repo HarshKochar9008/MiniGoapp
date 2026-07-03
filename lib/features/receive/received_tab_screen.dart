@@ -284,6 +284,9 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                           '???';
                                   final senderId =
                                       t['sender_id'] as String?;
+                                  final senderDeleted = (t['sender']
+                                          as Map?)?['deleted_at'] !=
+                                      null;
                                   final status =
                                       (t['status'] ?? 'pending') as String;
                                   final createdAt =
@@ -293,15 +296,17 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                     senderCode: senderCode.toString(),
                                     senderAlias:
                                         ContactAliases.aliasFor(senderId),
+                                    senderDeleted: senderDeleted,
                                     status: status,
                                     timeAgo: _timeAgo(createdAt),
-                                    onEditAlias: senderId == null
-                                        ? null
-                                        : () => ContactAliasSheet.show(
-                                              context,
-                                              userId: senderId,
-                                              code: senderCode.toString(),
-                                            ),
+                                    onEditAlias:
+                                        senderId == null || senderDeleted
+                                            ? null
+                                            : () => ContactAliasSheet.show(
+                                                  context,
+                                                  userId: senderId,
+                                                  code: senderCode.toString(),
+                                                ),
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -379,6 +384,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 class _ReceivedTile extends StatelessWidget {
   final String senderCode;
   final String? senderAlias;
+  final bool senderDeleted;
   final String status;
   final String timeAgo;
   final VoidCallback onTap;
@@ -390,6 +396,7 @@ class _ReceivedTile extends StatelessWidget {
     required this.timeAgo,
     required this.onTap,
     this.senderAlias,
+    this.senderDeleted = false,
     this.onEditAlias,
   });
 
@@ -464,7 +471,26 @@ class _ReceivedTile extends StatelessWidget {
                     children: [
                       Text('From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      if (senderAlias != null) ...[
+                      if (senderDeleted) ...[
+                        Flexible(
+                          child: Text(
+                            senderAlias != null
+                                ? '$senderAlias (deleted)'
+                                : 'Deleted user',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                              color: c.inkFaint,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(fmtCode(senderCode),
+                            style: ZenText.codeSmall
+                                .copyWith(color: c.inkFaint, fontSize: 11)),
+                      ] else if (senderAlias != null) ...[
                         Flexible(
                           child: Text(
                             senderAlias!,

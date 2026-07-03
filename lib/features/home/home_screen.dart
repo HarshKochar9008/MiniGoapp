@@ -112,44 +112,47 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text('You are',
                             style: ZenText.label.copyWith(color: c.inkSoft)),
-                        const SizedBox(height: 4),
                         if (widget.identity.nickname != null) ...[
+                          const SizedBox(height: 4),
                           Text(
                             widget.identity.nickname!,
                             style: ZenText.title,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 2),
                         ],
-                        Row(
-                          children: [
-                            Text(
-                              fmtCode(code),
-                              style: ZenText.code
-                                  .copyWith(fontSize: 22, color: c.ink),
-                            ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: _copyCode,
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.copy_rounded,
-                                  size: 15,
-                                  color: c.inkFaint,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 12),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fmtCode(code),
+                        style: ZenText.code.copyWith(fontSize: 22, color: c.ink),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: _copyCode,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.copy_rounded,
+                            size: 15,
+                            color: c.inkFaint,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -231,9 +234,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
-                        color: ZenColors.blue50,
+                        color: ZenColors.blue600.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: ZenColors.blue200),
+                        border: Border.all(
+                          color: ZenColors.blue600.withValues(alpha: 0.22),
+                        ),
                       ),
                       child: Row(
                         children: [
