@@ -372,7 +372,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: ZenColors.blue600,
+                  color: MiniColors.blue600,
                 ),
               ),
               const SizedBox(height: 16),
@@ -563,7 +563,7 @@ class _ZenNavTile extends StatelessWidget {
             Icon(
               isActive ? activeIcon : icon,
               size: 22,
-              color: isActive ? c.accent : c.inkFaint,
+              color: isActive ? MiniColors.blue600 : context.zen.inkFaint,
             ),
             const SizedBox(height: 4),
             Text(
@@ -571,7 +571,7 @@ class _ZenNavTile extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w300,
-                color: isActive ? c.accent : c.inkFaint,
+                color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
                 letterSpacing: 0.2,
               ),
             ),

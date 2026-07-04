@@ -1,8 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
@@ -47,14 +47,14 @@ class PrivacyScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: ZenColors.success.withOpacity(0.08),
-                border: Border.all(color: ZenColors.success.withOpacity(0.2)),
+                color: MiniColors.success.withOpacity(0.08),
+                border: Border.all(color: MiniColors.success.withOpacity(0.2)),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.lock_outline_rounded,
-                      size: 20, color: ZenColors.success),
+                      size: 20, color: MiniColors.success),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -63,7 +63,7 @@ class PrivacyScreen extends StatelessWidget {
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         height: 1.5,
-                        color: ZenColors.success,
+                        color: MiniColors.success,
                       ),
                     ),
                   ),

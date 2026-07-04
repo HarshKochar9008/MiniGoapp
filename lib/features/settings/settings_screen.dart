@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_reset.dart';
 import '../../core/theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../transfer/transfer_service.dart';
@@ -95,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: ZenColors.danger,
+              backgroundColor: MiniColors.danger,
               foregroundColor: c.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
@@ -105,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
+    await AppReset.clearLocalDataAndRelaunchUi();
   }
 
   @override
@@ -147,8 +147,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: BoxDecoration(
-                        color: c.paper,
+                      decoration: const BoxDecoration(
+                        color: MiniColors.blue50,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -160,7 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: c.ink,
+                            color: MiniColors.blue600,
                           ),
                         ),
                       ),
@@ -224,18 +224,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.dark_mode_outlined,
-                  label: 'Switch your mode',
+                  iconTint: MiniColors.blue600,
+                  label: 'Dark mode',
+                  sub: 'Switch between light and dark theme',
                   trailing: Switch.adaptive(
                     value: _darkMode,
                     onChanged: _setDarkMode,
-                    thumbIcon: WidgetStateProperty.resolveWith<Icon?>(
-                      (states) => Icon(
-                        states.contains(WidgetState.selected)
-                            ? Icons.dark_mode
-                            : Icons.light_mode,
-                        size: 14,
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -246,6 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.info_outline_rounded,
+                  iconTint: MiniColors.blue600,
                   label: 'About MiniGo',
                   sub: 'Version, how it works, and legal',
                   onTap: () => Navigator.of(context).push(
@@ -254,6 +249,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.play_circle_outline_rounded,
+                  iconTint: MiniColors.blue600,
                   label: 'How it works',
                   sub: 'View the app walkthrough again',
                   onTap: () => Navigator.of(context).push(
@@ -266,6 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.shield_outlined,
+                  iconTint: MiniColors.success,
                   label: 'Privacy & Security',
                   sub: 'Encryption, data collection & your rights',
                   onTap: () => Navigator.of(context).push(
@@ -274,6 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.tag_rounded,
+                  iconTint: MiniColors.inkFaint,
                   label: 'Version',
                   trailingText: 'MiniGo 1.1.0',
                 ),
@@ -285,9 +283,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.delete_outline_rounded,
-                  label: 'Clear all local data',
+                  iconTint: MiniColors.danger,
+                  label: 'Clear all local data & sign out',
                   sub: 'Removes your code and settings from this device',
-                  labelColor: ZenColors.danger,
+                  labelColor: MiniColors.danger,
                   onTap: _confirmFullLocalReset,
                 ),
               ],
@@ -302,10 +301,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
     final tint = _checkingPush
-        ? ZenColors.blue600
+        ? MiniColors.blue600
         : ready
-            ? ZenColors.success
-            : ZenColors.warn;
+            ? MiniColors.success
+            : MiniColors.warn;
     final icon = _checkingPush
         ? Icons.sync_rounded
         : ready
@@ -326,13 +325,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: c.paperDeep,
+        color: tint.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: tint.withValues(alpha: 0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: tint),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: tint),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -448,7 +456,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
             const SizedBox(height: 4),
             Text(
               'Shown on your home screen. Leave empty to remove it.',
-              style: ZenText.small.copyWith(color: c.inkSoft),
+              style: ZenText.small,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -529,6 +537,7 @@ class _SettingsGroup extends StatelessWidget {
 
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
+  final Color iconTint;
   final String label;
   final String? sub;
   final String? trailingText;
@@ -538,6 +547,7 @@ class _SettingsTile extends StatelessWidget {
 
   const _SettingsTile({
     required this.icon,
+    required this.iconTint,
     required this.label,
     this.sub,
     this.trailingText,
@@ -549,16 +559,23 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
-    final iconColor = labelColor ?? c.inkSoft;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
         child: Row(
           children: [
-            Icon(icon, size: 19, color: iconColor),
-            const SizedBox(width: 14),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconTint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: iconTint),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

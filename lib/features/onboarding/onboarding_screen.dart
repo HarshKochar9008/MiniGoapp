@@ -5,8 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
 import '../../features/identity/identity_service.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -153,7 +153,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
           ..._buildChars(0, 3),
           TextSpan(
             text: ' · ',
-            style: widget.style.copyWith(color: context.zen.inkFaint),
+            style: widget.style.copyWith(color: MiniColors.inkFaint),
           ),
           ..._buildChars(3, 6),
         ],
@@ -167,7 +167,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
       return TextSpan(
         text: _display[i],
         style: widget.style.copyWith(
-          color: _locked[i] ? context.zen.ink : ZenColors.blue500,
+          color: _locked[i] ? MiniColors.ink : MiniColors.blue500,
         ),
       );
     });
@@ -184,9 +184,8 @@ class _OnbWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -196,8 +195,7 @@ class _OnbWelcome extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
                   onTap: onSkip,
-                  child: Text('Skip',
-                      style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+                  child: Text('Skip', style: ZenText.bodySoft),
                 ),
               ),
               const Spacer(),
@@ -209,7 +207,7 @@ class _OnbWelcome extends StatelessWidget {
               const SizedBox(height: 36),
               Text(
                 'Send anything.',
-                style: ZenText.display.copyWith(color: c.ink),
+                style: ZenText.display,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
@@ -217,7 +215,7 @@ class _OnbWelcome extends StatelessWidget {
                 'to anyone, anywhere.',
                 style: ZenText.display.copyWith(
                   fontStyle: FontStyle.italic,
-                  color: c.accent,
+                  color: MiniColors.blue600,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -225,7 +223,7 @@ class _OnbWelcome extends StatelessWidget {
               Text(
                 'No accounts. No phone numbers. Just a six-character code that lives only on your device.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft.copyWith(color: c.inkSoft),
+                style: ZenText.bodySoft,
               ),
               const Spacer(),
               ZenButton(label: 'Begin', onPressed: onNext),
@@ -258,9 +256,8 @@ class _OnbGenerateState extends State<_OnbGenerate> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -270,12 +267,11 @@ class _OnbGenerateState extends State<_OnbGenerate> {
               const SizedBox(height: 40),
               Text(
                 'Crafting your code',
-                style: ZenText.title.copyWith(color: c.ink),
+                style: ZenText.title,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
-              Text('a few quiet moments…',
-                  style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+              Text('a few quiet moments…', style: ZenText.bodySoft),
             ],
           ),
         ),
@@ -293,17 +289,15 @@ class _OnbCode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('How it works',
-                  style: ZenText.label.copyWith(color: c.inkSoft)),
+              Text('How it works', style: ZenText.label),
               const SizedBox(height: 24),
               _CodeShuffler(
                 settle: 'A4X9K2',
@@ -314,14 +308,14 @@ class _OnbCode extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
-                  color: c.paperDeep,
+                  color: MiniColors.paperDeep,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
                   'Your unique 6-character code is your address. Share it to receive files, or ask for someone else\'s to send. '
                   'You can rotate it anytime from Settings.',
                   textAlign: TextAlign.center,
-                  style: ZenText.bodySoft.copyWith(color: c.inkSoft),
+                  style: ZenText.bodySoft,
                 ),
               ),
               const Spacer(),
@@ -348,17 +342,15 @@ class _OnbPermissions extends StatelessWidget {
       ['Files & photos', 'to pick what to send or save what you receive'],
       ['Camera', 'for scanning QR codes'],
     ];
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A few quiet permissions',
-                  style: ZenText.title.copyWith(color: c.ink)),
+              Text('A few quiet permissions', style: ZenText.title),
               const SizedBox(height: 28),
               for (final r in items)
                 Padding(
@@ -366,7 +358,7 @@ class _OnbPermissions extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: c.paperDeep,
+                      color: MiniColors.paperDeep,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -375,7 +367,7 @@ class _OnbPermissions extends StatelessWidget {
                           width: 8,
                           height: 8,
                           decoration: const BoxDecoration(
-                            color: ZenColors.blue500,
+                            color: MiniColors.blue500,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -389,13 +381,11 @@ class _OnbPermissions extends StatelessWidget {
                                 style: GoogleFonts.outfit(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: c.ink,
+                                  color: MiniColors.ink,
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(r[1],
-                                  style: ZenText.small
-                                      .copyWith(color: c.inkSoft)),
+                              Text(r[1], style: ZenText.small),
                             ],
                           ),
                         ),
@@ -437,22 +427,20 @@ class _OnbNickname extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('Pick a nickname',
-                  style: ZenText.title.copyWith(color: c.ink)),
+              Text('Pick a nickname', style: ZenText.title),
               const SizedBox(height: 8),
               Text(
                 'This helps others recognize you. Totally optional.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft.copyWith(color: c.inkSoft),
+                style: ZenText.bodySoft,
               ),
               const SizedBox(height: 40),
               TextField(
@@ -460,13 +448,11 @@ class _OnbNickname extends StatelessWidget {
                 onChanged: onNicknameChanged,
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
-                style: ZenText.body.copyWith(fontSize: 18, color: c.ink),
+                style: ZenText.body.copyWith(fontSize: 18),
                 decoration: InputDecoration(
                   hintText: 'e.g., Alex, BlueBunny, ...',
-                  hintStyle: ZenText.body
-                      .copyWith(fontSize: 18, color: c.inkFaint),
                   filled: true,
-                  fillColor: c.paperDeep,
+                  fillColor: MiniColors.paperDeep,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -477,7 +463,7 @@ class _OnbNickname extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: ZenColors.blue500, width: 2),
+                    borderSide: const BorderSide(color: MiniColors.blue500, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -510,9 +496,8 @@ class _OnbReady extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Scaffold(
-      backgroundColor: c.paper,
+      backgroundColor: MiniColors.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -522,19 +507,19 @@ class _OnbReady extends StatelessWidget {
               const Icon(
                 Icons.check_circle_outline_rounded,
                 size: 56,
-                color: ZenColors.success,
+                color: MiniColors.success,
               ),
               const SizedBox(height: 24),
               Text(
                 'You\'re ready.',
-                style: ZenText.display.copyWith(color: c.ink),
+                style: ZenText.display,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
                 'Send and receive files with anyone, anywhere — no sign-up needed.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft.copyWith(color: c.inkSoft),
+                style: ZenText.bodySoft,
               ),
               const Spacer(),
               ZenButton(label: 'Open MiniGo', onPressed: onDone),

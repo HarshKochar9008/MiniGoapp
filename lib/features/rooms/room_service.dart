@@ -12,15 +12,32 @@ class Room {
   final String ownerId;
   final int memberCount;
 
+  /// Rooms live 1 hour; the server deletes them (and their files) afterwards.
+  final DateTime expiresAt;
+
   const Room({
     required this.id,
     required this.code,
     required this.name,
     required this.ownerId,
+    required this.expiresAt,
     this.memberCount = 0,
   });
 
   bool isOwnedBy(String userId) => ownerId == userId;
+
+  bool get isExpired => !DateTime.now().toUtc().isBefore(expiresAt);
+
+  Duration get timeLeft {
+    final left = expiresAt.difference(DateTime.now().toUtc());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  static DateTime parseExpiry(Object? raw) {
+    final parsed = DateTime.tryParse(raw?.toString() ?? '');
+    // Missing/invalid expiry → treat as expired rather than immortal
+    return (parsed ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
+  }
 }
 
 class RoomMember {
@@ -28,18 +45,24 @@ class RoomMember {
   final String shortCode;
   final String? nickname;
 
+  /// Whether the host allows this member to share files (default on).
+  final bool canShare;
+
   const RoomMember({
     required this.userId,
     required this.shortCode,
     this.nickname,
+    this.canShare = true,
   });
 
-  /// Falls back to the short code when the nickname is null OR blank —
-  /// callers take `.characters.first` of this, which throws on ''.
-  String get displayName {
-    final nick = nickname?.trim();
-    return (nick == null || nick.isEmpty) ? shortCode : nick;
-  }
+  String get displayName => nickname ?? shortCode;
+
+  RoomMember withCanShare(bool value) => RoomMember(
+        userId: userId,
+        shortCode: shortCode,
+        nickname: nickname,
+        canShare: value,
+      );
 }
 
 class RoomFullException implements Exception {
@@ -53,6 +76,11 @@ class RoomNotFoundException implements Exception {
   const RoomNotFoundException(this.code);
   @override
   String toString() => 'No room found with code "$code".';
+}
+
+class RoomExpiredException implements Exception {
+  @override
+  String toString() => 'This room has expired.';
 }
 
 class RoomService {
@@ -77,13 +105,14 @@ class RoomService {
         final row = await SupabaseConfig.client
             .from('rooms')
             .insert({'code': code, 'name': name, 'owner_id': ownerId})
-            .select('id, code, name, owner_id')
+            .select('id, code, name, owner_id, expires_at')
             .single();
         final room = Room(
           id: row['id'] as String,
           code: row['code'] as String,
           name: row['name'] as String,
           ownerId: row['owner_id'] as String,
+          expiresAt: Room.parseExpiry(row['expires_at']),
           memberCount: 1,
         );
         await SupabaseConfig.client
@@ -108,7 +137,7 @@ class RoomService {
     final normalized = AppConstants.normalizeShortCode(code);
     final row = await SupabaseConfig.client
         .from('rooms')
-        .select('id, code, name, owner_id')
+        .select('id, code, name, owner_id, expires_at')
         .eq('code', normalized)
         .maybeSingle();
     if (row == null) throw RoomNotFoundException(normalized);
@@ -118,7 +147,9 @@ class RoomService {
       code: row['code'] as String,
       name: row['name'] as String,
       ownerId: row['owner_id'] as String,
+      expiresAt: Room.parseExpiry(row['expires_at']),
     );
+    if (room.isExpired) throw RoomExpiredException();
 
     try {
       await SupabaseConfig.client
@@ -126,6 +157,7 @@ class RoomService {
           .insert({'room_id': room.id, 'user_id': userId});
     } on PostgrestException catch (e) {
       if (e.message.contains('room_full')) throw RoomFullException();
+      if (e.message.contains('room_expired')) throw RoomExpiredException();
       // Duplicate key → already a member, treat as success
       if (e.code != '23505') rethrow;
     }
@@ -163,8 +195,10 @@ class RoomService {
 
     final rows = await SupabaseConfig.client
         .from('rooms')
-        .select('id, code, name, owner_id, created_at, room_members(count)')
+        .select('id, code, name, owner_id, created_at, expires_at, '
+            'room_members(count)')
         .inFilter('id', roomIds)
+        .gt('expires_at', DateTime.now().toUtc().toIso8601String())
         .order('created_at', ascending: false);
     return rows.map<Room>((row) {
       final counts = row['room_members'] as List?;
@@ -176,6 +210,7 @@ class RoomService {
         code: row['code'] as String,
         name: row['name'] as String,
         ownerId: row['owner_id'] as String,
+        expiresAt: Room.parseExpiry(row['expires_at']),
         memberCount: count,
       );
     }).toList();
@@ -185,7 +220,7 @@ class RoomService {
     await _ensureSession();
     final rows = await SupabaseConfig.client
         .from('room_members')
-        .select('user_id, joined_at, users(short_code, nickname)')
+        .select('user_id, joined_at, can_share, users(short_code, nickname)')
         .eq('room_id', roomId)
         .order('joined_at', ascending: true);
     return rows.map<RoomMember>((row) {
@@ -194,7 +229,22 @@ class RoomService {
         userId: row['user_id'] as String,
         shortCode: user?['short_code'] as String? ?? '??????',
         nickname: user?['nickname'] as String?,
+        canShare: row['can_share'] as bool? ?? true,
       );
     }).toList();
+  }
+
+  /// Host-only (enforced by RLS): allow or block a member from sharing files.
+  static Future<void> setMemberCanShare({
+    required String roomId,
+    required String userId,
+    required bool canShare,
+  }) async {
+    await _ensureSession();
+    await SupabaseConfig.client
+        .from('room_members')
+        .update({'can_share': canShare})
+        .eq('room_id', roomId)
+        .eq('user_id', userId);
   }
 }

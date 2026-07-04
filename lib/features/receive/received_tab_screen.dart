@@ -6,8 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
@@ -207,7 +207,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                           width: 6,
                           height: 6,
                           decoration: const BoxDecoration(
-                            color: ZenColors.success,
+                            color: MiniColors.success,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -216,7 +216,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                           'Live',
                           style: GoogleFonts.outfit(
                             fontSize: 11,
-                            color: ZenColors.success,
+                            color: MiniColors.success,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -270,7 +270,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                           ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
-                              color: ZenColors.blue500,
+                              color: MiniColors.blue500,
                               child: ListView.separated(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 12),
@@ -284,9 +284,6 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                           '???';
                                   final senderId =
                                       t['sender_id'] as String?;
-                                  final senderDeleted = (t['sender']
-                                          as Map?)?['deleted_at'] !=
-                                      null;
                                   final status =
                                       (t['status'] ?? 'pending') as String;
                                   final createdAt =
@@ -296,17 +293,17 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                     senderCode: senderCode.toString(),
                                     senderAlias:
                                         ContactAliases.aliasFor(senderId),
-                                    senderDeleted: senderDeleted,
+                                    roomName: t['room_name'] as String? ??
+                                        (t['room_id'] != null ? 'room' : null),
                                     status: status,
                                     timeAgo: _timeAgo(createdAt),
-                                    onEditAlias:
-                                        senderId == null || senderDeleted
-                                            ? null
-                                            : () => ContactAliasSheet.show(
-                                                  context,
-                                                  userId: senderId,
-                                                  code: senderCode.toString(),
-                                                ),
+                                    onEditAlias: senderId == null
+                                        ? null
+                                        : () => ContactAliasSheet.show(
+                                              context,
+                                              userId: senderId,
+                                              code: senderCode.toString(),
+                                            ),
                                     onTap: () => Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -361,7 +358,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     width: 5,
                     height: 5,
                     decoration: const BoxDecoration(
-                      color: ZenColors.success,
+                      color: MiniColors.success,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -369,7 +366,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                   Text('Listening for incoming files',
                       style: GoogleFonts.outfit(
                         fontSize: 11,
-                        color: ZenColors.success,
+                        color: MiniColors.success,
                       )),
                 ],
               ),
@@ -384,7 +381,9 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 class _ReceivedTile extends StatelessWidget {
   final String senderCode;
   final String? senderAlias;
-  final bool senderDeleted;
+
+  /// Set when this transfer was shared through a room.
+  final String? roomName;
   final String status;
   final String timeAgo;
   final VoidCallback onTap;
@@ -396,22 +395,22 @@ class _ReceivedTile extends StatelessWidget {
     required this.timeAgo,
     required this.onTap,
     this.senderAlias,
-    this.senderDeleted = false,
+    this.roomName,
     this.onEditAlias,
   });
 
   Color get _tint {
     switch (status) {
       case 'completed':
-        return ZenColors.success;
+        return MiniColors.success;
       case 'uploading':
       case 'pending':
-        return ZenColors.warn;
+        return MiniColors.warn;
       case 'partial':
       case 'failed':
-        return ZenColors.danger;
+        return MiniColors.danger;
       default:
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
     }
   }
 
@@ -448,10 +447,7 @@ class _ReceivedTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: status == 'completed'
-                      ? [
-                          c.accent.withValues(alpha: 0.30),
-                          c.accent.withValues(alpha: 0.08),
-                        ]
+                      ? [MiniColors.blue200, MiniColors.blue50]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -462,7 +458,7 @@ class _ReceivedTile extends StatelessWidget {
                     ? Icons.download_done_rounded
                     : Icons.south_west_rounded,
                 size: 18,
-                color: c.ink.withValues(alpha: 0.55),
+                color: c.ink.withOpacity(0.55),
               ),
             ),
             const SizedBox(width: 12),
@@ -474,26 +470,7 @@ class _ReceivedTile extends StatelessWidget {
                     children: [
                       Text('From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      if (senderDeleted) ...[
-                        Flexible(
-                          child: Text(
-                            senderAlias != null
-                                ? '$senderAlias (deleted)'
-                                : 'Deleted user',
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              fontStyle: FontStyle.italic,
-                              color: c.inkFaint,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(fmtCode(senderCode),
-                            style: ZenText.codeSmall
-                                .copyWith(color: c.inkFaint, fontSize: 11)),
-                      ] else if (senderAlias != null) ...[
+                      if (senderAlias != null) ...[
                         Flexible(
                           child: Text(
                             senderAlias!,
@@ -547,6 +524,38 @@ class _ReceivedTile extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(timeAgo,
                           style: ZenText.small.copyWith(color: c.inkFaint)),
+                      if (roomName != null) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: MiniColors.blue50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.groups_rounded,
+                                    size: 11, color: MiniColors.blue600),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    roomName!,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                      color: MiniColors.blue600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

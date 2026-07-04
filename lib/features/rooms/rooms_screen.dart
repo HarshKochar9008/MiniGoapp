@@ -3,9 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
+import '../qr/qr_widgets.dart';
 import 'room_detail_screen.dart';
 import 'room_service.dart';
 
@@ -152,7 +153,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: ZenColors.blue600,
+                          color: MiniColors.blue600,
                         ),
                       ),
                     )
@@ -162,7 +163,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                           child: StatusBanner(
                             icon: Icons.wifi_off_rounded,
                             text: _error!,
-                            tint: ZenColors.danger,
+                            tint: MiniColors.danger,
                             onTap: _loadRooms,
                           ),
                         )
@@ -170,7 +171,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                           ? _EmptyRooms(c: c)
                           : RefreshIndicator(
                               onRefresh: _loadRooms,
-                              color: ZenColors.blue600,
+                              color: MiniColors.blue600,
                               child: ListView.separated(
                                 physics:
                                     const AlwaysScrollableScrollPhysics(),
@@ -213,9 +214,9 @@ class _RoomAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.zen;
-    final fg = primary ? ZenColors.paper : c.ink;
+    final fg = primary ? MiniColors.paper : c.ink;
     return Material(
-      color: primary ? ZenColors.blue600 : c.paperDeep,
+      color: primary ? MiniColors.blue600 : c.paperDeep,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -241,7 +242,7 @@ class _RoomAction extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 11,
                   color: primary
-                      ? ZenColors.paper.withValues(alpha: 0.75)
+                      ? MiniColors.paper.withValues(alpha: 0.75)
                       : c.inkFaint,
                 ),
               ),
@@ -281,11 +282,11 @@ class _RoomCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: c.accent.withValues(alpha: 0.12),
+                  color: MiniColors.blue50,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.groups_rounded,
-                    size: 20, color: c.accent),
+                child: const Icon(Icons.groups_rounded,
+                    size: 20, color: MiniColors.blue600),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -323,18 +324,35 @@ class _RoomCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Icon(Icons.person_outline_rounded,
-                      size: 14, color: c.inkFaint),
-                  const SizedBox(width: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_outline_rounded,
+                          size: 14, color: c.inkFaint),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${room.memberCount}/${AppConstants.maxRoomMembers}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: c.inkFaint,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
                   Text(
-                    '${room.memberCount}/${AppConstants.maxRoomMembers}',
+                    room.isExpired
+                        ? 'Expired'
+                        : '${room.timeLeft.inMinutes}m left',
                     style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: c.inkFaint,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      color: room.timeLeft.inMinutes < 10
+                          ? MiniColors.warn
+                          : c.inkFaint,
                     ),
                   ),
                 ],
@@ -355,11 +373,10 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: c.accent.withValues(alpha: 0.12),
+        color: MiniColors.blue50,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -367,7 +384,7 @@ class _Chip extends StatelessWidget {
         style: GoogleFonts.outfit(
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: c.accent,
+          color: MiniColors.blue600,
         ),
       ),
     );
@@ -388,15 +405,14 @@ class _EmptyRooms extends StatelessWidget {
           children: [
             Icon(Icons.groups_outlined, size: 44, color: c.inkFaint),
             const SizedBox(height: 16),
-            Text('No rooms yet',
-                style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+            Text('No rooms yet', style: ZenText.bodySoft),
             const SizedBox(height: 6),
             Text(
               'Create a room and share its code, or join one '
               'with a code from a friend. Up to '
               '${AppConstants.maxRoomMembers} people per room.',
               textAlign: TextAlign.center,
-              style: ZenText.small.copyWith(color: c.inkSoft),
+              style: ZenText.small,
             ),
           ],
         ),
@@ -482,14 +498,14 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         autofocus: true,
         maxLength: AppConstants.maxRoomNameLength,
         textCapitalization: TextCapitalization.sentences,
-        style: GoogleFonts.outfit(fontSize: 16, color: context.zen.ink),
+        style: GoogleFonts.outfit(fontSize: 16, color: MiniColors.ink),
         decoration: InputDecoration(
           hintText: 'Room name',
-          hintStyle: GoogleFonts.outfit(
-              fontSize: 16, color: context.zen.inkFaint),
+          hintStyle:
+              GoogleFonts.outfit(fontSize: 16, color: MiniColors.inkFaint),
           counterText: '',
           filled: true,
-          fillColor: context.zen.paperDeep,
+          fillColor: MiniColors.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -533,6 +549,13 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
     super.dispose();
   }
 
+  Future<void> _scanQr() async {
+    final code = await QrScannerSheet.show(context);
+    if (code == null || !mounted) return;
+    _codeController.text = code;
+    await _join();
+  }
+
   Future<void> _join() async {
     final code = AppConstants.normalizeShortCode(_codeController.text);
     if (!AppConstants.isValidShortCodeFormat(code)) {
@@ -564,6 +587,12 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
       setState(() {
         _joining = false;
         _error = 'No room found with that code.';
+      });
+    } on RoomExpiredException {
+      if (!mounted) return;
+      setState(() {
+        _joining = false;
+        _error = 'This room has expired.';
       });
     } catch (_) {
       if (!mounted) return;
@@ -600,21 +629,27 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           fontSize: 22,
           letterSpacing: 3,
           fontWeight: FontWeight.w500,
-          color: context.zen.ink,
+          color: MiniColors.ink,
         ),
         decoration: InputDecoration(
           hintText: '— — —   — — —',
           hintStyle: GoogleFonts.jetBrainsMono(
             fontSize: 18,
-            color: context.zen.inkFaint,
+            color: MiniColors.inkFaint,
             letterSpacing: 3,
           ),
           counterText: '',
           filled: true,
-          fillColor: context.zen.paperDeep,
+          fillColor: MiniColors.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
+          ),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.qr_code_scanner_rounded,
+                size: 20, color: MiniColors.inkSoft),
+            tooltip: 'Scan room QR',
+            onPressed: _joining ? null : _scanQr,
           ),
         ),
         onSubmitted: (_) => _join(),
@@ -668,14 +703,14 @@ class _RoomSheetScaffold extends StatelessWidget {
             const SizedBox(height: 18),
             Text(title, style: ZenText.title.copyWith(color: c.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, style: ZenText.small.copyWith(color: c.inkSoft)),
+            Text(subtitle, style: ZenText.small),
             const SizedBox(height: 16),
             child,
             if (error != null) ...[
               const SizedBox(height: 8),
               Text(
                 error!,
-                style: ZenText.small.copyWith(color: ZenColors.danger),
+                style: ZenText.small.copyWith(color: MiniColors.danger),
               ),
             ],
             const SizedBox(height: 16),

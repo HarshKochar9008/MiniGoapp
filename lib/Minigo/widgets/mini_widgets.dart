@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
-import '../theme/zen_theme.dart';
+import '../theme/mini_theme.dart';
 
 /// Code chip — formatted "A4X · 9K2" with subtle border.
 class CodeChip extends StatelessWidget {
@@ -78,7 +78,7 @@ class ZenButton extends StatelessWidget {
         fg = c.inkSoft;
       case ZenBtnStyle.danger:
         bg = c.paper;
-        fg = ZenColors.danger;
+        fg = MiniColors.danger;
         border = const Color(0x33B44A4A);
     }
     return Opacity(
@@ -182,20 +182,18 @@ class ZenFileRow extends StatelessWidget {
   }
 
   List<Color> _tone(ZenThemeExtension c) {
-    // Tint hue per file type, blended over the themed surface so the chip
-    // works on both light and dark grounds.
     switch (mimeCategory) {
       case 'Image':
-        return [c.accent.withValues(alpha: 0.30), c.paperDeep];
+        return [MiniColors.blue200, MiniColors.blue50];
       case 'Video':
-        return [ZenColors.danger.withValues(alpha: 0.22), c.paperDeep];
+        return [const Color(0xFFF2DFDF), c.paperDeep];
       case 'Audio':
-        return [ZenColors.success.withValues(alpha: 0.22), c.paperDeep];
+        return [const Color(0xFFE0EFE6), c.paperDeep];
       case 'PDF':
       case 'Document':
-        return [const Color(0xFF8B6FC9).withValues(alpha: 0.25), c.paperDeep];
+        return [const Color(0xFFE6DFF2), c.paperDeep];
       case 'Archive':
-        return [ZenColors.blue500.withValues(alpha: 0.20), c.paperDeep];
+        return [const Color(0xFFDCE8F6), c.paperDeep];
       default:
         return [c.sand, c.paperDeep];
     }
@@ -279,7 +277,7 @@ class ProgressArc extends StatelessWidget {
               strokeWidth: 5,
               strokeCap: StrokeCap.round,
               backgroundColor: c.paperDeep,
-              valueColor: AlwaysStoppedAnimation(color ?? ZenColors.blue500),
+              valueColor: AlwaysStoppedAnimation(color ?? MiniColors.blue500),
             ),
           ),
           Column(

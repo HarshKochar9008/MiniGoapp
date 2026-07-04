@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../zensend/theme/zen_theme.dart';
+import '../../Minigo/theme/mini_theme.dart';
 import '../network/connection_status.dart';
 import '../offline/offline_sync_coordinator.dart';
 import '../offline/pending_backend_jobs.dart';
@@ -66,7 +66,7 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
 
   Widget _buildBanner(BuildContext context, bool online, int pending) {
     final isOffline = !online;
-    final color = isOffline ? ZenColors.warn : ZenColors.blue600;
+    final color = isOffline ? MiniColors.warn : MiniColors.blue600;
     final icon = isOffline
         ? Icons.cloud_off_rounded
         : Icons.sync_rounded;

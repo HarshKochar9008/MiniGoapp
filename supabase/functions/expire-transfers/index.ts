@@ -3,6 +3,10 @@
  * expired in the DB, and hard-deletes rows older than 7 days to keep the
  * database lean.
  *
+ * Also handles room expiry: rooms live 1 hour. Transfers sent through an
+ * expired room have their storage files deleted and are marked expired
+ * immediately (their history rows are kept), then the room itself is deleted.
+ *
  * Deploy:
  *   supabase functions deploy expire-transfers --no-verify-jwt
  *
@@ -52,6 +56,37 @@ Deno.serve(async (req) => {
     now - HARD_DELETE_DAYS * 24 * 3600 * 1000,
   ).toISOString();
 
+  // ── 0. Expired rooms: their transfers expire now (files gone, rows kept) ──
+  const nowIso = new Date(now).toISOString();
+  let expiredRoomIds: string[] = [];
+  let roomTransferIds: string[] = [];
+  const { data: expiredRooms, error: roomsErr } = await supabase
+    .from("rooms")
+    .select("id")
+    .lt("expires_at", nowIso)
+    .limit(BATCH_SIZE);
+
+  if (roomsErr) {
+    console.error("fetch expired rooms:", roomsErr.message);
+  } else {
+    expiredRoomIds = (expiredRooms ?? []).map((r: { id: string }) => r.id);
+    if (expiredRoomIds.length > 0) {
+      const { data: roomTransfers, error: rtErr } = await supabase
+        .from("transfers")
+        .select("id")
+        .in("room_id", expiredRoomIds)
+        .neq("status", "expired")
+        .limit(BATCH_SIZE);
+      if (rtErr) {
+        console.error("fetch room transfers:", rtErr.message);
+      } else {
+        roomTransferIds = (roomTransfers ?? []).map(
+          (t: { id: string }) => t.id,
+        );
+      }
+    }
+  }
+
   // ── 1. Find transfers past TTL whose storage has not been cleaned yet ──────
   const { data: toExpire, error: fetchErr } = await supabase
     .from("transfers")
@@ -68,7 +103,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  const ids = (toExpire ?? []).map((t: { id: string }) => t.id);
+  const ids = [
+    ...new Set([
+      ...(toExpire ?? []).map((t: { id: string }) => t.id),
+      ...roomTransferIds,
+    ]),
+  ];
   let deletedFiles = 0;
   let storageErrors = 0;
 
@@ -115,6 +155,22 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── 3b. Delete expired rooms (cascade removes members; transfers keep
+  //        their history rows via room_id ON DELETE SET NULL) ────────────────
+  let deletedRooms = 0;
+  if (expiredRoomIds.length > 0) {
+    const { count: roomCount, error: roomDelErr } = await supabase
+      .from("rooms")
+      .delete()
+      .in("id", expiredRoomIds)
+      .select("id", { count: "exact", head: true });
+    if (roomDelErr) {
+      console.error("delete expired rooms:", roomDelErr.message);
+    } else {
+      deletedRooms = roomCount ?? 0;
+    }
+  }
+
   // ── 4. Hard-delete rows older than 7 days (already expired, saves DB space) ─
   let purgedRows = 0;
   const { count: purgeCount, error: purgeErr } = await supabase
@@ -131,11 +187,18 @@ Deno.serve(async (req) => {
   }
 
   console.log(
-    `expire-transfers: markedExpired=${markedExpired} deletedFiles=${deletedFiles} purgedRows=${purgedRows} storageErrors=${storageErrors}`,
+    `expire-transfers: markedExpired=${markedExpired} deletedFiles=${deletedFiles} purgedRows=${purgedRows} deletedRooms=${deletedRooms} storageErrors=${storageErrors}`,
   );
 
   return new Response(
-    JSON.stringify({ ok: true, markedExpired, deletedFiles, purgedRows, storageErrors }),
+    JSON.stringify({
+      ok: true,
+      markedExpired,
+      deletedFiles,
+      purgedRows,
+      deletedRooms,
+      storageErrors,
+    }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
 });

@@ -201,7 +201,7 @@ Sender                          Supabase                        Receiver
 ### Theme
 
 - Light and dark mode
-- Custom "Zen" design system (`ZenColors`, `ZenText`, `ZenTheme`)
+- Custom "Zen" design system (`MiniColors`, `ZenText`, `ZenTheme`)
 - Google Fonts (Inter)
 - Minimal, clean aesthetic
 
