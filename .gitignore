@@ -47,6 +47,7 @@ migrate_working_dir/
 /build/
 /coverage/
 
+
 # Symbolication related
 app.*.symbols
 
@@ -64,9 +65,6 @@ app.*.map.json
 .claude/
 skills/
 skills-lock.json
-
-#scripts
-scripts/
 
 # Flutter plugin registry
 .flutter-plugins
@@ -88,4 +86,3 @@ android/app/*firebase-adminsdk*.json
 .flutter-plugins
 .flutter-plugins-dependencies
 *.iml
-/google-services.json

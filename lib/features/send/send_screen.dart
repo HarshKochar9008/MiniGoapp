@@ -1,5 +1,6 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -12,6 +13,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
+import '../../core/contacts/recent_recipients.dart';
+import '../contacts/contact_alias_sheet.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/network/network_errors.dart';
 import '../../Minigo/theme/mini_theme.dart';
@@ -39,6 +42,7 @@ class SendScreen extends StatefulWidget {
 
 class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   final _codeController = TextEditingController();
+  final _codeFocus = FocusNode();
   List<PlatformFile> _selectedFiles = [];
   List<FileUploadProgress>? _uploadStates;
   bool _validatingCode = false;
@@ -47,6 +51,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   String? _error;
   String? _codeError;
   String? _validatedRecipientId;
+  String? _validatedRecipientKey;
   TransferCancellationToken? _uploadCancellationToken;
   final Battery _battery = Battery();
   bool _powerSaveMode = false;
@@ -57,6 +62,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ContactAliases.ensureLoaded();
+    RecentRecipients.ensureLoaded();
+    RecentRecipients.revision.addListener(_onRecentsChanged);
+    // Rebuild when the field gains/loses focus so suggestions show/hide.
+    _codeFocus.addListener(_onCodeFocusChanged);
     _applyInitialFiles();
     _refreshPowerSaveMode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -91,6 +100,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    RecentRecipients.revision.removeListener(_onRecentsChanged);
+    _codeFocus.removeListener(_onCodeFocusChanged);
+    _codeFocus.dispose();
     _codeController.dispose();
     super.dispose();
   }
@@ -285,8 +297,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       );
       if (result == null || !mounted) return;
 
-      final accessibleRaw =
-          result.files.where((f) => f.path != null).toList();
+      final accessibleRaw = result.files.where((f) => f.path != null).toList();
       final seenNames = <String>{};
       final accessible = <PlatformFile>[];
       for (final f in accessibleRaw) {
@@ -333,8 +344,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        setState(
-            () => _error = 'Could not pick files. Check app permissions.');
+        setState(() => _error = 'Could not pick files. Check app permissions.');
       }
     }
   }
@@ -361,18 +371,15 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              fileNames.length == 1
-                  ? 'Already added:'
-                  : 'Already added:',
-              style: ZenText.bodySoft,
+              fileNames.length == 1 ? 'Already added:' : 'Already added:',
+              style: MiniText.bodySoft,
             ),
             const SizedBox(height: 8),
             ...fileNames.map(
               (name) => Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(name,
-                    style: ZenText.small,
-                    overflow: TextOverflow.ellipsis),
+                    style: MiniText.small, overflow: TextOverflow.ellipsis),
               ),
             ),
           ],
@@ -394,9 +401,96 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       _codeController.text = code;
       _codeValidated = false;
       _validatedRecipientId = null;
+      _validatedRecipientKey = null;
       _codeError = null;
     });
     await _validateCode();
+  }
+
+  void _onRecentsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onCodeFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Recent recipient codes to suggest under the field, filtered by what's
+  /// typed. Hidden once a code is validated, while sending, or when unfocused.
+  List<RecentRecipient> get _recentSuggestions {
+    if (_codeValidated || _sending || !_codeFocus.hasFocus) return const [];
+    return RecentRecipients.matching(_codeController.text).take(5).toList();
+  }
+
+  Future<void> _applyRecentCode(String code) async {
+    _codeFocus.unfocus();
+    _codeController.text = code;
+    setState(() {
+      _codeValidated = false;
+      _validatedRecipientId = null;
+      _validatedRecipientKey = null;
+      _codeError = null;
+    });
+    await _validateCode();
+  }
+
+  /// Opens the local "Name this person" sheet for the validated recipient.
+  /// Optional — the user can skip it and just send.
+  Future<void> _nameRecipient() async {
+    final id = _validatedRecipientId;
+    if (id == null) return;
+    await ContactAliasSheet.show(
+      context,
+      userId: id,
+      code: AppConstants.normalizeShortCode(_codeController.text),
+    );
+    if (mounted) setState(() {}); // reflect the new/updated alias
+  }
+
+  /// Row shown once a code is validated: confirmation + an optional action to
+  /// save (or rename) a local, device-only nickname for this recipient.
+  Widget _recipientNameRow() {
+    final alias = ContactAliases.aliasFor(_validatedRecipientId);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 16, color: MiniColors.success),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              alias != null ? 'Sending to $alias' : 'Code verified',
+              style: MiniText.small.copyWith(color: MiniColors.success),
+            ),
+          ),
+          GestureDetector(
+            onTap: _nameRecipient,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  alias != null
+                      ? Icons.edit_outlined
+                      : Icons.person_add_alt_outlined,
+                  size: 15,
+                  color: MiniColors.blue600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  alias != null ? 'Rename' : 'Name this person',
+                  style: MiniText.small.copyWith(
+                    color: MiniColors.blue600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _validateCode() async {
@@ -449,6 +543,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         _validatingCode = false;
         _codeValidated = true;
         _validatedRecipientId = recipient['id'] as String;
+        _validatedRecipientKey = recipient['public_key'] as String?;
       });
       HapticFeedback.lightImpact();
       Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated);
@@ -475,7 +570,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   Future<void> _send() async {
     if (_validatedRecipientId == null || _selectedFiles.isEmpty) return;
-    final pushReadiness = await TransferService.verifyClosedAppDeliveryReadiness(
+    final pushReadiness =
+        await TransferService.verifyClosedAppDeliveryReadiness(
       receiverId: _validatedRecipientId!,
     );
     if (!pushReadiness.ready) {
@@ -520,8 +616,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       final result = await TransferService.sendFiles(
         senderId: widget.identity.id,
         receiverId: _validatedRecipientId!,
-        receiverCode:
-            AppConstants.normalizeShortCode(_codeController.text),
+        receiverCode: AppConstants.normalizeShortCode(_codeController.text),
+        recipientPublicKey: _validatedRecipientKey,
         files: _selectedFiles,
         cancellationToken: _uploadCancellationToken,
         onProgress: (states) {
@@ -533,6 +629,11 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
       if (result.success) {
         HapticFeedback.heavyImpact();
+        // Remember this recipient so it can be suggested next time.
+        unawaited(RecentRecipients.record(
+          AppConstants.normalizeShortCode(_codeController.text),
+          label: ContactAliases.aliasFor(_validatedRecipientId),
+        ));
         Analytics.instance.logEvent(AnalyticsEvents.sendCompleted, {
           'file_count': result.completedFiles,
           'total_bytes': _totalSize,
@@ -603,13 +704,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(reason, style: ZenText.bodySoft),
+            Text(reason, style: MiniText.bodySoft),
             const SizedBox(height: 12),
             Text(
               'If their MiniGo app is open right now, they will still see '
               'the transfer and can download it. Otherwise it will only '
               'arrive the next time they open the app.',
-              style: ZenText.small,
+              style: MiniText.small,
             ),
           ],
         ),
@@ -686,8 +787,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   String _formatSize(int bytes) => TransferService.formatFileSize(bytes);
 
-  int get _totalSize =>
-      _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
+  int get _totalSize => _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
 
   @override
   Widget build(BuildContext context) {
@@ -716,6 +816,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   Expanded(
                     child: TextField(
                       controller: _codeController,
+                      focusNode: _codeFocus,
                       enabled: !_sending && !_codeValidated,
                       textCapitalization: TextCapitalization.characters,
                       maxLength: AppConstants.codeLength,
@@ -744,12 +845,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                             horizontal: 16, vertical: 14),
                       ),
                       onChanged: (_) {
-                        if (_codeValidated) {
-                          setState(() {
+                        // Rebuild so the recent-code suggestions refilter.
+                        setState(() {
+                          if (_codeValidated) {
                             _codeValidated = false;
                             _validatedRecipientId = null;
-                          });
-                        }
+                            _validatedRecipientKey = null;
+                          }
+                        });
                       },
                     ),
                   ),
@@ -772,9 +875,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                     child: SizedBox(
                       height: 44,
                       child: FilledButton(
-                        onPressed: (_validatingCode || _sending || _codeValidated)
-                            ? null
-                            : _validateCode,
+                        onPressed:
+                            (_validatingCode || _sending || _codeValidated)
+                                ? null
+                                : _validateCode,
                         style: FilledButton.styleFrom(
                           backgroundColor: _codeValidated
                               ? MiniColors.success
@@ -785,16 +889,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 20),
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                         ),
                         child: _validatingCode
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: MiniColors.paper),
+                                    strokeWidth: 2, color: MiniColors.paper),
                               )
                             : Text(
                                 _codeValidated ? 'Verified ✓' : 'Validate',
@@ -811,21 +913,71 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
+          // Recent recipients dropdown — shown while typing the code.
+          if (_recentSuggestions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: MiniColors.paper,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: MiniColors.divider),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < _recentSuggestions.length; i++) ...[
+                      if (i > 0) const HairLine(indent: 14),
+                      InkWell(
+                        onTap: () => _applyRecentCode(_recentSuggestions[i].code),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 11),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.history_rounded,
+                                  size: 16, color: MiniColors.inkFaint),
+                              const SizedBox(width: 10),
+                              Text(
+                                fmtCode(_recentSuggestions[i].code),
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 15,
+                                  letterSpacing: 2,
+                                  fontWeight: FontWeight.w500,
+                                  color: MiniColors.ink,
+                                ),
+                              ),
+                              if (_recentSuggestions[i].label != null) ...[
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _recentSuggestions[i].label!,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: MiniText.small
+                                        .copyWith(color: MiniColors.inkSoft),
+                                  ),
+                                ),
+                              ] else
+                                const Spacer(),
+                              const Icon(Icons.north_west_rounded,
+                                  size: 14, color: MiniColors.inkFaint),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           if (_codeError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
               child: Text(_codeError!,
-                  style: ZenText.small.copyWith(color: MiniColors.danger)),
+                  style: MiniText.small.copyWith(color: MiniColors.danger)),
             ),
-          if (_codeValidated &&
-              ContactAliases.aliasFor(_validatedRecipientId) != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-              child: Text(
-                'Sending to ${ContactAliases.aliasFor(_validatedRecipientId)}',
-                style: ZenText.small.copyWith(color: MiniColors.success),
-              ),
-            ),
+          if (_codeValidated) _recipientNameRow(),
 
           // Power save banner
           if (_powerSaveMode)
@@ -850,20 +1002,19 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Files', style: ZenText.label),
+                            Text('Files', style: MiniText.label),
                             if (_selectedFiles.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 '${_selectedFiles.length} selected · ${_formatSize(_totalSize)}',
-                                style: ZenText.small,
+                                style: MiniText.small,
                               ),
                             ],
                           ],
                         ),
                       ),
                       if (!_sending && _selectedFiles.isNotEmpty) ...[
-                        _GhostAction(
-                            label: 'Add more', onTap: _pickFiles),
+                        _GhostAction(label: 'Add more', onTap: _pickFiles),
                         const SizedBox(width: 4),
                         _GhostAction(
                             label: 'Clear all',
@@ -878,7 +1029,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   if (_sending && _uploadStates != null)
                     TransferUploadProgressList(states: _uploadStates!)
                   else if (_selectedFiles.isEmpty)
-                    _EmptyFilesZen(onPick: _pickFiles)
+                    _EmptyFilesMini(onPick: _pickFiles)
                   else
                     for (var i = 0; i < _selectedFiles.length; i++) ...[
                       Container(
@@ -887,10 +1038,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           color: MiniColors.paperDeep.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: ZenFileRow(
+                        child: MiniFileRow(
                           name: _selectedFiles[i].name,
                           size: _formatSize(_selectedFiles[i].size),
-                          mimeCategory: ZenFileRow.categoryFromFileName(
+                          mimeCategory: MiniFileRow.categoryFromFileName(
                               _selectedFiles[i].name),
                           trailing: _sending
                               ? null
@@ -899,8 +1050,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                   child: const Padding(
                                     padding: EdgeInsets.all(12),
                                     child: Icon(Icons.close_rounded,
-                                        size: 16,
-                                        color: MiniColors.inkFaint),
+                                        size: 16, color: MiniColors.inkFaint),
                                   ),
                                 ),
                         ),
@@ -920,7 +1070,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                     const SizedBox(height: 8),
                     Text(
                       'Keep the app open while uploading.',
-                      style: ZenText.small,
+                      style: MiniText.small,
                     ),
                   ],
                 ],
@@ -930,21 +1080,23 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
           // Send button
           if (_codeValidated && _selectedFiles.isNotEmpty)
-            Container(
-              color: MiniColors.paper,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: _sending
-                  ? ZenButton(
-                      label: _buildSendingLabel(),
-                      loading: true,
-                      onPressed: null,
-                      leading: GestureDetector(
-                        onTap: _cancelUpload,
-                        child: const Icon(Icons.close_rounded,
-                            size: 16, color: MiniColors.inkFaint),
-                      ),
-                    )
-                  : _HoldToSendButton(onSend: _send),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 34),
+              child: FractionallySizedBox(
+                widthFactor: 0.7,
+                child: _sending
+                    ? MiniButton(
+                        label: _buildSendingLabel(),
+                        loading: true,
+                        onPressed: null,
+                        leading: GestureDetector(
+                          onTap: _cancelUpload,
+                          child: const Icon(Icons.close_rounded,
+                              size: 16, color: MiniColors.inkFaint),
+                        ),
+                      )
+                    : _SwipeToSendButton(onSend: _send),
+              ),
             ),
         ],
       ),
@@ -960,9 +1112,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   }
 }
 
-class _EmptyFilesZen extends StatelessWidget {
+class _EmptyFilesMini extends StatelessWidget {
   final VoidCallback onPick;
-  const _EmptyFilesZen({required this.onPick});
+  const _EmptyFilesMini({required this.onPick});
 
   @override
   Widget build(BuildContext context) {
@@ -982,10 +1134,10 @@ class _EmptyFilesZen extends StatelessWidget {
               const Icon(Icons.add_circle_outline_rounded,
                   size: 36, color: MiniColors.inkFaint),
               const SizedBox(height: 14),
-              Text('Tap to choose files', style: ZenText.bodySoft),
+              Text('Tap to choose files', style: MiniText.bodySoft),
               const SizedBox(height: 4),
               Text('Images, videos, documents — any type',
-                  style: ZenText.small),
+                  style: MiniText.small),
             ],
           ),
         ),
@@ -1027,138 +1179,153 @@ class _UpperCaseFormatter extends TextInputFormatter {
   }
 }
 
-class _HoldToSendButton extends StatefulWidget {
+class _SwipeToSendButton extends StatefulWidget {
   final VoidCallback onSend;
-  const _HoldToSendButton({required this.onSend});
+  const _SwipeToSendButton({required this.onSend});
 
   @override
-  State<_HoldToSendButton> createState() => _HoldToSendButtonState();
+  State<_SwipeToSendButton> createState() => _SwipeToSendButtonState();
 }
 
-class _HoldToSendButtonState extends State<_HoldToSendButton>
+class _SwipeToSendButtonState extends State<_SwipeToSendButton>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  bool _holding = false;
+  static const _thumbSize = 42.0;
+  static const _padding = 5.0;
+  static const _fireAt = 0.92;
+
+  late final AnimationController _resetCtrl;
+  Animation<double>? _resetAnim;
+  double _progress = 0;
   bool _fired = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
+    _resetCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed && !_fired) {
-          _fired = true;
-          HapticFeedback.heavyImpact();
-          widget.onSend();
-        }
-      });
+      duration: const Duration(milliseconds: 220),
+    );
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _resetCtrl.dispose();
     super.dispose();
   }
 
-  void _onPressDown() {
+  void _snapBack() {
+    _resetAnim = Tween<double>(
+      begin: _progress,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _resetCtrl, curve: Curves.easeOutCubic))
+      ..addListener(() {
+        if (!mounted) return;
+        setState(() => _progress = _resetAnim!.value);
+      });
+    _resetCtrl
+      ..reset()
+      ..forward();
+  }
+
+  void _fireSend() {
     if (_fired) return;
-    HapticFeedback.lightImpact();
-    setState(() => _holding = true);
-    _ctrl.forward();
+    _fired = true;
+    HapticFeedback.heavyImpact();
+    widget.onSend();
   }
-
-  void _cancelHold() {
-    if (_fired) return;
-    setState(() => _holding = false);
-    _ctrl.animateTo(0,
-        duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-  }
-
-  String get _label {
-    if (_ctrl.value >= 0.85) return 'Release!';
-    if (_holding) return 'Keep holding…';
-    return 'Hold to send';
-  }
-
-  IconData get _icon => Icons.north_east_rounded;
 
   @override
   Widget build(BuildContext context) {
-    // Listener fires onPointerUp unconditionally — GestureDetector.onTapUp
-    // can be dropped by the arena if a parent scroll view wins the gesture.
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (_) => _onPressDown(),
-      onPointerUp: (_) => _cancelHold(),
-      onPointerCancel: (_) => _cancelHold(),
-      child: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (context, _) {
-          final p = _ctrl.value;
-          final nearDone = p >= 0.85;
-          return Center(
-            child: AnimatedScale(
-              scale: _holding ? 1.05 : 1.0,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              child: SizedBox(
-                height: 50,
-                width: 210,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.clamp(220.0, 360.0);
+        final travel = width - (_thumbSize + _padding * 2);
+        final thumbLeft = _padding + (travel * _progress);
+        final fillWidth = _thumbSize + (travel * _progress);
+        final nearDone = _progress >= 0.7;
+
+        return Center(
+          child: SizedBox(
+            width: width,
+            height: 52,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(100),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
+                    color: MiniColors.paperDeep.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(100),
-                    boxShadow: _holding
-                        ? [
-                            BoxShadow(
-                              color: (nearDone
-                                      ? const Color(0xFF00C896)
-                                      : MiniColors.blue600)
-                                  .withOpacity(0.45 * p),
-                              blurRadius: 20,
-                            ),
-                          ]
-                        : const [],
+                    border: Border.all(color: MiniColors.divider),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(100),
+                  child: GestureDetector(
+                    onHorizontalDragStart: (_) {
+                      if (_fired) return;
+                      HapticFeedback.selectionClick();
+                    },
+                    onHorizontalDragUpdate: (details) {
+                      if (_fired || travel <= 0) return;
+                      _resetCtrl.stop();
+                      final delta = details.delta.dx / travel;
+                      final next = (_progress + delta).clamp(0.0, 1.0);
+                      setState(() => _progress = next);
+                      if (_progress >= _fireAt) _fireSend();
+                    },
+                    onHorizontalDragEnd: (_) {
+                      if (_fired) return;
+                      _snapBack();
+                    },
+                    onHorizontalDragCancel: () {
+                      if (_fired) return;
+                      _snapBack();
+                    },
                     child: Stack(
-                      fit: StackFit.expand,
                       children: [
-                        Container(color: MiniColors.ink),
-                        if (p > 0)
-                          ClipRect(
-                            clipper: _HorizontalProgressClipper(p),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    MiniColors.blue600,
-                                    nearDone
-                                        ? const Color(0xFF00C896)
-                                        : const Color(0xFF3B9EFF),
-                                  ],
-                                ),
-                              ),
+                        Positioned(
+                          left: _padding,
+                          top: _padding,
+                          bottom: _padding,
+                          width: fillWidth,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: MiniColors.blue600.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(100),
                             ),
                           ),
+                        ),
                         Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(_icon, size: 14, color: MiniColors.paper),
-                              const SizedBox(width: 6),
-                              Text(
-                                _label,
-                                style: GoogleFonts.outfit(
-                                  color: MiniColors.paper,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                  letterSpacing: 0.3,
+                          child: Text(
+                            nearDone ? 'Release to send' : 'Swipe to send',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: MiniColors.inkSoft,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: thumbLeft,
+                          top: _padding,
+                          child: Container(
+                            width: _thumbSize,
+                            height: _thumbSize,
+                            decoration: BoxDecoration(
+                              color: MiniColors.blue600,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: MiniColors.blue600
+                                      .withValues(alpha: 0.22),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 3),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.north_east_rounded,
+                              size: 18,
+                              color: MiniColors.paper,
+                            ),
                           ),
                         ),
                       ],
@@ -1167,9 +1334,9 @@ class _HoldToSendButtonState extends State<_HoldToSendButton>
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1333,17 +1500,4 @@ class _CheckmarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CheckmarkPainter old) => old.progress != progress;
-}
-
-class _HorizontalProgressClipper extends CustomClipper<Rect> {
-  final double progress;
-  const _HorizontalProgressClipper(this.progress);
-
-  @override
-  Rect getClip(Size size) =>
-      Rect.fromLTWH(0, 0, size.width * progress, size.height);
-
-  @override
-  bool shouldReclip(_HorizontalProgressClipper old) =>
-      old.progress != progress;
 }

@@ -9,7 +9,7 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -29,9 +29,9 @@ class AboutScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('MiniGo',
-                            style: ZenText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
-                        Text('About', style: ZenText.title.copyWith(color: c.ink)),
+                        Text('About', style: MiniText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -76,12 +76,12 @@ class AboutScreen extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Version 1.1.0',
-                    style: ZenText.small.copyWith(color: c.inkSoft),
+                    style: MiniText.small.copyWith(color: c.inkSoft),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Simple. Fast. Peer-to-peer.',
-                    style: ZenText.small.copyWith(color: c.inkFaint),
+                    style: MiniText.small.copyWith(color: c.inkFaint),
                   ),
                 ],
               ),
@@ -167,7 +167,7 @@ class _StepRow extends StatelessWidget {
   final String step;
   final String title;
   final String subtitle;
-  final ZenThemeExtension c;
+  final MiniThemeExtension c;
   const _StepRow({
     required this.step,
     required this.title,
@@ -233,7 +233,7 @@ class _StepRow extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final ZenThemeExtension c;
+  final MiniThemeExtension c;
   const _InfoRow({required this.label, required this.value, required this.c});
 
   @override

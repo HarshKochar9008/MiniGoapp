@@ -166,7 +166,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -192,10 +192,10 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                       children: [
                         Text('Incoming',
                             style:
-                                ZenText.label.copyWith(color: c.inkSoft)),
+                                MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('Received',
-                            style: ZenText.title.copyWith(color: c.ink)),
+                            style: MiniText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -255,10 +255,10 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                               children: [
                                 Text(_error!,
                                     textAlign: TextAlign.center,
-                                    style: ZenText.bodySoft
+                                    style: MiniText.bodySoft
                                         .copyWith(color: c.inkSoft)),
                                 const SizedBox(height: 20),
-                                ZenButton(
+                                MiniButton(
                                   label: 'Retry',
                                   onPressed: _loadTransfers,
                                 ),
@@ -279,9 +279,9 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                     const HairLine(indent: 0),
                                 itemBuilder: (context, index) {
                                   final t = _transfers![index];
-                                  final senderCode = (t['sender']
-                                              as Map?)?['short_code'] ??
-                                          '???';
+                                  final senderCode = t['sender_code'] ??
+                                      (t['sender'] as Map?)?['short_code'] ??
+                                      '???';
                                   final senderId =
                                       t['sender_id'] as String?;
                                   final status =
@@ -324,7 +324,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     );
   }
 
-  Widget _buildEmpty(ZenThemeExtension c) {
+  Widget _buildEmpty(MiniThemeExtension c) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(48),
@@ -342,12 +342,12 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
             ),
             const SizedBox(height: 18),
             Text('Nothing here yet',
-                style: ZenText.title.copyWith(color: c.ink)),
+                style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 6),
             Text(
               'Files sent to you will appear here.\nShare your code so others can send you files.',
               textAlign: TextAlign.center,
-              style: ZenText.bodySoft.copyWith(color: c.inkSoft),
+              style: MiniText.bodySoft.copyWith(color: c.inkSoft),
             ),
             if (_channel != null) ...[
               const SizedBox(height: 16),
@@ -433,7 +433,7 @@ class _ReceivedTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -469,7 +469,7 @@ class _ReceivedTile extends StatelessWidget {
                   Row(
                     children: [
                       Text('From ',
-                          style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+                          style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
                       if (senderAlias != null) ...[
                         Flexible(
                           child: Text(
@@ -484,11 +484,11 @@ class _ReceivedTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(fmtCode(senderCode),
-                            style: ZenText.codeSmall
+                            style: MiniText.codeSmall
                                 .copyWith(color: c.inkFaint, fontSize: 11)),
                       ] else
                         Text(fmtCode(senderCode),
-                            style: ZenText.codeSmall.copyWith(color: c.ink)),
+                            style: MiniText.codeSmall.copyWith(color: c.ink)),
                       if (onEditAlias != null) ...[
                         const SizedBox(width: 6),
                         GestureDetector(
@@ -520,10 +520,10 @@ class _ReceivedTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(_label,
-                          style: ZenText.small.copyWith(color: c.inkSoft)),
+                          style: MiniText.small.copyWith(color: c.inkSoft)),
                       const SizedBox(width: 8),
                       Text(timeAgo,
-                          style: ZenText.small.copyWith(color: c.inkFaint)),
+                          style: MiniText.small.copyWith(color: c.inkFaint)),
                       if (roomName != null) ...[
                         const SizedBox(width: 8),
                         Flexible(

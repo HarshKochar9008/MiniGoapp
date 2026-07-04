@@ -224,7 +224,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
           'Power-save mode can pause or throttle long downloads. Continue anyway?',
-          style: ZenText.bodySoft,
+          style: MiniText.bodySoft,
         ),
         actions: [
           TextButton(
@@ -312,6 +312,12 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final storagePath = file['storage_path'] as String;
     final fileName = file['file_name'] as String;
     final expectedHash = file['sha256_hash'] as String?;
+    final isEncrypted = file['is_encrypted'] == true;
+    final encWrappedKey = file['enc_wrapped_key'] as String?;
+    final encNonce = file['enc_nonce'] as String?;
+    final rawChunk = file['enc_chunk_size'];
+    final encChunkSize =
+        rawChunk is int ? rawChunk : int.tryParse('$rawChunk');
 
     if (!await ConnectionStatus.instance.refresh()) {
       if (mounted) {
@@ -371,6 +377,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         storagePath: storagePath,
         fileName: fileName,
         cancellationToken: cancellationToken,
+        isEncrypted: isEncrypted,
+        encWrappedKey: encWrappedKey,
+        encNonce: encNonce,
+        encChunkSize: encChunkSize,
         onProgress: (received, total) {
           if (mounted) {
             setState(() => _dlStates[fileId] = _FileDownloadState(
@@ -499,7 +509,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                     ? 'Waiting for the sender…'
                     : 'No files in this transfer',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft,
+                style: MiniText.bodySoft,
               ),
             ],
           ),
@@ -511,7 +521,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         if (showLive) ...[
-          Text('Sender upload', style: ZenText.label),
+          Text('Sender upload', style: MiniText.label),
           const SizedBox(height: 10),
           TransferUploadProgressList(
             states: live,
@@ -521,7 +531,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         ],
         if (hasFiles) ...[
           if (showLive) ...[
-            Text('Ready to download', style: ZenText.label),
+            Text('Ready to download', style: MiniText.label),
             const SizedBox(height: 10),
           ],
           ...files.map((file) {
@@ -601,11 +611,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('From', style: ZenText.label),
+                        Text('From', style: MiniText.label),
                         const SizedBox(height: 2),
                         Text(
                           fmtCode(widget.senderCode),
-                          style: ZenText.codeSmall.copyWith(color: MiniColors.ink),
+                          style: MiniText.codeSmall.copyWith(color: MiniColors.ink),
                         ),
                       ],
                     ),
@@ -670,10 +680,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                                 Text(
                                   _loadError!,
                                   textAlign: TextAlign.center,
-                                  style: ZenText.bodySoft,
+                                  style: MiniText.bodySoft,
                                 ),
                                 const SizedBox(height: 20),
-                                ZenButton(
+                                MiniButton(
                                   label: 'Retry',
                                   onPressed: _loadFiles,
                                 ),
@@ -772,7 +782,7 @@ class _FileDownloadTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(fileSize, style: ZenText.small),
+                    Text(fileSize, style: MiniText.small),
                   ],
                 ),
               ),
@@ -795,7 +805,7 @@ class _FileDownloadTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Downloading… ${(state!.progress * 100).toInt()}%',
-              style: ZenText.small,
+              style: MiniText.small,
             ),
           ],
           if (status == _DownloadStatus.verifying) ...[
@@ -825,7 +835,7 @@ class _FileDownloadTile extends StatelessWidget {
                   const Icon(Icons.check_circle_outline,
                       color: MiniColors.inkFaint, size: 12),
                   const SizedBox(width: 4),
-                  Text('Saved', style: ZenText.small),
+                  Text('Saved', style: MiniText.small),
                 ],
               ],
             ),

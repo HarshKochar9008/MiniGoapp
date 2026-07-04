@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants.dart';
+import '../../core/crypto/e2e_crypto.dart';
 import '../../core/network/network_errors.dart';
 import '../../core/supabase_config.dart';
 import '../../core/utils/short_code_generator.dart';
@@ -59,6 +60,9 @@ class IdentityService {
       await _clearStoredIdentity(prefs);
     }
 
+    // Ensure this device has an E2E key pair and publish its public key.
+    final publicKey = await _localPublicKey(authUid);
+
     final existingByAuth = await _findUserByAuthUid(authUid);
     if (existingByAuth != null) {
       final identity = _identityFromDbRow(existingByAuth);
@@ -66,6 +70,11 @@ class IdentityService {
         prefs: prefs,
         identity: identity,
         authUid: authUid,
+      );
+      await _syncPublicKey(
+        userId: identity.id,
+        stored: existingByAuth['public_key'] as String?,
+        local: publicKey,
       );
       _setCached(identity);
       return identity;
@@ -80,6 +89,7 @@ class IdentityService {
             .insert({
               'auth_uid': authUid,
               'short_code': code,
+              if (publicKey != null) 'public_key': publicKey,
             })
             .select()
             .single()
@@ -107,6 +117,11 @@ class IdentityService {
             identity: identity,
             authUid: authUid,
           );
+          await _syncPublicKey(
+            userId: identity.id,
+            stored: existing['public_key'] as String?,
+            local: publicKey,
+          );
           _setCached(identity);
           return identity;
         }
@@ -120,6 +135,9 @@ class IdentityService {
     );
   }
 
+  /// Resolves a recipient by short code. Returns `{id, short_code, public_key}`
+  /// or null if no such user. Uses the `lookup_user_by_code` RPC so the caller
+  /// never reads the full `users` table (RLS restricts direct reads to self).
   static Future<Map<String, dynamic>?> findUserByCode(String code) async {
     const maxAttempts = 4;
     final normalized = AppConstants.normalizeShortCode(code);
@@ -136,13 +154,13 @@ class IdentityService {
         } catch (e) {
           if (!NetworkErrors.isRetryableFailure(e)) rethrow;
         }
-        return await SupabaseConfig.client
-            .from('users')
-            .select('id, short_code')
-            .eq('short_code', normalized)
-            .isFilter('deleted_at', null)
-            .maybeSingle()
+        final rows = await SupabaseConfig.client
+            .rpc('lookup_user_by_code', params: {'p_code': normalized})
             .timeout(const Duration(seconds: 22));
+        if (rows is List && rows.isNotEmpty) {
+          return Map<String, dynamic>.from(rows.first as Map);
+        }
+        return null;
       } catch (e) {
         final last = attempt == maxAttempts - 1;
         if (!NetworkErrors.isRetryableFailure(e) || last) rethrow;
@@ -207,10 +225,41 @@ class IdentityService {
     await SupabaseConfig.ensureValidSession();
     return await SupabaseConfig.client
         .from('users')
-        .select('id, short_code, auth_uid, nickname')
+        .select('id, short_code, auth_uid, nickname, public_key')
         .eq('auth_uid', authUid)
         .maybeSingle()
         .timeout(const Duration(seconds: 20));
+  }
+
+  /// This device's base64url X25519 public key, or null if key generation
+  /// fails (encryption then degrades to plaintext for this session).
+  static Future<String?> _localPublicKey(String authUid) async {
+    try {
+      return await E2ECrypto.ensureLocalPublicKey(authUid);
+    } catch (e) {
+      if (kDebugMode) debugPrint('E2E key generation failed: $e');
+      return null;
+    }
+  }
+
+  /// Publishes [local] to `users.public_key` when it differs from [stored].
+  /// Best-effort: a network failure here never blocks startup.
+  static Future<void> _syncPublicKey({
+    required String userId,
+    required String? stored,
+    required String? local,
+  }) async {
+    if (local == null || local.isEmpty || stored == local) return;
+    try {
+      await SupabaseConfig.ensureValidSession();
+      await SupabaseConfig.client
+          .from('users')
+          .update({'public_key': local})
+          .eq('id', userId)
+          .timeout(const Duration(seconds: 15));
+    } catch (e) {
+      if (kDebugMode) debugPrint('public_key sync failed: $e');
+    }
   }
 
   static Future<void> _persistIdentity({

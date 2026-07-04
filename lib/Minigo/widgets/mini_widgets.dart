@@ -19,7 +19,7 @@ class CodeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -40,20 +40,20 @@ class CodeChip extends StatelessWidget {
 }
 
 /// Reusable button — primary (ink) / secondary (paper) / ghost / danger.
-enum ZenBtnStyle { primary, secondary, ghost, danger }
+enum MiniBtnStyle { primary, secondary, ghost, danger }
 
-class ZenButton extends StatelessWidget {
+class MiniButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  final ZenBtnStyle style;
+  final MiniBtnStyle style;
   final Widget? leading;
   final bool fullWidth;
   final bool loading;
-  const ZenButton({
+  const MiniButton({
     super.key,
     required this.label,
     this.onPressed,
-    this.style = ZenBtnStyle.primary,
+    this.style = MiniBtnStyle.primary,
     this.leading,
     this.fullWidth = true,
     this.loading = false,
@@ -61,22 +61,22 @@ class ZenButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final disabled = onPressed == null && !loading;
     Color bg, fg;
     Color border = Colors.transparent;
     switch (style) {
-      case ZenBtnStyle.primary:
+      case MiniBtnStyle.primary:
         bg = c.ink;
         fg = c.paper;
-      case ZenBtnStyle.secondary:
+      case MiniBtnStyle.secondary:
         bg = c.paper;
         fg = c.ink;
         border = c.divider;
-      case ZenBtnStyle.ghost:
+      case MiniBtnStyle.ghost:
         bg = Colors.transparent;
         fg = c.inkSoft;
-      case ZenBtnStyle.danger:
+      case MiniBtnStyle.danger:
         bg = c.paper;
         fg = MiniColors.danger;
         border = const Color(0x33B44A4A);
@@ -132,14 +132,14 @@ class ZenButton extends StatelessWidget {
   }
 }
 
-/// File row for the send flow — accepts raw strings, no ZenFile model.
-class ZenFileRow extends StatelessWidget {
+/// File row for the send flow — accepts raw strings, no MiniFile model.
+class MiniFileRow extends StatelessWidget {
   final String name;
   final String size;
   final String mimeCategory;
   final Widget? trailing;
   final EdgeInsets padding;
-  const ZenFileRow({
+  const MiniFileRow({
     super.key,
     required this.name,
     required this.size,
@@ -181,7 +181,7 @@ class ZenFileRow extends StatelessWidget {
     }
   }
 
-  List<Color> _tone(ZenThemeExtension c) {
+  List<Color> _tone(MiniThemeExtension c) {
     switch (mimeCategory) {
       case 'Image':
         return [MiniColors.blue200, MiniColors.blue50];
@@ -201,7 +201,7 @@ class ZenFileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding: padding,
       child: Row(
@@ -234,7 +234,7 @@ class ZenFileRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(size, style: ZenText.small.copyWith(color: c.inkSoft)),
+                Text(size, style: MiniText.small.copyWith(color: c.inkSoft)),
               ],
             ),
           ),
@@ -261,7 +261,7 @@ class ProgressArc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final pct = (progress * 100).round();
     return SizedBox(
       width: size,
@@ -294,7 +294,7 @@ class ProgressArc extends StatelessWidget {
               ),
               if (label != null) ...[
                 const SizedBox(height: 4),
-                Text(label!, style: ZenText.small.copyWith(color: c.inkSoft)),
+                Text(label!, style: MiniText.small.copyWith(color: c.inkSoft)),
               ],
             ],
           ),
@@ -312,7 +312,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
@@ -326,7 +326,7 @@ class SectionHeader extends StatelessWidget {
               )),
           if (counter != null) ...[
             const SizedBox(width: 8),
-            Text(counter!, style: ZenText.label.copyWith(color: c.inkSoft)),
+            Text(counter!, style: MiniText.label.copyWith(color: c.inkSoft)),
           ],
         ],
       ),
@@ -342,7 +342,7 @@ class HairLine extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 1,
         margin: EdgeInsets.only(left: indent),
-        color: context.zen.dividerSoft,
+        color: context.mini.dividerSoft,
       );
 }
 
@@ -394,11 +394,11 @@ class StatusBanner extends StatelessWidget {
 }
 
 /// Shimmer-style skeleton block. Self-animates while in the tree.
-class ZenSkeleton extends StatefulWidget {
+class MiniSkeleton extends StatefulWidget {
   final double width;
   final double height;
   final BorderRadius? borderRadius;
-  const ZenSkeleton({
+  const MiniSkeleton({
     super.key,
     this.width = double.infinity,
     this.height = 14,
@@ -406,10 +406,10 @@ class ZenSkeleton extends StatefulWidget {
   });
 
   @override
-  State<ZenSkeleton> createState() => _ZenSkeletonState();
+  State<MiniSkeleton> createState() => _MiniSkeletonState();
 }
 
-class _ZenSkeletonState extends State<ZenSkeleton>
+class _MiniSkeletonState extends State<MiniSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -430,7 +430,7 @@ class _ZenSkeletonState extends State<ZenSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
@@ -470,7 +470,7 @@ class TransferTileSkeleton extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       child: Row(
         children: [
-          ZenSkeleton(
+          MiniSkeleton(
             width: 44,
             height: 44,
             borderRadius: BorderRadius.circular(10),
@@ -480,14 +480,14 @@ class TransferTileSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                ZenSkeleton(width: 140, height: 12),
+                MiniSkeleton(width: 140, height: 12),
                 SizedBox(height: 8),
-                ZenSkeleton(width: 80, height: 10),
+                MiniSkeleton(width: 80, height: 10),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          const ZenSkeleton(width: 38, height: 10),
+          const MiniSkeleton(width: 38, height: 10),
         ],
       ),
     );
@@ -495,11 +495,11 @@ class TransferTileSkeleton extends StatelessWidget {
 }
 
 /// Pill-style tab selector.
-class ZenTabPill extends StatelessWidget {
+class MiniTabPill extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const ZenTabPill({
+  const MiniTabPill({
     super.key,
     required this.label,
     required this.active,
@@ -507,7 +507,7 @@ class ZenTabPill extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),

@@ -76,7 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmFullLocalReset() async {
-    final c = context.zen;
+    final c = context.mini;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -105,12 +105,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    await AppReset.clearLocalDataAndRelaunchUi();
+    await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -124,10 +124,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Preferences',
-                      style: ZenText.label.copyWith(color: c.inkSoft)),
+                      style: MiniText.label.copyWith(color: c.inkSoft)),
                   const SizedBox(height: 4),
                   Text('Settings',
-                      style: ZenText.title.copyWith(color: c.ink)),
+                      style: MiniText.title.copyWith(color: c.ink)),
                 ],
               ),
             ),
@@ -203,8 +203,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.edit_outlined,
-                          size: 20, color: c.inkSoft),
+                      icon:
+                          Icon(Icons.edit_outlined, size: 20, color: c.inkSoft),
                       tooltip: 'Edit nickname',
                       onPressed: _editNickname,
                     ),
@@ -223,10 +223,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsGroup(
               children: [
                 _SettingsTile(
-                  icon: Icons.dark_mode_outlined,
-                  iconTint: MiniColors.blue600,
-                  label: 'Dark mode',
-                  sub: 'Switch between light and dark theme',
+                  label: 'Theme',
+                  sub: 'Switch between Light and Dark modes',
                   trailing: Switch.adaptive(
                     value: _darkMode,
                     onChanged: _setDarkMode,
@@ -250,8 +248,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SettingsTile(
                   icon: Icons.play_circle_outline_rounded,
                   iconTint: MiniColors.blue600,
-                  label: 'How it works',
-                  sub: 'View the app walkthrough again',
+                  label: 'App walkthrough',
+                  sub: 'Replay the onboarding walkthrough',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => OnboardingScreen(
@@ -284,8 +282,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SettingsTile(
                   icon: Icons.delete_outline_rounded,
                   iconTint: MiniColors.danger,
-                  label: 'Clear all local data & sign out',
-                  sub: 'Removes your code and settings from this device',
+                  label: 'Reset local data and sign out',
+                  sub: 'Removes local code, settings, and pending transfers.',
                   labelColor: MiniColors.danger,
                   onTap: _confirmFullLocalReset,
                 ),
@@ -297,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildPushCard(ZenThemeExtension c) {
+  Widget _buildPushCard(MiniThemeExtension c) {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
     final tint = _checkingPush
@@ -311,10 +309,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? Icons.verified_rounded
             : Icons.warning_amber_rounded;
     final title = _checkingPush
-        ? 'Checking push diagnostics…'
+        ? 'Checking delivery diagnostics…'
         : ready
-            ? 'Closed-app delivery ready'
-            : 'Closed-app delivery not ready';
+            ? 'Background delivery is ready'
+            : 'Background delivery is not ready';
     final subtitle = _checkingPush
         ? 'Verifying token and push relay health'
         : ready
@@ -369,7 +367,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (!_checkingPush)
             IconButton(
               icon: Icon(Icons.refresh_rounded, size: 18, color: c.inkFaint),
-              tooltip: 'Re-check',
+              tooltip: 'Check again',
               onPressed: _refreshPushReadiness,
             ),
         ],
@@ -427,7 +425,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -452,11 +450,11 @@ class _NicknameSheetState extends State<_NicknameSheet> {
               ),
             ),
             const SizedBox(height: 18),
-            Text('Nickname', style: ZenText.title.copyWith(color: c.ink)),
+            Text('Nickname', style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 4),
             Text(
               'Shown on your home screen. Leave empty to remove it.',
-              style: ZenText.small,
+              style: MiniText.small,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -466,8 +464,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
               style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
               decoration: InputDecoration(
                 hintText: 'Your nickname',
-                hintStyle:
-                    GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+                hintStyle: GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
                 filled: true,
                 fillColor: c.paperDeep,
                 border: OutlineInputBorder(
@@ -478,7 +475,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
               onSubmitted: (_) => _save(),
             ),
             const SizedBox(height: 16),
-            ZenButton(label: 'Save', onPressed: _save),
+            MiniButton(label: 'Save', onPressed: _save),
           ],
         ),
       ),
@@ -492,7 +489,7 @@ class _GroupLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
       child: Text(
@@ -514,7 +511,7 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -536,8 +533,8 @@ class _SettingsGroup extends StatelessWidget {
 }
 
 class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconTint;
+  final IconData? icon;
+  final Color? iconTint;
   final String label;
   final String? sub;
   final String? trailingText;
@@ -546,8 +543,8 @@ class _SettingsTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _SettingsTile({
-    required this.icon,
-    required this.iconTint,
+    this.icon,
+    this.iconTint,
     required this.label,
     this.sub,
     this.trailingText,
@@ -558,7 +555,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -566,16 +563,18 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
         child: Row(
           children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: iconTint.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+            if (icon != null) ...[
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: (iconTint ?? c.inkFaint).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: iconTint ?? c.inkFaint),
               ),
-              child: Icon(icon, size: 18, color: iconTint),
-            ),
-            const SizedBox(width: 12),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,7 +590,7 @@ class _SettingsTile extends StatelessWidget {
                   if (sub != null) ...[
                     const SizedBox(height: 2),
                     Text(sub!,
-                        style: ZenText.small.copyWith(color: c.inkSoft)),
+                        style: MiniText.small.copyWith(color: c.inkSoft)),
                   ],
                 ],
               ),
@@ -600,7 +599,7 @@ class _SettingsTile extends StatelessWidget {
               trailing!
             else if (trailingText != null)
               Text(trailingText!,
-                  style: ZenText.small.copyWith(color: c.inkSoft))
+                  style: MiniText.small.copyWith(color: c.inkSoft))
             else if (onTap != null)
               Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
           ],

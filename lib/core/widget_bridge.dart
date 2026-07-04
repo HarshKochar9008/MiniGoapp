@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class WidgetBridge {
-  static const _channel = MethodChannel('whoosh/widget');
+  static const _channel = MethodChannel('minigo/widget');
 
   /// Call after identity loads so the widget shows the current short code.
   static Future<void> refresh() async {

@@ -9,7 +9,7 @@ class PrivacyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -29,10 +29,10 @@ class PrivacyScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('MiniGo',
-                            style: ZenText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('Privacy & Security',
-                            style: ZenText.title.copyWith(color: c.ink)),
+                            style: MiniText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -191,7 +191,7 @@ class _PolicySection extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final ZenThemeExtension c;
+  final MiniThemeExtension c;
   const _PolicySection({
     required this.icon,
     required this.title,
@@ -249,7 +249,7 @@ class _PolicySection extends StatelessWidget {
 
 class _BulletList extends StatelessWidget {
   final List<String> items;
-  final ZenThemeExtension c;
+  final MiniThemeExtension c;
   const _BulletList({required this.items, required this.c});
 
   @override

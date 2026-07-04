@@ -79,7 +79,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -95,10 +95,10 @@ class _RoomsScreenState extends State<RoomsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Together',
-                            style: ZenText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('Rooms',
-                            style: ZenText.title.copyWith(color: c.ink)),
+                            style: MiniText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -213,7 +213,7 @@ class _RoomAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final fg = primary ? MiniColors.paper : c.ink;
     return Material(
       color: primary ? MiniColors.blue600 : c.paperDeep,
@@ -267,7 +267,7 @@ class _RoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Material(
       color: c.paperDeep.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(14),
@@ -392,7 +392,7 @@ class _Chip extends StatelessWidget {
 }
 
 class _EmptyRooms extends StatelessWidget {
-  final ZenThemeExtension c;
+  final MiniThemeExtension c;
   const _EmptyRooms({required this.c});
 
   @override
@@ -405,14 +405,14 @@ class _EmptyRooms extends StatelessWidget {
           children: [
             Icon(Icons.groups_outlined, size: 44, color: c.inkFaint),
             const SizedBox(height: 16),
-            Text('No rooms yet', style: ZenText.bodySoft),
+            Text('No rooms yet', style: MiniText.bodySoft),
             const SizedBox(height: 6),
             Text(
               'Create a room and share its code, or join one '
               'with a code from a friend. Up to '
               '${AppConstants.maxRoomMembers} people per room.',
               textAlign: TextAlign.center,
-              style: ZenText.small,
+              style: MiniText.small,
             ),
           ],
         ),
@@ -487,7 +487,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       subtitle: 'You get a code others can use to join — '
           'up to ${AppConstants.maxRoomMembers} people.',
       error: _error,
-      button: ZenButton(
+      button: MiniButton(
         label: _creating ? 'Creating…' : 'Create room',
         loading: _creating,
         onPressed: _creating ? null : _create,
@@ -609,7 +609,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
       title: 'Join a room',
       subtitle: 'Ask the host for their room code.',
       error: _error,
-      button: ZenButton(
+      button: MiniButton(
         label: _joining ? 'Joining…' : 'Join room',
         loading: _joining,
         onPressed: _joining ? null : _join,
@@ -676,7 +676,7 @@ class _RoomSheetScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -701,16 +701,16 @@ class _RoomSheetScaffold extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            Text(title, style: ZenText.title.copyWith(color: c.ink)),
+            Text(title, style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 4),
-            Text(subtitle, style: ZenText.small),
+            Text(subtitle, style: MiniText.small),
             const SizedBox(height: 16),
             child,
             if (error != null) ...[
               const SizedBox(height: 8),
               Text(
                 error!,
-                style: ZenText.small.copyWith(color: MiniColors.danger),
+                style: MiniText.small.copyWith(color: MiniColors.danger),
               ),
             ],
             const SizedBox(height: 16),

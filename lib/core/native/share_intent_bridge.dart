@@ -15,7 +15,7 @@ class SharedIncomingFile {
 }
 
 class ShareIntentBridge {
-  static const _channel = MethodChannel('whoosh/share_intent');
+  static const _channel = MethodChannel('minigo/share_intent');
 
   /// Returns files shared to the app from another app's share sheet (if any),
   /// then clears them natively so they are only handled once.

@@ -14,9 +14,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity() {
-    private val shareChannel = "whoosh/native_share"
-    private val widgetChannel = "whoosh/widget"
-    private val shareIntentChannel = "whoosh/share_intent"
+    private val shareChannel = "minigo/native_share"
+    private val widgetChannel = "minigo/widget"
+    private val shareIntentChannel = "minigo/share_intent"
 
     // Last widget action from the intent that launched (or re-launched) this activity
     private var pendingWidgetAction: String? = null
@@ -58,7 +58,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     // Flutter calls this after identity loads to push the code to the widget
                     "refreshWidget" -> {
-                        WhooshWidgetProvider.refreshAll(this)
+                        MinigoWidgetProvider.refreshAll(this)
                         result.success(null)
                     }
                     // Flutter calls this on start to check if the app was opened from a widget button

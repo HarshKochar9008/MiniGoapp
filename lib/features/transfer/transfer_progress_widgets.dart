@@ -29,7 +29,7 @@ class TransferUploadProgressList extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(header, style: ZenText.small),
+              Text(header, style: MiniText.small),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
@@ -109,7 +109,7 @@ class TransferFileProgressTile extends StatelessWidget {
                   ? 'Verifying… ${(state.progress * 100).toInt()}%'
                   : 'Uploading… ${(state.progress * 100).toInt()}%'
                       '${state.attempt > 1 ? ' (retry ${state.attempt})' : ''}',
-              style: ZenText.small,
+              style: MiniText.small,
             ),
           ],
           if (state.status == FileUploadStatus.completed &&

@@ -4,6 +4,7 @@ import '../../core/constants.dart';
 import '../../core/network/network_errors.dart';
 import '../../core/supabase_config.dart';
 import '../../core/utils/short_code_generator.dart';
+import '../identity/identity_service.dart';
 
 class Room {
   final String id;
@@ -55,7 +56,12 @@ class RoomMember {
     this.canShare = true,
   });
 
-  String get displayName => nickname ?? shortCode;
+  /// Falls back to the short code when the nickname is null OR blank —
+  /// callers take `.characters.first` of this, which throws on ''.
+  String get displayName {
+    final nick = nickname?.trim();
+    return (nick == null || nick.isEmpty) ? shortCode : nick;
+  }
 
   RoomMember withCanShare(bool value) => RoomMember(
         userId: userId,
@@ -115,9 +121,13 @@ class RoomService {
           expiresAt: Room.parseExpiry(row['expires_at']),
           memberCount: 1,
         );
-        await SupabaseConfig.client
-            .from('room_members')
-            .insert({'room_id': room.id, 'user_id': ownerId});
+        final me = IdentityService.identityNotifier.value;
+        await SupabaseConfig.client.from('room_members').insert({
+          'room_id': room.id,
+          'user_id': ownerId,
+          if (me?.shortCode != null) 'short_code': me!.shortCode,
+          if (me?.nickname != null) 'nickname': me!.nickname,
+        });
         return room;
       } on PostgrestException catch (e) {
         // Unique violation on code → regenerate and retry
@@ -152,9 +162,13 @@ class RoomService {
     if (room.isExpired) throw RoomExpiredException();
 
     try {
-      await SupabaseConfig.client
-          .from('room_members')
-          .insert({'room_id': room.id, 'user_id': userId});
+      final me = IdentityService.identityNotifier.value;
+      await SupabaseConfig.client.from('room_members').insert({
+        'room_id': room.id,
+        'user_id': userId,
+        if (me?.shortCode != null) 'short_code': me!.shortCode,
+        if (me?.nickname != null) 'nickname': me!.nickname,
+      });
     } on PostgrestException catch (e) {
       if (e.message.contains('room_full')) throw RoomFullException();
       if (e.message.contains('room_expired')) throw RoomExpiredException();
@@ -218,17 +232,24 @@ class RoomService {
 
   static Future<List<RoomMember>> listMembers(String roomId) async {
     await _ensureSession();
+    // Prefer denormalized short_code/nickname on room_members; fall back to the
+    // users join for rows created before the columns existed (that join now
+    // returns null under owner-only RLS).
     final rows = await SupabaseConfig.client
         .from('room_members')
-        .select('user_id, joined_at, can_share, users(short_code, nickname)')
+        .select(
+            'user_id, joined_at, can_share, short_code, nickname, users(short_code, nickname)')
         .eq('room_id', roomId)
         .order('joined_at', ascending: true);
     return rows.map<RoomMember>((row) {
       final user = row['users'] as Map<String, dynamic>?;
       return RoomMember(
         userId: row['user_id'] as String,
-        shortCode: user?['short_code'] as String? ?? '??????',
-        nickname: user?['nickname'] as String?,
+        shortCode: (row['short_code'] as String?) ??
+            (user?['short_code'] as String?) ??
+            '??????',
+        nickname:
+            (row['nickname'] as String?) ?? (user?['nickname'] as String?),
         canShare: row['can_share'] as bool? ?? true,
       );
     }).toList();

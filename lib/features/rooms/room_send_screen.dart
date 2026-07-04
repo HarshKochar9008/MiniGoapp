@@ -127,10 +127,20 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
       if (!mounted) return;
       setState(() => state.status = _MemberSendStatus.sending);
       try {
+        // Resolve the member's E2E public key so their files are encrypted.
+        String? recipientKey;
+        try {
+          final recip =
+              await IdentityService.findUserByCode(state.member.shortCode);
+          recipientKey = recip?['public_key'] as String?;
+        } catch (_) {
+          recipientKey = null; // fall back to plaintext if lookup fails
+        }
         final result = await TransferService.sendFiles(
           senderId: widget.identity.id,
           receiverId: state.member.userId,
           receiverCode: state.member.shortCode,
+          recipientPublicKey: recipientKey,
           files: _selectedFiles,
           roomId: widget.room.id,
           roomName: widget.room.name,
@@ -190,7 +200,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       appBar: AppBar(
@@ -215,13 +225,13 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Files', style: ZenText.label),
+                            Text('Files', style: MiniText.label),
                             if (_selectedFiles.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 '${_selectedFiles.length} selected · '
                                 '${TransferService.formatFileSize(_totalSize)}',
-                                style: ZenText.small,
+                                style: MiniText.small,
                               ),
                             ],
                           ],
@@ -265,7 +275,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                                   size: 32, color: c.inkFaint),
                               const SizedBox(height: 10),
                               Text('Tap to choose files',
-                                  style: ZenText.bodySoft),
+                                  style: MiniText.bodySoft),
                             ],
                           ),
                         ),
@@ -279,11 +289,11 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                           color: c.paperDeep.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: ZenFileRow(
+                        child: MiniFileRow(
                           name: _selectedFiles[i].name,
                           size: TransferService.formatFileSize(
                               _selectedFiles[i].size),
-                          mimeCategory: ZenFileRow.categoryFromFileName(
+                          mimeCategory: MiniFileRow.categoryFromFileName(
                               _selectedFiles[i].name),
                           trailing: _sending || _sent
                               ? null
@@ -306,7 +316,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                   const SizedBox(height: 16),
                   Text(
                     'Sending to ${_memberStates.length} member(s)',
-                    style: ZenText.label,
+                    style: MiniText.label,
                   ),
                   const SizedBox(height: 8),
 
@@ -335,7 +345,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                   if (_sending) ...[
                     const SizedBox(height: 8),
                     Text('Keep the app open while uploading.',
-                        style: ZenText.small),
+                        style: MiniText.small),
                   ],
                 ],
               ),
@@ -346,11 +356,11 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
             color: c.paper,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: _sent
-                ? ZenButton(
+                ? MiniButton(
                     label: 'Done',
                     onPressed: () => Navigator.pop(context),
                   )
-                : ZenButton(
+                : MiniButton(
                     label: _sending
                         ? 'Sending…'
                         : 'Send to ${_memberStates.length} member(s)',
@@ -384,7 +394,7 @@ class _MemberProgressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final (icon, tint, detail) = switch (status) {
       _MemberSendStatus.waiting => (
           Icons.schedule_rounded,
