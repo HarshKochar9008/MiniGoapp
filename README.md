@@ -167,7 +167,7 @@ lib/
 ├── core/
 │   ├── constants.dart                      # App limits, code alphabet, validation rules
 │   ├── supabase_config.dart                # Supabase client singleton, session management
-│   ├── theme.dart                          # AppColors, ZenColors palette, ThemeController
+│   ├── theme.dart                          # AppColors, MiniColors palette, ThemeController
 │   ├── app_reset.dart                      # Full device reset (local data + anonymous session)
 │   ├── network/
 │   │   ├── connection_status.dart          # Connectivity notifier (coarse online/offline)
@@ -208,7 +208,7 @@ lib/
 │
 └── Whoosh/
     ├── theme/
-    │   └── zen_theme.dart                  # ZenColors (paper, ink, blue600, sand, etc.)
+    │   └── zen_theme.dart                  # MiniColors (paper, ink, blue600, sand, etc.)
     └── widgets/
         └── zen_widgets.dart                # Shared UI components (buttons, cards, dialogs)
 
@@ -440,7 +440,7 @@ Set the required secrets in Supabase Dashboard → **Edge Functions → Secrets*
 | Transfer TTL | `24 hours` | Transfers expire and are purged after this |
 | Large upload threshold | `10 MB` (Wi-Fi) / `5 MB` (cellular) | Warns before uploading on metered connections |
 
-### Design System (ZenColors)
+### Design System (MiniColors)
 
 | Token | Hex | Usage |
 |-------|-----|-------|

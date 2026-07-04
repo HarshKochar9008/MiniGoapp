@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/analytics/analytics.dart';
 import '../../core/native/native_share.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import '../receive/received_tab_screen.dart';
@@ -112,47 +112,44 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text('You are',
                             style: ZenText.label.copyWith(color: c.inkSoft)),
+                        const SizedBox(height: 4),
                         if (widget.identity.nickname != null) ...[
-                          const SizedBox(height: 4),
                           Text(
                             widget.identity.nickname!,
-                            style: ZenText.title.copyWith(color: c.ink),
-                            overflow: TextOverflow.ellipsis,
+                            style: ZenText.title,
                           ),
+                          const SizedBox(height: 2),
                         ],
+                        Row(
+                          children: [
+                            Text(
+                              fmtCode(code),
+                              style: ZenText.code
+                                  .copyWith(fontSize: 22, color: c.ink),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: _copyCode,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.copy_rounded,
+                                  size: 15,
+                                  color: c.inkFaint,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        fmtCode(code),
-                        style: ZenText.code.copyWith(fontSize: 22, color: c.ink),
-                      ),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: _copyCode,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.copy_rounded,
-                            size: 15,
-                            color: c.inkFaint,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -174,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: c.sand,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: ZenColors.success.withValues(alpha: 0.22),
+                          color: MiniColors.success.withValues(alpha: 0.22),
                           width: 1,
                         ),
                       ),
@@ -184,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             'YOUR CODE',
                             style: ZenText.label.copyWith(
-                              color: ZenColors.success,
+                              color: MiniColors.success,
                               letterSpacing: 2,
                             ),
                           ),
@@ -234,16 +231,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
-                        color: ZenColors.blue600.withValues(alpha: 0.08),
+                        color: MiniColors.blue50,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: ZenColors.blue600.withValues(alpha: 0.22),
-                        ),
+                        border: Border.all(color: MiniColors.blue200),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline_rounded,
-                              size: 18, color: c.accent),
+                          const Icon(Icons.info_outline_rounded,
+                              size: 18, color: MiniColors.blue600),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -251,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Tap Send below to send files to someone else.',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: c.accent,
+                                color: MiniColors.blue600,
                                 height: 1.5,
                               ),
                             ),
@@ -283,8 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _PillButton(
               icon: Icons.north_east_rounded,
               label: 'Send',
-              background: ZenColors.blue600,
-              foreground: ZenColors.paper,
+              background: MiniColors.blue600,
+              foreground: MiniColors.paper,
               onTap: _openSend,
             ),
           ],

@@ -642,6 +642,8 @@ class TransferService {
     required void Function(List<FileUploadProgress> states) onProgress,
     TransferCancellationToken? cancellationToken,
     String? receiverCode,
+    String? roomId,
+    String? roomName,
   }) async {
     for (final file in files) {
       if (file.size > AppConstants.maxFileSizeBytes) {
@@ -714,6 +716,8 @@ class TransferService {
               'sender_id': senderId,
               'receiver_id': receiverId,
               'status': 'pending',
+              if (roomId != null) 'room_id': roomId,
+              if (roomName != null) 'room_name': roomName,
             })
             .select()
             .single();
@@ -726,6 +730,8 @@ class TransferService {
             'sender_id': senderId,
             'receiver_id': receiverId,
             'status': 'pending',
+            if (roomId != null) 'room_id': roomId,
+            if (roomName != null) 'room_name': roomName,
           })
           .select()
           .single();

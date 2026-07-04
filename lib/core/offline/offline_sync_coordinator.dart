@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../navigation/root_navigator.dart';
 import '../network/connection_status.dart';
 import '../notifications/notification_service.dart';
+import '../theme.dart';
 import '../../features/transfer/transfer_service.dart';
 import 'pending_backend_jobs.dart';
 
@@ -133,12 +134,13 @@ class OfflineSyncCoordinator {
     if (ctx == null || !ctx.mounted) return;
 
     ScaffoldMessenger.of(ctx).showSnackBar(
-      const SnackBar(
-        content: Text(
+      SnackBar(
+        content: const Text(
           'You have an unfinished send. Open Send Files to resume or discard.',
         ),
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 5),
+        backgroundColor: MiniColors.ink,
+        duration: const Duration(seconds: 5),
       ),
     );
   }

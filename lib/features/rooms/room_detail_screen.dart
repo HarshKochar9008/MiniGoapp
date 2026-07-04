@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,10 +7,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/native/native_share.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
+import '../qr/qr_widgets.dart';
+import 'room_send_screen.dart';
 import 'room_service.dart';
 
 class RoomDetailScreen extends StatefulWidget {
@@ -32,11 +36,24 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   bool get _isOwner => widget.room.isOwnedBy(widget.identity.id);
 
+  /// Whether the host allows me to share files (hosts always can).
+  bool get _iCanShare {
+    final mine = _members.where((m) => m.userId == widget.identity.id);
+    return mine.isEmpty || mine.first.canShare;
+  }
+
+  Timer? _expiryTicker;
+
   @override
   void initState() {
     super.initState();
     ContactAliases.ensureLoaded();
     ContactAliases.revision.addListener(_onAliasesChanged);
+    // Keep the countdown fresh
+    _expiryTicker = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => mounted ? setState(() {}) : null,
+    );
     _loadMembers();
   }
 
@@ -46,8 +63,45 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   @override
   void dispose() {
+    _expiryTicker?.cancel();
     ContactAliases.revision.removeListener(_onAliasesChanged);
     super.dispose();
+  }
+
+  String get _expiryLabel {
+    if (widget.room.isExpired) return 'Room expired';
+    final mins = widget.room.timeLeft.inMinutes;
+    if (mins < 1) return 'Expires in under a minute';
+    return 'Expires in $mins min';
+  }
+
+  Color get _expiryTint {
+    if (widget.room.isExpired) return MiniColors.danger;
+    return widget.room.timeLeft.inMinutes < 10
+        ? MiniColors.warn
+        : MiniColors.inkFaint;
+  }
+
+  void _showQr() {
+    HapticFeedback.selectionClick();
+    QrCodeSheet.show(context, widget.room.code);
+  }
+
+  void _openRoomSend() {
+    HapticFeedback.selectionClick();
+    final recipients = _members
+        .where((m) => m.userId != widget.identity.id)
+        .toList();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RoomSendScreen(
+          identity: widget.identity,
+          room: widget.room,
+          recipients: recipients,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadMembers() async {
@@ -68,6 +122,26 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         _error = 'Could not load members. Check your connection.';
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _toggleMemberShare(RoomMember member, bool value) async {
+    final idx = _members.indexWhere((m) => m.userId == member.userId);
+    if (idx == -1) return;
+    HapticFeedback.selectionClick();
+    setState(() => _members[idx] = member.withCanShare(value));
+    try {
+      await RoomService.setMemberCanShare(
+        roomId: widget.room.id,
+        userId: member.userId,
+        canShare: value,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _members[idx] = member.withCanShare(!value));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update permission')),
+      );
     }
   }
 
@@ -105,7 +179,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: ZenColors.danger),
+            style: FilledButton.styleFrom(backgroundColor: MiniColors.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(_isOwner ? 'Close room' : 'Leave'),
           ),
@@ -166,7 +240,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       color: c.sand,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: ZenColors.blue600.withValues(alpha: 0.18),
+                        color: MiniColors.blue600.withValues(alpha: 0.18),
                       ),
                     ),
                     child: Column(
@@ -183,7 +257,24 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                             letterSpacing: 4,
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.timer_outlined,
+                                size: 13, color: _expiryTint),
+                            const SizedBox(width: 4),
+                            Text(
+                              _expiryLabel,
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: _expiryTint,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
@@ -191,6 +282,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 icon: Icons.copy_rounded,
                                 label: 'Copy',
                                 onTap: _copyCode,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _OutlineBtn(
+                                icon: Icons.qr_code_rounded,
+                                label: 'QR',
+                                onTap: _showQr,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -224,7 +323,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: ZenColors.blue600,
+                            color: MiniColors.blue600,
                           ),
                         ),
                       ),
@@ -235,6 +334,10 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         member: member,
                         isYou: member.userId == widget.identity.id,
                         isHost: member.userId == widget.room.ownerId,
+                        showShareToggle: _isOwner &&
+                            member.userId != widget.identity.id,
+                        onShareToggle: (v) =>
+                            _toggleMemberShare(member, v),
                         onLongPress: member.userId == widget.identity.id
                             ? null
                             : () => ContactAliasSheet.show(
@@ -245,13 +348,22 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       ),
                       const HairLine(indent: 56),
                     ],
+                    if (_isOwner && _members.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Use the switches to control who can share files '
+                          'in this room.',
+                          style: ZenText.small,
+                        ),
+                      ),
 
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     StatusBanner(
                       icon: Icons.error_outline_rounded,
                       text: _error!,
-                      tint: ZenColors.danger,
+                      tint: MiniColors.danger,
                       onTap: _loadMembers,
                     ),
                   ],
@@ -260,19 +372,35 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             ),
           ),
 
-          // Leave / close room
+          // Share files / leave / close room
           Container(
             color: c.paper,
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: ZenButton(
-              label: _leaving
-                  ? 'Leaving…'
-                  : _isOwner
-                      ? 'Close room'
-                      : 'Leave room',
-              style: ZenBtnStyle.danger,
-              loading: _leaving,
-              onPressed: _leaving ? null : _leaveRoom,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!widget.room.isExpired &&
+                    _members.length > 1 &&
+                    _iCanShare) ...[
+                  ZenButton(
+                    label: 'Share files to room',
+                    leading: const Icon(Icons.north_east_rounded,
+                        size: 16, color: MiniColors.paper),
+                    onPressed: _openRoomSend,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                ZenButton(
+                  label: _leaving
+                      ? 'Leaving…'
+                      : _isOwner
+                          ? 'Close room'
+                          : 'Leave room',
+                  style: ZenBtnStyle.danger,
+                  loading: _leaving,
+                  onPressed: _leaving ? null : _leaveRoom,
+                ),
+              ],
             ),
           ),
         ],
@@ -285,12 +413,16 @@ class _MemberRow extends StatelessWidget {
   final RoomMember member;
   final bool isYou;
   final bool isHost;
+  final bool showShareToggle;
+  final ValueChanged<bool>? onShareToggle;
   final VoidCallback? onLongPress;
 
   const _MemberRow({
     required this.member,
     required this.isYou,
     required this.isHost,
+    this.showShareToggle = false,
+    this.onShareToggle,
     this.onLongPress,
   });
 
@@ -309,9 +441,7 @@ class _MemberRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isHost
-                    ? c.accent.withValues(alpha: 0.12)
-                    : c.paperDeep,
+                color: isHost ? ZenColors.blue50 : c.paperDeep,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -320,7 +450,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: isHost ? c.accent : c.inkSoft,
+                    color: isHost ? ZenColors.blue600 : c.inkSoft,
                   ),
                 ),
               ),
@@ -355,7 +485,7 @@ class _MemberRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: c.accent.withValues(alpha: 0.12),
+                  color: ZenColors.blue50,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -363,8 +493,18 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: c.accent,
+                    color: ZenColors.blue600,
                   ),
+                ),
+              )
+            else if (showShareToggle)
+              // Host's control: allow/block this member from sharing files.
+              // Only the host sees this — members are not shown who is blocked.
+              Transform.scale(
+                scale: 0.8,
+                child: Switch.adaptive(
+                  value: member.canShare,
+                  onChanged: onShareToggle,
                 ),
               ),
           ],

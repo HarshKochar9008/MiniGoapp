@@ -8,8 +8,8 @@ import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
-import '../../zensend/theme/zen_theme.dart';
-import '../../zensend/widgets/zen_widgets.dart';
+import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
@@ -155,8 +155,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
             '_counterpartyCode':
                 (t['sender'] as Map?)?['short_code'] ?? '???',
             '_counterpartyId': t['sender_id'],
-            '_counterpartyDeleted':
-                (t['sender'] as Map?)?['deleted_at'] != null,
           }),
       ...sent.map((t) => {
             ...t,
@@ -164,8 +162,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
             '_counterpartyCode':
                 (t['receiver'] as Map?)?['short_code'] ?? '???',
             '_counterpartyId': t['receiver_id'],
-            '_counterpartyDeleted':
-                (t['receiver'] as Map?)?['deleted_at'] != null,
           }),
     ];
     all.sort((a, b) {
@@ -333,7 +329,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
-                              color: ZenColors.blue500,
+                              color: MiniColors.blue500,
                               child: Builder(builder: (context) {
                                 final visible =
                                     _applyFilter(_transfers!);
@@ -354,8 +350,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         .toString();
                                     final counterpartyId =
                                         t['_counterpartyId'] as String?;
-                                    final counterpartyDeleted =
-                                        t['_counterpartyDeleted'] == true;
+                                    final roomLabel =
+                                        t['room_name'] as String? ??
+                                            (t['room_id'] != null
+                                                ? 'room'
+                                                : null);
                                     final status = (t['status'] ?? 'pending')
                                         .toString();
                                     final createdAt =
@@ -375,13 +374,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           counterpartyAlias:
                                               ContactAliases.aliasFor(
                                                   counterpartyId),
-                                          counterpartyDeleted:
-                                              counterpartyDeleted,
                                           status: status,
                                           timeAgo: _timeAgo(createdAt),
                                           isExpired: isExpired,
-                                          onEditAlias: counterpartyId == null ||
-                                                  counterpartyDeleted
+                                          roomLabel: roomLabel,
+                                          onEditAlias: counterpartyId == null
                                               ? null
                                               : () => ContactAliasSheet.show(
                                                     context,
@@ -403,11 +400,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         alignment: Alignment.centerRight,
                                         padding: const EdgeInsets.only(
                                             right: 24),
-                                        color: ZenColors.danger
+                                        color: MiniColors.danger
                                             .withOpacity(0.10),
                                         child: const Icon(
                                           Icons.delete_outline_rounded,
-                                          color: ZenColors.danger,
+                                          color: MiniColors.danger,
                                           size: 22,
                                         ),
                                       ),
@@ -464,10 +461,12 @@ class _HistoryTile extends StatelessWidget {
   final String direction;
   final String counterpartyCode;
   final String? counterpartyAlias;
-  final bool counterpartyDeleted;
   final String status;
   final String timeAgo;
   final bool isExpired;
+
+  /// Room name (or 'room' fallback) when sent/received through a room.
+  final String? roomLabel;
   final VoidCallback? onEditAlias;
 
   const _HistoryTile({
@@ -476,25 +475,25 @@ class _HistoryTile extends StatelessWidget {
     required this.status,
     required this.timeAgo,
     this.counterpartyAlias,
-    this.counterpartyDeleted = false,
     this.isExpired = false,
+    this.roomLabel,
     this.onEditAlias,
   });
 
   Color get _tint {
     switch (status) {
       case 'completed':
-        return ZenColors.success;
+        return MiniColors.success;
       case 'uploading':
       case 'pending':
-        return ZenColors.warn;
+        return MiniColors.warn;
       case 'partial':
       case 'failed':
-        return ZenColors.danger;
+        return MiniColors.danger;
       case 'expired':
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
       default:
-        return ZenColors.inkFaint;
+        return MiniColors.inkFaint;
     }
   }
 
@@ -515,10 +514,7 @@ class _HistoryTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: isOut
-                      ? [
-                          c.accent.withValues(alpha: 0.30),
-                          c.accent.withValues(alpha: 0.08),
-                        ]
+                      ? [MiniColors.blue200, MiniColors.blue50]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -527,7 +523,7 @@ class _HistoryTile extends StatelessWidget {
               child: Icon(
                 isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
                 size: 16,
-                color: c.ink.withValues(alpha: 0.55),
+                color: c.ink.withOpacity(0.55),
               ),
             ),
             const SizedBox(width: 12),
@@ -539,76 +535,55 @@ class _HistoryTile extends StatelessWidget {
                     children: [
                       Text(isOut ? 'To ' : 'From ',
                           style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
-                      if (counterpartyDeleted) ...[
+                      if (counterpartyAlias != null) ...[
                         Flexible(
-                          child: Text(
-                            counterpartyAlias != null
-                                ? '$counterpartyAlias (deleted)'
-                                : 'Deleted user',
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              fontStyle: FontStyle.italic,
-                              color: c.inkFaint,
+                          child: GestureDetector(
+                            onLongPress: onEditAlias,
+                            child: Text(
+                              counterpartyAlias!,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: c.ink,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(fmtCode(counterpartyCode),
-                            style: ZenText.codeSmall
-                                .copyWith(color: c.inkFaint, fontSize: 11)),
-                      ] else ...[
-                        if (counterpartyAlias != null) ...[
-                          Flexible(
-                            child: GestureDetector(
-                              onLongPress: onEditAlias,
-                              child: Text(
-                                counterpartyAlias!,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        GestureDetector(
-                          onLongPress: onEditAlias,
-                          onTap: () {
-                            Clipboard.setData(
-                                ClipboardData(text: counterpartyCode));
-                            HapticFeedback.selectionClick();
-                            Analytics.instance.logEvent(
-                                AnalyticsEvents.codeCopied,
-                                {'source': 'history'});
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Copied ${fmtCode(counterpartyCode)}'),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(fmtCode(counterpartyCode),
-                                  style: counterpartyAlias != null
-                                      ? ZenText.codeSmall.copyWith(
-                                          color: c.inkFaint, fontSize: 11)
-                                      : ZenText.codeSmall
-                                          .copyWith(color: c.ink)),
-                              const SizedBox(width: 4),
-                              Icon(Icons.copy_rounded,
-                                  size: 11, color: c.inkFaint),
-                            ],
-                          ),
-                        ),
                       ],
+                      GestureDetector(
+                        onLongPress: onEditAlias,
+                        onTap: () {
+                          Clipboard.setData(
+                              ClipboardData(text: counterpartyCode));
+                          HapticFeedback.selectionClick();
+                          Analytics.instance.logEvent(
+                              AnalyticsEvents.codeCopied,
+                              {'source': 'history'});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  'Copied ${fmtCode(counterpartyCode)}'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(fmtCode(counterpartyCode),
+                                style: counterpartyAlias != null
+                                    ? ZenText.codeSmall.copyWith(
+                                        color: c.inkFaint, fontSize: 11)
+                                    : ZenText.codeSmall
+                                        .copyWith(color: c.ink)),
+                            const SizedBox(width: 4),
+                            Icon(Icons.copy_rounded,
+                                size: 11, color: c.inkFaint),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -624,9 +599,10 @@ class _HistoryTile extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        isExpired
-                            ? 'Expired'
-                            : '${isOut ? 'Sent' : 'Received'} · $status',
+                        (isExpired
+                                ? 'Expired'
+                                : '${isOut ? 'Sent' : 'Received'} · $status') +
+                            (roomLabel != null ? ' · $roomLabel' : ''),
                         style: ZenText.small.copyWith(color: c.inkSoft),
                       ),
                     ],
