@@ -1,4 +1,4 @@
-name: whoosh
+name: minigo
 description: Real-time mobile file sharing app (Android/iOS only).
 publish_to: 'none'
 version: 1.0.0+1
@@ -29,6 +29,13 @@ dependencies:
 
   # SHA-256 checksum for file integrity
   crypto: ^3.0.3
+
+  # End-to-end encryption: X25519 key agreement + AES-256-GCM file cipher
+  cryptography: ^2.7.0
+
+  # Hardware-backed secure storage for the device's private key
+  # (Android Keystore / iOS Keychain)
+  flutter_secure_storage: ^9.2.2
 
   # Network connectivity detection
   connectivity_plus: ^6.0.5

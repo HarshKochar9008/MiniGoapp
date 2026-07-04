@@ -14,9 +14,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tus_client_dart/tus_client_dart.dart';
 
 import '../../core/constants.dart';
+import '../../core/crypto/e2e_crypto.dart';
 import '../../core/network/network_errors.dart';
 import '../../core/offline/pending_backend_jobs.dart';
 import '../../core/supabase_config.dart';
+import '../identity/identity_service.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -644,6 +646,9 @@ class TransferService {
     String? receiverCode,
     String? roomId,
     String? roomName,
+    /// Recipient's base64url X25519 public key. When present, every file is
+    /// end-to-end encrypted before upload so the server only stores ciphertext.
+    String? recipientPublicKey,
   }) async {
     for (final file in files) {
       if (file.size > AppConstants.maxFileSizeBytes) {
@@ -672,6 +677,10 @@ class TransferService {
 
     await SupabaseConfig.ensureValidSession();
     final client = SupabaseConfig.client;
+
+    // Sender's own short code, denormalized onto the transfer so the receiver
+    // can display it without reading the sender's (now private) users row.
+    final senderCode = IdentityService.identityNotifier.value?.shortCode;
 
     if (orphanTid != null) {
       await _abandonOrphanTransfer(client, orphanTid);
@@ -710,31 +719,27 @@ class TransferService {
         resumeByFileName = snap;
       } else {
         await _abandonOrphanTransfer(client, tid);
-        final transfer = await client
-            .from('transfers')
-            .insert({
-              'sender_id': senderId,
-              'receiver_id': receiverId,
-              'status': 'pending',
-              if (roomId != null) 'room_id': roomId,
-              if (roomName != null) 'room_name': roomName,
-            })
-            .select()
-            .single();
+        final transfer = await _insertTransferRow({
+          'sender_id': senderId,
+          'receiver_id': receiverId,
+          'status': 'pending',
+          if (senderCode != null) 'sender_code': senderCode,
+          if (receiverCode != null) 'receiver_code': receiverCode,
+          if (roomId != null) 'room_id': roomId,
+          if (roomName != null) 'room_name': roomName,
+        });
         transferId = transfer['id'] as String;
       }
     } else {
-      final transfer = await client
-          .from('transfers')
-          .insert({
-            'sender_id': senderId,
-            'receiver_id': receiverId,
-            'status': 'pending',
-            if (roomId != null) 'room_id': roomId,
-            if (roomName != null) 'room_name': roomName,
-          })
-          .select()
-          .single();
+      final transfer = await _insertTransferRow({
+        'sender_id': senderId,
+        'receiver_id': receiverId,
+        'status': 'pending',
+        if (senderCode != null) 'sender_code': senderCode,
+        if (receiverCode != null) 'receiver_code': receiverCode,
+        if (roomId != null) 'room_id': roomId,
+        if (roomName != null) 'room_name': roomName,
+      });
       transferId = transfer['id'] as String;
     }
 
@@ -851,7 +856,7 @@ class TransferService {
           continue;
         }
 
-        // ── Phase 2: Upload with retry ──────────────────────────────────
+        // ── Phase 2: (optional) encrypt, then upload with retry ─────────
         states = _updateState(
           states,
           i,
@@ -863,53 +868,103 @@ class TransferService {
         );
         report(states);
 
+        // End-to-end encrypt the file bytes when we have the recipient's
+        // public key. The server then only ever stores ciphertext.
+        File uploadFile = diskFile;
+        File? encTemp;
+        Map<String, dynamic> encMeta = const {'is_encrypted': false};
+        if (recipientPublicKey != null && recipientPublicKey.isNotEmpty) {
+          try {
+            final fileKey = E2ECrypto.newFileKey();
+            encTemp = await _encryptedTempFile(transferId, safeName);
+            await E2ECrypto.encryptFile(
+              src: diskFile,
+              dst: encTemp,
+              contentKey: fileKey.contentKey,
+              baseNonce: fileKey.baseNonce,
+            );
+            final sealedKey = await E2ECrypto.sealContentKey(
+              contentKey: fileKey.contentKey,
+              recipientPublicKeyB64: recipientPublicKey,
+            );
+            uploadFile = encTemp;
+            encMeta = {
+              'is_encrypted': true,
+              'enc_algo': E2ECrypto.algoTag,
+              'enc_wrapped_key': sealedKey,
+              'enc_nonce': E2ECrypto.encodeB64(fileKey.baseNonce),
+              'enc_chunk_size': E2ECrypto.chunkSize,
+            };
+          } catch (e) {
+            // Never block a transfer on encryption; fall back to plaintext.
+            if (kDebugMode) debugPrint('Encrypt failed for $safeName: $e');
+            try {
+              if (encTemp != null && encTemp.existsSync()) {
+                await encTemp.delete();
+              }
+            } catch (_) {}
+            encTemp = null;
+            uploadFile = diskFile;
+            encMeta = const {'is_encrypted': false};
+          }
+        }
+
         var uploaded = false;
         String? lastError;
 
-        for (var attempt = 1; attempt <= _maxRetries; attempt++) {
-          try {
-            states = _updateState(
-              states,
-              i,
-              states[i].copyWith(attempt: attempt, progress: 0),
-            );
-            report(states);
+        try {
+          for (var attempt = 1; attempt <= _maxRetries; attempt++) {
+            try {
+              states = _updateState(
+                states,
+                i,
+                states[i].copyWith(attempt: attempt, progress: 0),
+              );
+              report(states);
 
-            await _uploadStorageFile(
-              storagePath: storagePath,
-              file: diskFile,
-              contentType: mimeType,
-              cancellationToken: cancellationToken,
-              onProgress: (sent, total) {
-                if (total > 0) {
-                  states = _updateState(
-                    states,
-                    i,
-                    states[i].copyWith(progress: sent / total),
-                  );
-                  report(states);
-                }
-              },
-            );
+              await _uploadStorageFile(
+                storagePath: storagePath,
+                file: uploadFile,
+                contentType: mimeType,
+                cancellationToken: cancellationToken,
+                onProgress: (sent, total) {
+                  if (total > 0) {
+                    states = _updateState(
+                      states,
+                      i,
+                      states[i].copyWith(progress: sent / total),
+                    );
+                    report(states);
+                  }
+                },
+              );
 
-            await _insertTransferFile({
-              'transfer_id': transferId,
-              'file_name': safeName,
-              'file_size': file.size,
-              'mime_type': mimeType,
-              'storage_path': storagePath,
-              'sha256_hash': hash,
-            });
+              await _insertTransferFile({
+                'transfer_id': transferId,
+                'file_name': safeName,
+                'file_size': file.size,
+                'mime_type': mimeType,
+                'storage_path': storagePath,
+                'sha256_hash': hash,
+                ...encMeta,
+              });
 
-            uploaded = true;
-            break;
-          } catch (e) {
-            if (e is TransferCancelledException) rethrow;
-            lastError = e.toString().replaceAll('Exception: ', '');
-            if (attempt < _maxRetries) {
-              await Future.delayed(Duration(seconds: attempt * 2));
+              uploaded = true;
+              break;
+            } catch (e) {
+              if (e is TransferCancelledException) rethrow;
+              lastError = e.toString().replaceAll('Exception: ', '');
+              if (attempt < _maxRetries) {
+                await Future.delayed(Duration(seconds: attempt * 2));
+              }
             }
           }
+        } finally {
+          try {
+            if (encTemp != null && encTemp.existsSync()) {
+              await encTemp.delete();
+            }
+          } catch (_) {}
         }
 
         if (uploaded) {
@@ -1079,8 +1134,44 @@ class TransferService {
     }
   }
 
+  /// Insert a `transfers` row and return it. Falls back without the
+  /// denormalized code columns if a not-yet-migrated schema lacks them.
+  static Future<Map<String, dynamic>> _insertTransferRow(
+      Map<String, dynamic> data) async {
+    try {
+      return Map<String, dynamic>.from(await SupabaseConfig.client
+          .from('transfers')
+          .insert(data)
+          .select()
+          .single());
+    } on PostgrestException catch (e) {
+      if (e.code == '42703' || e.code == 'PGRST204') {
+        final fallback = Map<String, dynamic>.from(data)
+          ..remove('sender_code')
+          ..remove('receiver_code');
+        return Map<String, dynamic>.from(await SupabaseConfig.client
+            .from('transfers')
+            .insert(fallback)
+            .select()
+            .single());
+      }
+      rethrow;
+    }
+  }
+
+  /// Temp file that holds the encrypted bytes for one upload.
+  static Future<File> _encryptedTempFile(
+      String transferId, String safeName) async {
+    final tempDir = await getTemporaryDirectory();
+    final dir = Directory('${tempDir.path}/enc_out');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final unique =
+        '${transferId.hashCode}_${DateTime.now().microsecondsSinceEpoch}';
+    return File('${dir.path}/${unique}_$safeName.enc');
+  }
+
   /// Insert a transfer_files row.
-  /// Falls back without sha256_hash when the column doesn't exist:
+  /// Falls back without optional columns when they don't exist:
   ///   - 42703: PostgreSQL undefined_column
   ///   - PGRST204: PostgREST column not found in schema cache
   static Future<void> _insertTransferFile(Map<String, dynamic> data) async {
@@ -1088,7 +1179,14 @@ class TransferService {
       await SupabaseConfig.client.from('transfer_files').insert(data);
     } on PostgrestException catch (e) {
       if (e.code == '42703' || e.code == 'PGRST204') {
-        final fallback = Map<String, dynamic>.from(data)..remove('sha256_hash');
+        // Drop optional columns a not-yet-migrated schema may lack.
+        final fallback = Map<String, dynamic>.from(data)
+          ..remove('sha256_hash')
+          ..remove('is_encrypted')
+          ..remove('enc_algo')
+          ..remove('enc_wrapped_key')
+          ..remove('enc_nonce')
+          ..remove('enc_chunk_size');
         await SupabaseConfig.client.from('transfer_files').insert(fallback);
       } else {
         rethrow;
@@ -1175,20 +1273,9 @@ class TransferService {
     try {
       await SupabaseConfig.ensureValidSession();
 
-      final receiver = await SupabaseConfig.client
-          .from('users')
-          .select('fcm_token')
-          .eq('id', receiverId)
-          .maybeSingle();
-      final receiverToken = (receiver?['fcm_token'] as String?)?.trim();
-      if (receiverToken == null || receiverToken.isEmpty) {
-        return const PushReadinessResult(
-          ready: false,
-          reason: 'Recipient has not registered for push notifications yet. '
-              'Ask them to open MiniGo once with internet and allow notifications.',
-        );
-      }
-
+      // Recipient rows are no longer directly readable (RLS restricts `users`
+      // reads to self). Readiness is resolved by the edge function's dry-run,
+      // which checks the recipient's token with the service role.
       final dryRun = await SupabaseConfig.client.functions.invoke(
         'send-transfer-fcm',
         body: {
@@ -1337,6 +1424,10 @@ class TransferService {
     required String fileName,
     required void Function(int received, int total) onProgress,
     TransferCancellationToken? cancellationToken,
+    bool isEncrypted = false,
+    String? encWrappedKey,
+    String? encNonce,
+    int? encChunkSize,
   }) async {
     await SupabaseConfig.ensureValidSession();
     final url = await SupabaseConfig.client.storage
@@ -1424,7 +1515,14 @@ class TransferService {
 
           await sink?.close();
           sink = null;
-          return file;
+          if (!isEncrypted) return file;
+          return await _decryptDownloadedFile(
+            cipherFile: file,
+            fileName: fileName,
+            encWrappedKey: encWrappedKey,
+            encNonce: encNonce,
+            encChunkSize: encChunkSize,
+          );
         } catch (e) {
           await sink?.close();
           sink = null;
@@ -1453,6 +1551,57 @@ class TransferService {
       await sink?.close();
       httpClient.close();
     }
+  }
+
+  /// Decrypts a downloaded ciphertext file into a plaintext temp file using
+  /// this device's private key, deletes the ciphertext, and returns the
+  /// plaintext file. Throws [E2EDecryptException] if the key material is
+  /// missing or authentication fails.
+  static Future<File> _decryptDownloadedFile({
+    required File cipherFile,
+    required String fileName,
+    required String? encWrappedKey,
+    required String? encNonce,
+    required int? encChunkSize,
+  }) async {
+    final authUid = SupabaseConfig.client.auth.currentUser?.id;
+    if (authUid == null) {
+      throw const E2EDecryptException('Not signed in — cannot decrypt.');
+    }
+    if (encWrappedKey == null || encWrappedKey.isEmpty || encNonce == null) {
+      throw const E2EDecryptException('Missing encryption metadata.');
+    }
+
+    final contentKey = await E2ECrypto.unsealContentKey(
+      wrappedKeyB64: encWrappedKey,
+      authUid: authUid,
+    );
+
+    final tempDir = await getTemporaryDirectory();
+    final uniquePrefix =
+        '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}';
+    final plainFile = File(
+        '${tempDir.path}/${uniquePrefix}_dec_${sanitizeFileName(fileName)}');
+
+    try {
+      await E2ECrypto.decryptFile(
+        src: cipherFile,
+        dst: plainFile,
+        contentKey: contentKey,
+        baseNonce: E2ECrypto.decodeB64(encNonce),
+        plaintextChunkSize: encChunkSize ?? E2ECrypto.chunkSize,
+      );
+    } catch (e) {
+      try {
+        if (await plainFile.exists()) await plainFile.delete();
+      } catch (_) {}
+      rethrow;
+    } finally {
+      try {
+        if (await cipherFile.exists()) await cipherFile.delete();
+      } catch (_) {}
+    }
+    return plainFile;
   }
 
   /// Verify a downloaded file's SHA-256 against the stored hash.

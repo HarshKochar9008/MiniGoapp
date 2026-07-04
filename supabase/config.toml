@@ -371,6 +371,19 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# --- Edge function authorization -------------------------------------------
+# send-transfer-fcm must NOT be callable anonymously without a valid session.
+# The platform validates the caller's JWT before the function runs; the
+# function itself then verifies the caller OWNS the transfer it is pushing for.
+[functions.send-transfer-fcm]
+verify_jwt = true
+
+# expire-transfers is a privileged maintenance job. It validates the
+# service-role bearer token itself, so platform JWT verification is left off
+# (a service-role key is not a user JWT).
+[functions.expire-transfers]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

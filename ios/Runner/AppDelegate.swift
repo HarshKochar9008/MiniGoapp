@@ -3,7 +3,7 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
-  private let channelName = "whoosh/native_share"
+  private let channelName = "minigo/native_share"
 
   override func application(
     _ application: UIApplication,

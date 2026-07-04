@@ -1,8 +1,8 @@
-# Whoosh
+# MiniGo
 
 **Frictionless file sharing across any network — no accounts, no friction, just a 6-character code.**
 
-Whoosh is a production-grade Flutter mobile application that enables secure, real-time file transfers between devices using a simple short-code system. No email, no password, no sign-up — recipients are identified by a unique 6-character code, and files are transferred instantly over a cloud-relay with full SHA-256 integrity verification.
+MiniGo is a production-grade Flutter mobile application that enables secure, real-time file transfers between devices using a simple short-code system. No email, no password, no sign-up — recipients are identified by a unique 6-character code, and files are transferred instantly over a cloud-relay with full SHA-256 integrity verification.
 
 ---
 
@@ -28,7 +28,7 @@ Whoosh is a production-grade Flutter mobile application that enables secure, rea
 
 ## Overview
 
-Whoosh solves the classic problem of sending files between people on different networks without requiring any account setup or contact exchange.
+MiniGo solves the classic problem of sending files between people on different networks without requiring any account setup or contact exchange.
 
 **Core user flows:**
 
@@ -78,7 +78,7 @@ Every file transfer uses TUS resumable uploads, streaming SHA-256 integrity veri
 
 ## Architecture
 
-Whoosh uses a **client-driven cloud-relay** model — the Flutter app orchestrates all transfer logic; Supabase provides identity, storage, real-time messaging, and push delivery.
+MiniGo uses a **client-driven cloud-relay** model — the Flutter app orchestrates all transfer logic; Supabase provides identity, storage, real-time messaging, and push delivery.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -206,11 +206,11 @@ lib/
 │   └── onboarding/
 │       └── onboarding_screen.dart          # Welcome → code animation → permissions → ready
 │
-└── Whoosh/
+└── MiniGo/
     ├── theme/
-    │   └── zen_theme.dart                  # MiniColors (paper, ink, blue600, sand, etc.)
+    │   └── mini_theme.dart                  # MiniColors (paper, ink, blue600, sand, etc.)
     └── widgets/
-        └── zen_widgets.dart                # Shared UI components (buttons, cards, dialogs)
+        └── mini_widgets.dart                # Shared UI components (buttons, cards, dialogs)
 
 supabase/
 └── functions/
@@ -232,8 +232,8 @@ supabase/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/Whoosh.git
-cd Whoosh
+git clone https://github.com/your-org/MiniGo.git
+cd MiniGo
 ```
 
 ### 2. Install dependencies
@@ -324,60 +324,47 @@ Supabase Dashboard → **Database → Replication** → enable Realtime for the 
 
 Supabase Dashboard → **Storage → New Bucket** → name it `transfers` → set as **private** (not public).
 
-### 5. Row Level Security — Database Tables
+### 5. Row Level Security & Encryption — apply the migrations
 
-```sql
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transfers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transfer_files ENABLE ROW LEVEL SECURITY;
+> ⚠️ **Do not hand-write RLS in the SQL editor.** The authoritative, security-
+> reviewed policies live in version control under
+> [`supabase/migrations/`](supabase/migrations/). Apply them with:
+>
+> ```bash
+> supabase db push          # or: supabase migration up
+> ```
+>
+> These migrations replace the previously documented policies, which were
+> insecure. Specifically:
+>
+> - **`users`** is readable/updatable **only by its owner** (`auth_uid = auth.uid()`).
+>   The old `USING (true)` policy exposed every user's `fcm_token`/`auth_uid` to
+>   any anonymous caller and has been removed. A sender resolves a recipient via
+>   the `lookup_user_by_code()` RPC, which returns only `{id, short_code, public_key}`.
+> - **`storage.objects`** in the `transfers` bucket is scoped to the
+>   **participants of that transfer** (folder = `transfer_id`). The old
+>   `auth.role() = 'authenticated'` policies let anyone list/download/overwrite
+>   every file and have been removed.
+> - **`transfer_files`** gains end-to-end-encryption columns
+>   (`is_encrypted`, `enc_algo`, `enc_wrapped_key`, `enc_nonce`, `enc_chunk_size`).
 
--- Users: anyone can look up by code; auth users can insert themselves
-CREATE POLICY "Anyone can look up users" ON users FOR SELECT USING (true);
-CREATE POLICY "Auth users can insert themselves" ON users FOR INSERT
-  WITH CHECK (auth_uid = auth.uid());
+### 6. End-to-end encryption
 
--- Transfers: participants can read; sender can insert and update
-CREATE POLICY "Participants can view transfers" ON transfers FOR SELECT
-  USING (
-    sender_id   IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-    OR receiver_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-  );
-CREATE POLICY "Auth users can create transfers" ON transfers FOR INSERT
-  WITH CHECK (sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid()));
-CREATE POLICY "Sender can update transfer status" ON transfers FOR UPDATE
-  USING (sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid()));
+File bytes are encrypted **on the sender's device** with a random per-file
+AES-256-GCM content key. That content key is sealed to the recipient's X25519
+public key (`users.public_key`) using an ephemeral-key ECIES construction, and
+stored in `transfer_files.enc_wrapped_key`. The private key never leaves the
+device (OS keystore via `flutter_secure_storage`).
 
--- Transfer files: scoped to transfers the user can see
-CREATE POLICY "Participants can view files" ON transfer_files FOR SELECT
-  USING (transfer_id IN (
-    SELECT id FROM transfers WHERE
-      sender_id   IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-      OR receiver_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-  ));
-CREATE POLICY "Sender can insert files" ON transfer_files FOR INSERT
-  WITH CHECK (transfer_id IN (
-    SELECT id FROM transfers WHERE
-      sender_id IN (SELECT id FROM users WHERE auth_uid = auth.uid())
-  ));
-```
+As a result the **server and database only ever hold ciphertext and a sealed
+key they cannot open** — Supabase (and anyone with database access) cannot read
+file contents. `sha256_hash` is the hash of the *plaintext*, verified after
+decryption, so integrity is preserved end-to-end.
 
-### 6. Row Level Security — Storage Bucket
-
-Run in the **SQL Editor** (the Storage UI does not expose these policies):
-
-```sql
-CREATE POLICY "Auth users can upload"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
-
-CREATE POLICY "Auth users can read"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
-
-CREATE POLICY "Auth users can update"
-  ON storage.objects FOR UPDATE
-  USING (bucket_id = 'transfers' AND (SELECT auth.role()) = 'authenticated');
-```
+> Key-loss note: because the private key is device-local, uninstalling the app
+> or clearing app data makes any *in-flight* encrypted transfers addressed to
+> the old key undecryptable. Transfers are ephemeral (24h TTL), so this only
+> affects undownloaded files.
 
 ### 7. Rooms
 
@@ -476,10 +463,10 @@ Permissions are requested contextually — never upfront — with explanatory di
 
 | Platform | File Type | Destination |
 |----------|-----------|-------------|
-| Android | Image / Video | Device gallery (via `gal`, Whoosh album) |
+| Android | Image / Video | Device gallery (via `gal`, MiniGo album) |
 | Android | Other | `/Download/` folder |
 | iOS | Image / Video | Photos app (via `gal`) |
-| iOS | Other | App Documents (`Whoosh/` directory) |
+| iOS | Other | App Documents (`MiniGo/` directory) |
 
 Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended automatically.
 
@@ -502,7 +489,7 @@ Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended aut
 
 ## Offline Resilience
 
-Whoosh recovers gracefully from connectivity interruptions at every stage of a transfer.
+MiniGo recovers gracefully from connectivity interruptions at every stage of a transfer.
 
 ### Upload Interruption
 - TUS protocol persists a **fingerprint and byte offset** locally
@@ -575,5 +562,5 @@ flutter test
 
 ## License
 
-Proprietary — All rights reserved. © 2025 Whoosh / Neosapien.
+Proprietary — All rights reserved. © 2025 MiniGo / Neosapien.
 

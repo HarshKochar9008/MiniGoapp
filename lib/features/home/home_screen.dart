@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -97,11 +97,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final code = widget.identity.shortCode;
+    final displayName = widget.identity.nickname ?? 'MiniGo User';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final headerCodeColor = isDark ? c.accent : c.ink;
 
     return Scaffold(
       backgroundColor: c.paper,
@@ -118,37 +120,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('You are',
-                            style: ZenText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
-                        if (widget.identity.nickname != null) ...[
-                          Text(
-                            widget.identity.nickname!,
-                            style: ZenText.title,
-                          ),
-                          const SizedBox(height: 2),
-                        ],
-                        Row(
-                          children: [
-                            Text(
-                              fmtCode(code),
-                              style: ZenText.code
-                                  .copyWith(fontSize: 22, color: c.ink),
-                            ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: _copyCode,
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.copy_rounded,
-                                  size: 15,
-                                  color: c.inkFaint,
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MiniText.title.copyWith(color: c.ink),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _copyCode,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            fmtCode(code),
+                            style: MiniText.code.copyWith(
+                              fontSize: 19,
+                              color: headerCodeColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.copy_rounded,
+                            size: 15,
+                            color: c.inkFaint,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -180,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             'YOUR CODE',
-                            style: ZenText.label.copyWith(
+                            style: MiniText.label.copyWith(
                               color: MiniColors.success,
                               letterSpacing: 2,
                             ),
@@ -188,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 20),
                           Text(
                             fmtCode(code),
-                            style: ZenText.codeLarge.copyWith(
+                            style: MiniText.codeLarge.copyWith(
                               color: c.ink,
                               letterSpacing: 4,
                             ),
@@ -352,7 +358,7 @@ class _OutlineBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return GestureDetector(
       onTap: onTap,
       child: Container(

@@ -152,15 +152,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ...incoming.map((t) => {
             ...t,
             '_direction': 'received',
-            '_counterpartyCode':
-                (t['sender'] as Map?)?['short_code'] ?? '???',
+            '_counterpartyCode': t['sender_code'] ??
+                (t['sender'] as Map?)?['short_code'] ??
+                '???',
             '_counterpartyId': t['sender_id'],
           }),
       ...sent.map((t) => {
             ...t,
             '_direction': 'sent',
-            '_counterpartyCode':
-                (t['receiver'] as Map?)?['short_code'] ?? '???',
+            '_counterpartyCode': t['receiver_code'] ??
+                (t['receiver'] as Map?)?['short_code'] ??
+                '???',
             '_counterpartyId': t['receiver_id'],
           }),
     ];
@@ -227,7 +229,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
@@ -245,10 +247,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       children: [
                         Text('Transfers',
                             style:
-                                ZenText.label.copyWith(color: c.inkSoft)),
+                                MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('History',
-                            style: ZenText.title.copyWith(color: c.ink)),
+                            style: MiniText.title.copyWith(color: c.ink)),
                       ],
                     ),
                   ),
@@ -280,7 +282,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ['Sent', _HistoryFilter.sent],
                     ])
                       Expanded(
-                        child: ZenTabPill(
+                        child: MiniTabPill(
                           label: entry[0] as String,
                           active: _filter == entry[1],
                           onTap: () => setState(
@@ -314,10 +316,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               children: [
                                 Text(_error!,
                                     textAlign: TextAlign.center,
-                                    style: ZenText.bodySoft
+                                    style: MiniText.bodySoft
                                         .copyWith(color: c.inkSoft)),
                                 const SizedBox(height: 20),
-                                ZenButton(
+                                MiniButton(
                                     label: 'Retry',
                                     onPressed: _loadTransfers),
                               ],
@@ -427,7 +429,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildEmpty(ZenThemeExtension c) {
+  Widget _buildEmpty(MiniThemeExtension c) {
     final title = switch (_filter) {
       _HistoryFilter.sent => 'No files sent yet',
       _HistoryFilter.received => 'No files received yet',
@@ -446,11 +448,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Icon(Icons.inbox_outlined, size: 48, color: c.inkFaint),
           const SizedBox(height: 18),
-          Text(title, style: ZenText.title.copyWith(color: c.ink)),
+          Text(title, style: MiniText.title.copyWith(color: c.ink)),
           const SizedBox(height: 6),
           Text(subtitle,
               textAlign: TextAlign.center,
-              style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+              style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
         ],
       ),
     );
@@ -499,7 +501,7 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     final isOut = direction == 'sent';
     return Opacity(
       opacity: isExpired ? 0.45 : 1.0,
@@ -534,7 +536,7 @@ class _HistoryTile extends StatelessWidget {
                   Row(
                     children: [
                       Text(isOut ? 'To ' : 'From ',
-                          style: ZenText.bodySoft.copyWith(color: c.inkSoft)),
+                          style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
                       if (counterpartyAlias != null) ...[
                         Flexible(
                           child: GestureDetector(
@@ -574,9 +576,9 @@ class _HistoryTile extends StatelessWidget {
                           children: [
                             Text(fmtCode(counterpartyCode),
                                 style: counterpartyAlias != null
-                                    ? ZenText.codeSmall.copyWith(
+                                    ? MiniText.codeSmall.copyWith(
                                         color: c.inkFaint, fontSize: 11)
-                                    : ZenText.codeSmall
+                                    : MiniText.codeSmall
                                         .copyWith(color: c.ink)),
                             const SizedBox(width: 4),
                             Icon(Icons.copy_rounded,
@@ -603,14 +605,14 @@ class _HistoryTile extends StatelessWidget {
                                 ? 'Expired'
                                 : '${isOut ? 'Sent' : 'Received'} · $status') +
                             (roomLabel != null ? ' · $roomLabel' : ''),
-                        style: ZenText.small.copyWith(color: c.inkSoft),
+                        style: MiniText.small.copyWith(color: c.inkSoft),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            Text(timeAgo, style: ZenText.small.copyWith(color: c.inkSoft)),
+            Text(timeAgo, style: MiniText.small.copyWith(color: c.inkSoft)),
           ],
         ),
       ),

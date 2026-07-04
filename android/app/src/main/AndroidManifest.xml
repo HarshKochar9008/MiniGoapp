@@ -68,7 +68,7 @@
 
         <!-- Home screen widget -->
         <receiver
-            android:name=".WhooshWidgetProvider"
+            android:name=".MinigoWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -76,7 +76,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_whoosh_info" />
+                android:resource="@xml/widget_minigo_info" />
         </receiver>
     </application>
     <!-- Required to query activities that can process text, see:

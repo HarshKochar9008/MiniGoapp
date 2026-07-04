@@ -75,7 +75,7 @@ class _AppEntryState extends State<_AppEntry> {
   Widget build(BuildContext context) {
     if (_onboardingComplete == null) {
       return Scaffold(
-        backgroundColor: context.zen.paper,
+        backgroundColor: context.mini.paper,
         body: const SizedBox.shrink(),
       );
     }
@@ -360,7 +360,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: context.zen.paper,
+        backgroundColor: context.mini.paper,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -379,7 +379,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Text(
                 'Setting up…',
                 style: GoogleFonts.outfit(
-                  color: context.zen.inkSoft,
+                  color: context.mini.inkSoft,
                   fontSize: 14,
                 ),
               ),
@@ -391,7 +391,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: context.zen.paper,
+        backgroundColor: context.mini.paper,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(48),
@@ -399,24 +399,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.wifi_off_rounded,
-                    size: 48, color: context.zen.inkFaint),
+                    size: 48, color: context.mini.inkFaint),
                 const SizedBox(height: 24),
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
-                    color: context.zen.inkSoft,
+                    color: context.mini.inkSoft,
                     fontSize: 14,
                     height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 32),
-                _ZenActionButton(
+                _MiniActionButton(
                   label: 'Retry',
                   onPressed: _loadIdentity,
                 ),
                 const SizedBox(height: 10),
-                _ZenGhostButton(
+                _MiniGhostButton(
                   label: _runningDiagnostics
                       ? 'Running diagnostics…'
                       : 'Run diagnostics',
@@ -428,14 +428,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: context.zen.paperDeep,
+                      color: context.mini.paperDeep,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.zen.divider),
+                      border: Border.all(color: context.mini.divider),
                     ),
                     child: Text(
                       _diagnosticsReport!,
                       style: GoogleFonts.jetBrainsMono(
-                        color: context.zen.inkSoft,
+                        color: context.mini.inkSoft,
                         fontSize: 11,
                         height: 1.5,
                       ),
@@ -461,7 +461,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      backgroundColor: context.zen.paper,
+      backgroundColor: context.mini.paper,
       body: Column(
         children: [
           const GlobalStatusBanner(),
@@ -473,7 +473,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         ],
       ),
-      bottomNavigationBar: _ZenBottomNav(
+      bottomNavigationBar: _MiniBottomNav(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
       ),
@@ -481,11 +481,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 }
 
-class _ZenBottomNav extends StatelessWidget {
+class _MiniBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const _ZenBottomNav({required this.currentIndex, required this.onTap});
+  const _MiniBottomNav({required this.currentIndex, required this.onTap});
 
   static const _items = [
     _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
@@ -498,9 +498,9 @@ class _ZenBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: context.zen.paper,
+        color: context.mini.paper,
         border: Border(
-          top: BorderSide(color: context.zen.dividerSoft),
+          top: BorderSide(color: context.mini.dividerSoft),
         ),
       ),
       child: SafeArea(
@@ -512,7 +512,7 @@ class _ZenBottomNav extends StatelessWidget {
             children: List.generate(_items.length, (i) {
               final item = _items[i];
               final isActive = i == currentIndex;
-              return _ZenNavTile(
+              return _MiniNavTile(
                 icon: item.icon,
                 activeIcon: item.activeIcon,
                 label: item.label,
@@ -534,14 +534,14 @@ class _NavItem {
   const _NavItem({required this.icon, required this.activeIcon, required this.label});
 }
 
-class _ZenNavTile extends StatelessWidget {
+class _MiniNavTile extends StatelessWidget {
   final IconData icon;
   final IconData activeIcon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
 
-  const _ZenNavTile({
+  const _MiniNavTile({
     required this.icon,
     required this.activeIcon,
     required this.label,
@@ -551,7 +551,7 @@ class _ZenNavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -563,7 +563,7 @@ class _ZenNavTile extends StatelessWidget {
             Icon(
               isActive ? activeIcon : icon,
               size: 22,
-              color: isActive ? MiniColors.blue600 : context.zen.inkFaint,
+              color: isActive ? MiniColors.blue600 : context.mini.inkFaint,
             ),
             const SizedBox(height: 4),
             Text(
@@ -571,7 +571,7 @@ class _ZenNavTile extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w300,
-                color: isActive ? ZenColors.blue600 : context.zen.inkFaint,
+                color: isActive ? MiniColors.blue600 : context.mini.inkFaint,
                 letterSpacing: 0.2,
               ),
             ),
@@ -582,17 +582,17 @@ class _ZenNavTile extends StatelessWidget {
   }
 }
 
-class _ZenActionButton extends StatelessWidget {
+class _MiniActionButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const _ZenActionButton({required this.label, this.onPressed});
+  const _MiniActionButton({required this.label, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: Material(
-        color: context.zen.ink,
+        color: context.mini.ink,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onPressed,
@@ -605,7 +605,7 @@ class _ZenActionButton extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
-                  color: context.zen.paper,
+                  color: context.mini.paper,
                 ),
               ),
             ),
@@ -616,10 +616,10 @@ class _ZenActionButton extends StatelessWidget {
   }
 }
 
-class _ZenGhostButton extends StatelessWidget {
+class _MiniGhostButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const _ZenGhostButton({required this.label, this.onPressed});
+  const _MiniGhostButton({required this.label, this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -639,7 +639,7 @@ class _ZenGhostButton extends StatelessWidget {
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   fontWeight: FontWeight.w300,
-                  color: context.zen.inkSoft,
+                  color: context.mini.inkSoft,
                 ),
               ),
             ),

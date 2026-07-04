@@ -12,14 +12,14 @@ import android.os.Build
 import android.widget.RemoteViews
 import android.widget.Toast
 
-class WhooshWidgetProvider : AppWidgetProvider() {
+class MinigoWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
         ids.forEach {
             try {
                 updateWidget(context, mgr, it)
             } catch (e: Exception) {
-                android.util.Log.e("WhooshWidget", "onUpdate failed for id=$it", e)
+                android.util.Log.e("MinigoWidget", "onUpdate failed for id=$it", e)
             }
         }
     }
@@ -39,7 +39,7 @@ class WhooshWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_COPY = "com.Zen.app.WIDGET_COPY_CODE"
-        const val EXTRA_CODE = "whoosh_code"
+        const val EXTRA_CODE = "minigo_code"
 
         private fun launchIntent(context: Context, action: String): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
@@ -66,12 +66,12 @@ class WhooshWidgetProvider : AppWidgetProvider() {
                 "— — —"
             }
 
-            val views = RemoteViews(context.packageName, R.layout.widget_whoosh)
+            val views = RemoteViews(context.packageName, R.layout.widget_minigo)
             views.setTextViewText(R.id.widget_code, displayCode)
             views.setOnClickPendingIntent(R.id.widget_btn_send, launchIntent(context, "send"))
             views.setOnClickPendingIntent(R.id.widget_btn_qr, launchIntent(context, "qr"))
 
-            val copyIntent = Intent(context, WhooshWidgetProvider::class.java).apply {
+            val copyIntent = Intent(context, MinigoWidgetProvider::class.java).apply {
                 action = ACTION_COPY
                 putExtra(EXTRA_CODE, raw ?: "")
             }
@@ -87,7 +87,7 @@ class WhooshWidgetProvider : AppWidgetProvider() {
         /** Called from MainActivity to refresh all placed widgets after identity loads. */
         fun refreshAll(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
-            val ids = mgr.getAppWidgetIds(ComponentName(context, WhooshWidgetProvider::class.java))
+            val ids = mgr.getAppWidgetIds(ComponentName(context, MinigoWidgetProvider::class.java))
             ids.forEach { updateWidget(context, mgr, it) }
         }
     }

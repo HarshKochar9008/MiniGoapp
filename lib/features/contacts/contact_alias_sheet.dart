@@ -57,7 +57,7 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Padding(
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -83,13 +83,13 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
             ),
             const SizedBox(height: 18),
             Text('Name this person',
-                style: ZenText.title.copyWith(color: c.ink)),
+                style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 4),
             Text(
               'Only you see this name — it stays on this device. '
               'Their code is ${fmtCode(widget.code)}. '
               'Leave empty to remove the name.',
-              style: ZenText.small.copyWith(color: c.inkSoft),
+              style: MiniText.small.copyWith(color: c.inkSoft),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -111,7 +111,7 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
               onSubmitted: (_) => _save(),
             ),
             const SizedBox(height: 16),
-            ZenButton(label: 'Save', onPressed: _save),
+            MiniButton(label: 'Save', onPressed: _save),
           ],
         ),
       ),

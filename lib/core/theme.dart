@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Minigo/theme/mini_theme.dart';
 
-export '../Minigo/theme/mini_theme.dart' show MiniColors, ZenText, fmtCode, ZenThemeExtension, ZenContextX;
+export '../Minigo/theme/mini_theme.dart' show MiniColors, MiniText, fmtCode, MiniThemeExtension, MiniContextX;
 
 /// AppColors — mapped to MiniColors for design consistency.
 class AppColors {
@@ -76,6 +76,6 @@ class ThemeController {
   }
 }
 
-ThemeData buildAppTheme() => buildZenTheme();
+ThemeData buildAppTheme() => buildMiniTheme();
 
-ThemeData buildDarkAppTheme() => buildZenDarkTheme();
+ThemeData buildDarkAppTheme() => buildMiniDarkTheme();

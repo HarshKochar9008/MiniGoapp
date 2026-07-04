@@ -195,7 +195,7 @@ class _OnbWelcome extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
                   onTap: onSkip,
-                  child: Text('Skip', style: ZenText.bodySoft),
+                  child: Text('Skip', style: MiniText.bodySoft),
                 ),
               ),
               const Spacer(),
@@ -207,13 +207,13 @@ class _OnbWelcome extends StatelessWidget {
               const SizedBox(height: 36),
               Text(
                 'Send anything.',
-                style: ZenText.display,
+                style: MiniText.display,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 4),
               Text(
                 'to anyone, anywhere.',
-                style: ZenText.display.copyWith(
+                style: MiniText.display.copyWith(
                   fontStyle: FontStyle.italic,
                   color: MiniColors.blue600,
                 ),
@@ -223,10 +223,10 @@ class _OnbWelcome extends StatelessWidget {
               Text(
                 'No accounts. No phone numbers. Just a six-character code that lives only on your device.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft,
+                style: MiniText.bodySoft,
               ),
               const Spacer(),
-              ZenButton(label: 'Begin', onPressed: onNext),
+              MiniButton(label: 'Begin', onPressed: onNext),
             ],
           ),
         ),
@@ -263,15 +263,15 @@ class _OnbGenerateState extends State<_OnbGenerate> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _CodeShuffler(style: ZenText.codeLarge),
+              _CodeShuffler(style: MiniText.codeLarge),
               const SizedBox(height: 40),
               Text(
                 'Crafting your code',
-                style: ZenText.title,
+                style: MiniText.title,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
-              Text('a few quiet moments…', style: ZenText.bodySoft),
+              Text('a few quiet moments…', style: MiniText.bodySoft),
             ],
           ),
         ),
@@ -297,11 +297,11 @@ class _OnbCode extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('How it works', style: ZenText.label),
+              Text('How it works', style: MiniText.label),
               const SizedBox(height: 24),
               _CodeShuffler(
                 settle: 'A4X9K2',
-                style: ZenText.codeLarge,
+                style: MiniText.codeLarge,
               ),
               const SizedBox(height: 28),
               Container(
@@ -315,11 +315,11 @@ class _OnbCode extends StatelessWidget {
                   'Your unique 6-character code is your address. Share it to receive files, or ask for someone else\'s to send. '
                   'You can rotate it anytime from Settings.',
                   textAlign: TextAlign.center,
-                  style: ZenText.bodySoft,
+                  style: MiniText.bodySoft,
                 ),
               ),
               const Spacer(),
-              ZenButton(label: 'Continue', onPressed: onNext),
+              MiniButton(label: 'Continue', onPressed: onNext),
             ],
           ),
         ),
@@ -350,7 +350,7 @@ class _OnbPermissions extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A few quiet permissions', style: ZenText.title),
+              Text('A few quiet permissions', style: MiniText.title),
               const SizedBox(height: 28),
               for (final r in items)
                 Padding(
@@ -385,7 +385,7 @@ class _OnbPermissions extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 2),
-                              Text(r[1], style: ZenText.small),
+                              Text(r[1], style: MiniText.small),
                             ],
                           ),
                         ),
@@ -394,12 +394,12 @@ class _OnbPermissions extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
-              ZenButton(label: 'Continue', onPressed: onNext),
+              MiniButton(label: 'Continue', onPressed: onNext),
               const SizedBox(height: 8),
-              ZenButton(
+              MiniButton(
                 label: 'Skip for now',
                 onPressed: onNext,
-                style: ZenBtnStyle.ghost,
+                style: MiniBtnStyle.ghost,
               ),
             ],
           ),
@@ -435,12 +435,12 @@ class _OnbNickname extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('Pick a nickname', style: ZenText.title),
+              Text('Pick a nickname', style: MiniText.title),
               const SizedBox(height: 8),
               Text(
                 'This helps others recognize you. Totally optional.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft,
+                style: MiniText.bodySoft,
               ),
               const SizedBox(height: 40),
               TextField(
@@ -448,7 +448,7 @@ class _OnbNickname extends StatelessWidget {
                 onChanged: onNicknameChanged,
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
-                style: ZenText.body.copyWith(fontSize: 18),
+                style: MiniText.body.copyWith(fontSize: 18),
                 decoration: InputDecoration(
                   hintText: 'e.g., Alex, BlueBunny, ...',
                   filled: true,
@@ -472,12 +472,12 @@ class _OnbNickname extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              ZenButton(label: 'Continue', onPressed: onNext),
+              MiniButton(label: 'Continue', onPressed: onNext),
               const SizedBox(height: 8),
-              ZenButton(
+              MiniButton(
                 label: 'Skip for now',
                 onPressed: onSkip,
-                style: ZenBtnStyle.ghost,
+                style: MiniBtnStyle.ghost,
               ),
             ],
           ),
@@ -512,17 +512,17 @@ class _OnbReady extends StatelessWidget {
               const SizedBox(height: 24),
               Text(
                 'You\'re ready.',
-                style: ZenText.display,
+                style: MiniText.display,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
                 'Send and receive files with anyone, anywhere — no sign-up needed.',
                 textAlign: TextAlign.center,
-                style: ZenText.bodySoft,
+                style: MiniText.bodySoft,
               ),
               const Spacer(),
-              ZenButton(label: 'Open MiniGo', onPressed: onDone),
+              MiniButton(label: 'Open MiniGo', onPressed: onDone),
             ],
           ),
         ),

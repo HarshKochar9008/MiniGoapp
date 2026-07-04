@@ -208,7 +208,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
       appBar: AppBar(
@@ -246,12 +246,12 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     child: Column(
                       children: [
                         Text('Room code',
-                            style: ZenText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 10),
                         Text(
                           fmtCode(widget.room.code),
                           textAlign: TextAlign.center,
-                          style: ZenText.code.copyWith(
+                          style: MiniText.code.copyWith(
                             fontSize: 30,
                             color: c.ink,
                             letterSpacing: 4,
@@ -354,7 +354,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         child: Text(
                           'Use the switches to control who can share files '
                           'in this room.',
-                          style: ZenText.small,
+                          style: MiniText.small,
                         ),
                       ),
 
@@ -382,7 +382,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 if (!widget.room.isExpired &&
                     _members.length > 1 &&
                     _iCanShare) ...[
-                  ZenButton(
+                  MiniButton(
                     label: 'Share files to room',
                     leading: const Icon(Icons.north_east_rounded,
                         size: 16, color: MiniColors.paper),
@@ -390,13 +390,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   ),
                   const SizedBox(height: 10),
                 ],
-                ZenButton(
+                MiniButton(
                   label: _leaving
                       ? 'Leaving…'
                       : _isOwner
                           ? 'Close room'
                           : 'Leave room',
-                  style: ZenBtnStyle.danger,
+                  style: MiniBtnStyle.danger,
                   loading: _leaving,
                   onPressed: _leaving ? null : _leaveRoom,
                 ),
@@ -428,7 +428,7 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     // Local alias wins over the member's self-set nickname
     final name = ContactAliases.aliasFor(member.userId) ?? member.displayName;
     return GestureDetector(
@@ -441,7 +441,7 @@ class _MemberRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isHost ? ZenColors.blue50 : c.paperDeep,
+                color: isHost ? MiniColors.blue50 : c.paperDeep,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -450,7 +450,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: isHost ? ZenColors.blue600 : c.inkSoft,
+                    color: isHost ? MiniColors.blue600 : c.inkSoft,
                   ),
                 ),
               ),
@@ -485,7 +485,7 @@ class _MemberRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: ZenColors.blue50,
+                  color: MiniColors.blue50,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -493,7 +493,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: ZenColors.blue600,
+                    color: MiniColors.blue600,
                   ),
                 ),
               )
@@ -523,7 +523,7 @@ class _OutlineBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return GestureDetector(
       onTap: onTap,
       child: Container(

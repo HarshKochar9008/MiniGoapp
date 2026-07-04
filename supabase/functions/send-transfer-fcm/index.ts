@@ -1,17 +1,22 @@
 /**
- * Sends an FCM v1 push when a new row is inserted into `transfers`.
+ * Sends an FCM v1 push when the sender of a transfer asks us to notify the
+ * receiver.
  *
- * Deploy:
- *   npx supabase functions deploy send-transfer-fcm --no-verify-jwt
+ * SECURITY MODEL (v2):
+ *   - Deploy WITH JWT verification:  npx supabase functions deploy send-transfer-fcm
+ *     (config.toml sets `verify_jwt = true`; do NOT pass --no-verify-jwt).
+ *   - The caller's JWT is required. The function resolves the caller's user id
+ *     from that JWT and only proceeds if the caller is the SENDER of the
+ *     transfer being pushed. receiver_id and sender_code are read from the DB
+ *     row, never trusted from the request body — this blocks push spam,
+ *     sender-code spoofing, and the previous presence oracle.
  *
  * Secrets (Dashboard → Edge Functions → Secrets):
- *   FCM_PROJECT_ID          Firebase project id (same as GCP project)
+ *   FCM_PROJECT_ID           Firebase project id (same as GCP project)
  *   FCM_SERVICE_ACCOUNT_JSON Full JSON of a Firebase service account with
  *                            "Firebase Cloud Messaging API Admin" enabled
  *
- * Push trigger: the **Flutter client** calls this function after files are uploaded
- * (`TransferService`). Do **not** also add a Database Webhook on `transfers` INSERT — that
- * would send duplicate FCMs for the same transfer (multiple notifications).
+ * Push trigger: the Flutter client calls this after files are uploaded.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
@@ -20,6 +25,13 @@ const cors = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Google OAuth2 via service account — uses only Web Crypto (no npm deps)
@@ -100,122 +112,157 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: cors });
   }
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   const projectId = Deno.env.get("FCM_PROJECT_ID");
   const saJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
-  if (!projectId || !saJson) {
-    return new Response(
-      JSON.stringify({ error: "Missing FCM_PROJECT_ID or FCM_SERVICE_ACCOUNT_JSON" }),
-      { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
-    );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!projectId || !saJson || !supabaseUrl || !serviceKey) {
+    return json({ error: "Server not configured" }, 500);
+  }
+
+  // --- Authenticate the caller from their JWT -------------------------------
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const jwt = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+  if (!jwt) {
+    return json({ error: "Unauthorized: missing bearer token" }, 401);
+  }
+
+  // Service client (bypasses RLS) — used for authorization lookups + FCM send.
+  const admin = createClient(supabaseUrl, serviceKey);
+
+  const { data: userData, error: authErr } = await admin.auth.getUser(jwt);
+  const authUid = userData?.user?.id;
+  if (authErr || !authUid) {
+    return json({ error: "Unauthorized: invalid session" }, 401);
+  }
+
+  // Map the caller's auth uid → their application user row id.
+  const { data: caller } = await admin
+    .from("users")
+    .select("id")
+    .eq("auth_uid", authUid)
+    .maybeSingle();
+  const callerUserId = caller?.id as string | undefined;
+  if (!callerUserId) {
+    return json({ error: "Unauthorized: no user profile" }, 401);
   }
 
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ error: "Invalid JSON" }, 400);
   }
 
   const record = body.record as Record<string, string> | undefined;
   const dryRun = body.dry_run === true;
-  if ((!dryRun && !record?.id) || !record?.receiver_id) {
-    return new Response(JSON.stringify({ error: "Missing transfer record" }), {
-      status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+
+  // ----- DRY RUN: readiness check for a transfer the caller will send -------
+  // Only reveals readiness for the CALLER's own account by default; if a
+  // receiver_id is supplied it must be a real user, but no other data leaks.
+  if (dryRun) {
+    const receiverId = record?.receiver_id;
+    if (!receiverId) {
+      return json({ error: "Missing receiver_id" }, 400);
+    }
+    const { data: receiver } = await admin
+      .from("users")
+      .select("fcm_token")
+      .eq("id", receiverId)
+      .maybeSingle();
+    const token = (receiver?.fcm_token as string | undefined)?.trim();
+    if (!token) {
+      return json({
+        ready: false,
+        reason:
+          "Recipient has no FCM token yet (app not opened / notifications not granted).",
+      });
+    }
+    return json({ ready: true });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, serviceKey);
+  // ----- REAL SEND: caller must OWN the transfer ----------------------------
+  const transferId = record?.id;
+  if (!transferId) {
+    return json({ error: "Missing transfer id" }, 400);
+  }
 
-  const { data: receiver, error: rErr } = await supabase
+  // Authoritative lookup: fetch the transfer and verify the caller is sender.
+  // receiver_id and sender_code are taken from the DB, NOT the request body.
+  const { data: transfer, error: tErr } = await admin
+    .from("transfers")
+    .select("id, sender_id, receiver_id")
+    .eq("id", transferId)
+    .maybeSingle();
+  if (tErr) {
+    console.error("transfer lookup", tErr);
+    return json({ error: "Lookup failed" }, 500);
+  }
+  if (!transfer) {
+    return json({ error: "Transfer not found" }, 404);
+  }
+  if (transfer.sender_id !== callerUserId) {
+    // The caller is not the sender of this transfer — refuse.
+    return json({ error: "Forbidden: not the sender of this transfer" }, 403);
+  }
+
+  const receiverId = transfer.receiver_id as string | null;
+  if (!receiverId) {
+    return json({ ok: true, skipped: "no_receiver" });
+  }
+
+  const { data: receiver, error: rErr } = await admin
     .from("users")
     .select("fcm_token")
-    .eq("id", record.receiver_id)
+    .eq("id", receiverId)
     .maybeSingle();
-
   if (rErr) {
     console.error("receiver lookup", rErr);
-    return new Response(JSON.stringify({ error: rErr.message }), {
-      status: 500,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ error: rErr.message }, 500);
   }
-
-  const token = receiver?.fcm_token as string | undefined;
+  const token = (receiver?.fcm_token as string | undefined)?.trim();
   if (!token) {
-    if (dryRun) {
-      return new Response(
-        JSON.stringify({
-          ready: false,
-          reason: "Recipient has no FCM token yet (app not opened / notifications not granted).",
-        }),
-        { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
-      );
-    }
-    return new Response(
-      JSON.stringify({ ok: true, skipped: "no_fcm_token" }),
-      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
-    );
+    return json({ ok: true, skipped: "no_fcm_token" });
   }
 
-  if (dryRun) {
-    return new Response(
-      JSON.stringify({ ready: true }),
-      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
-    );
-  }
-
-  let senderCode = "";
-  if (record.sender_id) {
-    const { data: sender } = await supabase
-      .from("users")
-      .select("short_code")
-      .eq("id", record.sender_id)
-      .maybeSingle();
-    senderCode = (sender?.short_code as string) ?? "";
-  }
+  // Sender short-code derived from DB (spoofing-proof).
+  const { data: sender } = await admin
+    .from("users")
+    .select("short_code")
+    .eq("id", callerUserId)
+    .maybeSingle();
+  const senderCode = (sender?.short_code as string) ?? "";
 
   let accessToken: string;
   try {
     accessToken = await getGoogleAccessToken(saJson);
   } catch (e) {
     console.error("OAuth token error", e);
-    return new Response(JSON.stringify({ error: "Failed to obtain OAuth token" }), {
-      status: 500,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ error: "Failed to obtain OAuth token" }, 500);
   }
 
-  // No top-level `notification` on Android: avoids a system tray entry that duplicates the
-  // Flutter local notification (logo + single slot per transfer_id). Title/body live in
-  // `data` for the app and in `apns` for iOS banner when backgrounded.
   const title = "Incoming transfer";
   const msgBody = "Tap to open MiniGo and download your files.";
   const fcmPayload = {
     message: {
       token,
       data: {
-        transfer_id: record.id,
+        transfer_id: transferId,
         sender_code: senderCode,
         title,
         body: msgBody,
       },
-      android: {
-        priority: "HIGH" as const,
-      },
+      android: { priority: "HIGH" as const },
       apns: {
         headers: { "apns-priority": "10" },
         payload: {
-          aps: {
-            alert: { title, body: msgBody },
-            sound: "default",
-          },
+          aps: { alert: { title, body: msgBody }, sound: "default" },
         },
       },
     },
@@ -242,8 +289,5 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { ...cors, "Content-Type": "application/json" },
-  });
+  return json({ ok: true });
 });

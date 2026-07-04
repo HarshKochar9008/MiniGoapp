@@ -27,7 +27,7 @@ String fmtCode(String code) {
   return '${code.substring(0, 3)} · ${code.substring(3)}';
 }
 
-class ZenText {
+class MiniText {
   static TextStyle get display => GoogleFonts.outfit(
         fontSize: 32,
         fontWeight: FontWeight.w300,
@@ -118,7 +118,7 @@ class ZenText {
 // Theme-adaptive color extension (replaces hardcoded MiniColors in widgets)
 // ---------------------------------------------------------------------------
 
-class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
+class MiniThemeExtension extends ThemeExtension<MiniThemeExtension> {
   final Color paper;
   final Color paperDeep;
   final Color ink;
@@ -131,10 +131,10 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
 
   /// Blue used as *text or icon color on paper* — lighter in dark mode so it
   /// stays readable on near-black. For filled-button backgrounds keep the
-  /// static [ZenColors.blue600] (the white-on-blue pairing works both ways).
+  /// static [MiniColors.blue600] (the white-on-blue pairing works both ways).
   final Color accent;
 
-  const ZenThemeExtension({
+  const MiniThemeExtension({
     required this.paper,
     required this.paperDeep,
     required this.ink,
@@ -147,7 +147,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     required this.accent,
   });
 
-  static const light = ZenThemeExtension(
+  static const light = MiniThemeExtension(
     paper: Color(0xFFFBFAF7),
     paperDeep: Color(0xFFF4F1EA),
     ink: Color(0xFF1A2230),
@@ -160,7 +160,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     accent: Color(0xFF1558D6),
   );
 
-  static const dark = ZenThemeExtension(
+  static const dark = MiniThemeExtension(
     paper: Color(0xFF0E1116),
     paperDeep: Color(0xFF161D27),
     ink: Color(0xFFE8E4DA),
@@ -174,7 +174,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
   );
 
   @override
-  ZenThemeExtension copyWith({
+  MiniThemeExtension copyWith({
     Color? paper,
     Color? paperDeep,
     Color? ink,
@@ -186,7 +186,7 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
     Color? dividerSoft,
     Color? accent,
   }) =>
-      ZenThemeExtension(
+      MiniThemeExtension(
         paper: paper ?? this.paper,
         paperDeep: paperDeep ?? this.paperDeep,
         ink: ink ?? this.ink,
@@ -200,9 +200,9 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
       );
 
   @override
-  ZenThemeExtension lerp(ZenThemeExtension? other, double t) {
+  MiniThemeExtension lerp(MiniThemeExtension? other, double t) {
     if (other == null) return this;
-    return ZenThemeExtension(
+    return MiniThemeExtension(
       paper: Color.lerp(paper, other.paper, t)!,
       paperDeep: Color.lerp(paperDeep, other.paperDeep, t)!,
       ink: Color.lerp(ink, other.ink, t)!,
@@ -217,16 +217,16 @@ class ZenThemeExtension extends ThemeExtension<ZenThemeExtension> {
   }
 }
 
-extension ZenContextX on BuildContext {
-  ZenThemeExtension get zen =>
-      Theme.of(this).extension<ZenThemeExtension>() ?? ZenThemeExtension.light;
+extension MiniContextX on BuildContext {
+  MiniThemeExtension get mini =>
+      Theme.of(this).extension<MiniThemeExtension>() ?? MiniThemeExtension.light;
 }
 
 // ---------------------------------------------------------------------------
 // Theme builders
 // ---------------------------------------------------------------------------
 
-ThemeData buildZenTheme() {
+ThemeData buildMiniTheme() {
   return ThemeData(
     brightness: Brightness.light,
     scaffoldBackgroundColor: MiniColors.paper,
@@ -239,7 +239,7 @@ ThemeData buildZenTheme() {
       onSecondary: MiniColors.paper,
       error: MiniColors.danger,
     ),
-    extensions: const [ZenThemeExtension.light],
+    extensions: const [MiniThemeExtension.light],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
     textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).apply(
@@ -330,8 +330,8 @@ ThemeData buildZenTheme() {
   );
 }
 
-ThemeData buildZenDarkTheme() {
-  const c = ZenThemeExtension.dark;
+ThemeData buildMiniDarkTheme() {
+  const c = MiniThemeExtension.dark;
   return ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: c.paper,

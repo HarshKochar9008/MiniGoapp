@@ -21,7 +21,7 @@ class QrCodeSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.zen;
+    final c = context.mini;
     return Container(
       decoration: BoxDecoration(
         color: c.paper,
@@ -67,7 +67,7 @@ class QrCodeSheet extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             fmtCode(code),
-            style: ZenText.codeSmall.copyWith(
+            style: MiniText.codeSmall.copyWith(
               color: c.ink,
               fontSize: 18,
               letterSpacing: 3,
@@ -76,7 +76,7 @@ class QrCodeSheet extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Ask someone to scan this to send you files',
-            style: ZenText.small.copyWith(color: c.inkSoft),
+            style: MiniText.small.copyWith(color: c.inkSoft),
           ),
         ],
       ),
