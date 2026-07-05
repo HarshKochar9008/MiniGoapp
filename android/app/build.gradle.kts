@@ -41,11 +41,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Strip x86_64 — that ABI is emulators only; all production Android phones are ARM.
-        // Saves ~6 MB from mobile_scanner's native barcode library alone.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
     }
 
     signingConfigs {
@@ -73,6 +68,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Strip x86_64 from release only — that ABI is emulators only; all
+            // production Android phones are ARM. Debug keeps every ABI so the
+            // app still runs on x86_64 emulators.
+            // Gradle forbids ndk.abiFilters when ABI splits are active, so skip
+            // it for `flutter build apk --split-per-abi` (-Psplit-per-abi).
+            if (!project.hasProperty("split-per-abi")) {
+                ndk {
+                    abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+                }
+            }
         }
         debug {
             isMinifyEnabled = false

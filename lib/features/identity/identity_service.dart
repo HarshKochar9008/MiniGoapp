@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -55,8 +57,10 @@ class IdentityService {
     final authUid = session.user.id;
     final savedAuthUid = prefs.getString(AppConstants.prefAuthUid);
 
-    // If auth identity changed, clear stale local mappings immediately.
+    // If auth identity changed, retire the old server row (its code must stop
+    // resolving for senders) and clear stale local mappings immediately.
     if (savedAuthUid != null && savedAuthUid != authUid) {
+      unawaited(_retirePreviousIdentity(savedAuthUid));
       await _clearStoredIdentity(prefs);
     }
 
@@ -176,16 +180,26 @@ class IdentityService {
     if (current != null) {
       try {
         await SupabaseConfig.ensureValidSession();
+        final refreshed = SupabaseConfig.client.auth.currentSession;
+        return refreshed ?? current;
       } catch (e) {
         // If refresh fails due transient network issues, keep current cached
         // session so startup can continue and UI can recover gracefully.
-        if (!NetworkErrors.isRetryableFailure(e)) rethrow;
-        return current;
+        if (NetworkErrors.isRetryableFailure(e)) return current;
+        if (e is! AuthException) rethrow;
+        // The stored session is permanently dead — refresh token revoked or
+        // the anonymous auth user deleted server-side. Retrying can never
+        // succeed, so drop it and register a fresh anonymous identity below;
+        // initialize() sees the auth uid change and clears stale local state.
+        try {
+          await SupabaseConfig.client.auth
+              .signOut(scope: SignOutScope.local)
+              .timeout(const Duration(seconds: 10));
+        } catch (_) {
+          // Best-effort: signInAnonymously() below replaces any leftover
+          // local session anyway.
+        }
       }
-
-      final refreshed = SupabaseConfig.client.auth.currentSession;
-      if (refreshed != null) return refreshed;
-      return current;
     }
 
     final authResponse = await SupabaseConfig.client.auth
@@ -207,6 +221,21 @@ class IdentityService {
       );
     }
     return session;
+  }
+
+  /// Soft-retires the `users` row of a replaced anonymous identity so its
+  /// short code stops resolving for senders (same scrub as the in-app reset).
+  /// Best-effort: must never block or fail startup — the row is also swept by
+  /// the server-side stale-identity cleanup if this call is lost.
+  static Future<void> _retirePreviousIdentity(String oldAuthUid) async {
+    try {
+      await SupabaseConfig.client
+          .rpc('retire_previous_identity',
+              params: {'p_old_auth_uid': oldAuthUid})
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      if (kDebugMode) debugPrint('retire_previous_identity failed: $e');
+    }
   }
 
   static UserIdentity _identityFromDbRow(Map<String, dynamic> row) {
