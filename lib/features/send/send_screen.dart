@@ -50,6 +50,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   bool _sending = false;
   String? _error;
   String? _codeError;
+
+  /// Set when validation fails because a code saved in recent recipients no
+  /// longer exists — drives the "Forget this code" action under the error.
+  String? _staleRecentCode;
   String? _validatedRecipientId;
   String? _validatedRecipientKey;
   TransferCancellationToken? _uploadCancellationToken;
@@ -434,6 +438,21 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     await _validateCode();
   }
 
+  /// Removes a saved recipient code that no longer resolves to a user, then
+  /// clears the field so a current code can be entered.
+  Future<void> _forgetStaleRecentCode() async {
+    final code = _staleRecentCode;
+    if (code == null) return;
+    await RecentRecipients.remove(code);
+    if (!mounted) return;
+    setState(() {
+      _staleRecentCode = null;
+      _codeError = null;
+      _codeController.clear();
+    });
+    _codeFocus.requestFocus();
+  }
+
   /// Opens the local "Name this person" sheet for the validated recipient.
   /// Optional — the user can skip it and just send.
   Future<void> _nameRecipient() async {
@@ -522,6 +541,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     setState(() {
       _validatingCode = true;
       _codeError = null;
+      _staleRecentCode = null;
     });
 
     try {
@@ -529,11 +549,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (!mounted) return;
 
       if (recipient == null) {
-        Analytics.instance
-            .logEvent(AnalyticsEvents.sendCodeInvalid, {'reason': 'not_found'});
+        // A dead saved code usually means that person's identity was reset
+        // (reinstall, cleared data) and their code changed.
+        final isSavedCode = RecentRecipients.all.any((r) => r.code == code);
+        Analytics.instance.logEvent(AnalyticsEvents.sendCodeInvalid,
+            {'reason': 'not_found', 'stale_recent': isSavedCode});
         HapticFeedback.lightImpact();
         setState(() {
-          _codeError = 'No user found with code "$code"';
+          _codeError = isSavedCode
+              ? 'No user found with code "$code". This saved code may be out '
+                  'of date — ask them for their current code.'
+              : 'No user found with code "$code"';
+          _staleRecentCode = isSavedCode ? code : null;
           _validatingCode = false;
         });
         return;
@@ -847,6 +874,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       onChanged: (_) {
                         // Rebuild so the recent-code suggestions refilter.
                         setState(() {
+                          _staleRecentCode = null;
                           if (_codeValidated) {
                             _codeValidated = false;
                             _validatedRecipientId = null;
@@ -974,8 +1002,23 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           if (_codeError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-              child: Text(_codeError!,
-                  style: MiniText.small.copyWith(color: MiniColors.danger)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_codeError!,
+                      style:
+                          MiniText.small.copyWith(color: MiniColors.danger)),
+                  if (_staleRecentCode != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: _GhostAction(
+                        label: 'Forget this code',
+                        color: MiniColors.blue600,
+                        onTap: _forgetStaleRecentCode,
+                      ),
+                    ),
+                ],
+              ),
             ),
           if (_codeValidated) _recipientNameRow(),
 

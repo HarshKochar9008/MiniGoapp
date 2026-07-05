@@ -52,14 +52,17 @@ CREATE POLICY users_update_self ON public.users
 -- encrypt to a recipient. SECURITY DEFINER so it can read past the owner-only
 -- RLS above, but it never returns fcm_token or auth_uid.
 -- ============================================================================
-CREATE OR REPLACE FUNCTION public.lookup_user_by_code(p_code TEXT)
-RETURNS TABLE (id UUID, short_code TEXT, public_key TEXT)
+-- DROP first: the deployed function also returns `nickname` (added after the
+-- initial lockdown), and CREATE OR REPLACE cannot change a return type.
+DROP FUNCTION IF EXISTS public.lookup_user_by_code(TEXT);
+CREATE FUNCTION public.lookup_user_by_code(p_code TEXT)
+RETURNS TABLE (id UUID, short_code TEXT, public_key TEXT, nickname TEXT)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 STABLE
 AS $$
-  SELECT u.id, u.short_code, u.public_key
+  SELECT u.id, u.short_code, u.public_key, u.nickname
   FROM public.users u
   WHERE u.short_code = upper(trim(p_code))
     AND u.deleted_at IS NULL

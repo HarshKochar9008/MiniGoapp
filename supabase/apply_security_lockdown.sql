@@ -150,14 +150,17 @@ create policy transfers_obj_delete on storage.objects
   );
 
 -- 9. recipient-lookup RPC
-create or replace function public.lookup_user_by_code(p_code text)
-returns table (id uuid, short_code text, public_key text)
+-- drop first: the function's return type has changed over time (nickname was
+-- added), and create-or-replace cannot change a return type.
+drop function if exists public.lookup_user_by_code(text);
+create function public.lookup_user_by_code(p_code text)
+returns table (id uuid, short_code text, public_key text, nickname text)
 language sql
 security definer
 set search_path = public
 stable
 as $fn$
-  select u.id, u.short_code, u.public_key
+  select u.id, u.short_code, u.public_key, u.nickname
   from public.users u
   where u.short_code = upper(trim(p_code))
     and u.deleted_at is null
