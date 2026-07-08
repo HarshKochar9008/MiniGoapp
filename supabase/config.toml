@@ -384,6 +384,17 @@ verify_jwt = true
 [functions.expire-transfers]
 verify_jwt = false
 
+# r2-sign-upload / r2-sign-download mint presigned Cloudflare R2 URLs for the
+# hybrid storage path (docs/R2_SETUP.md). The platform validates the caller's
+# JWT; each function then verifies the caller is the sender (upload) or a
+# party (download) of the transfer — the same rules as the storage.objects
+# RLS policies they replace.
+[functions.r2-sign-upload]
+verify_jwt = true
+
+[functions.r2-sign-download]
+verify_jwt = true
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
