@@ -7,6 +7,13 @@
  * expired room have their storage files deleted and are marked expired
  * immediately (their history rows are kept), then the room itself is deleted.
  *
+ * Cloudflare R2 hybrid path: when R2_ACCOUNT_ID / R2_ACCESS_KEY_ID /
+ * R2_SECRET_ACCESS_KEY secrets are set (see docs/R2_SETUP.md), expired
+ * transfers' objects are also deleted from R2. A 1-day lifecycle rule on the
+ * bucket is the recommended backstop — with it, this block only matters for
+ * room transfers, which must lose their files at room expiry (1 hour), well
+ * before the lifecycle rule fires.
+ *
  * Deploy:
  *   supabase functions deploy expire-transfers --no-verify-jwt
  *
@@ -30,6 +37,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 
 const TTL_HOURS = 24;
 const HARD_DELETE_DAYS = 7;
@@ -139,6 +147,59 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── 2b. Delete R2 objects for the same transfers (hybrid path) ────────────
+  let r2Deleted = 0;
+  let r2Errors = 0;
+  const r2AccountId = Deno.env.get("R2_ACCOUNT_ID");
+  const r2AccessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
+  const r2SecretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
+  const r2Bucket = Deno.env.get("R2_BUCKET") ?? "transfers";
+  if (r2AccountId && r2AccessKeyId && r2SecretAccessKey && ids.length > 0) {
+    const aws = new AwsClient({
+      accessKeyId: r2AccessKeyId,
+      secretAccessKey: r2SecretAccessKey,
+      service: "s3",
+      region: "auto",
+    });
+
+    // Object keys come from transfer_files rows, so no bucket listing is
+    // needed (S3 deletes are free-tier friendly: they cost no operations).
+    const { data: fileRows, error: filesErr } = await supabase
+      .from("transfer_files")
+      .select("storage_path")
+      .in("transfer_id", ids);
+
+    if (filesErr) {
+      console.error("fetch transfer_files for R2 delete:", filesErr.message);
+      r2Errors++;
+    } else {
+      for (const row of fileRows ?? []) {
+        const path = (row as { storage_path?: string }).storage_path;
+        if (!path) continue;
+        const key = path
+          .split("/")
+          .map((seg: string) => encodeURIComponent(seg))
+          .join("/");
+        try {
+          const res = await aws.fetch(
+            `https://${r2AccountId}.r2.cloudflarestorage.com/${r2Bucket}/${key}`,
+            { method: "DELETE" },
+          );
+          // 204 = deleted, 404 = already gone (lifecycle rule) — both fine.
+          if (res.ok || res.status === 404) {
+            r2Deleted++;
+          } else {
+            console.error(`r2 delete ${path}: HTTP ${res.status}`);
+            r2Errors++;
+          }
+        } catch (e) {
+          console.error(`r2 delete ${path}:`, e);
+          r2Errors++;
+        }
+      }
+    }
+  }
+
   // ── 3. Mark the batch as expired in the DB ────────────────────────────────
   let markedExpired = 0;
   if (ids.length > 0) {
@@ -187,7 +248,7 @@ Deno.serve(async (req) => {
   }
 
   console.log(
-    `expire-transfers: markedExpired=${markedExpired} deletedFiles=${deletedFiles} purgedRows=${purgedRows} deletedRooms=${deletedRooms} storageErrors=${storageErrors}`,
+    `expire-transfers: markedExpired=${markedExpired} deletedFiles=${deletedFiles} r2Deleted=${r2Deleted} r2Errors=${r2Errors} purgedRows=${purgedRows} deletedRooms=${deletedRooms} storageErrors=${storageErrors}`,
   );
 
   return new Response(
@@ -195,6 +256,8 @@ Deno.serve(async (req) => {
       ok: true,
       markedExpired,
       deletedFiles,
+      r2Deleted,
+      r2Errors,
       purgedRows,
       deletedRooms,
       storageErrors,

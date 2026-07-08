@@ -248,8 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Share this code so others can send you files. '
-                              'Tap Send below to send files to someone else.',
+                              'Share this code with others to send them files. ',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
                                 color: MiniColors.blue600,

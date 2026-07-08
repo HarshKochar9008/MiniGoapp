@@ -33,6 +33,20 @@ class AppConstants {
     return _cleanEnvValue(dotenv.env['SUPABASE_ANON_KEY'] ?? '');
   }
 
+  /// When true, file bytes are stored on Cloudflare R2 via presigned URLs
+  /// minted by the r2-sign-upload / r2-sign-download edge functions
+  /// (docs/R2_SETUP.md). Supabase keeps auth, metadata, realtime and RLS.
+  /// Safe to enable before R2 is fully set up: every file falls back to the
+  /// Supabase Storage path when signing fails.
+  static bool get useR2Storage {
+    const fromDefine =
+        String.fromEnvironment('USE_R2_STORAGE', defaultValue: '');
+    final raw = fromDefine.isNotEmpty
+        ? fromDefine
+        : (dotenv.env['USE_R2_STORAGE'] ?? '');
+    return _cleanEnvValue(raw).toLowerCase() == 'true';
+  }
+
   // Support contact shown when the service is unavailable.
   static const supportEmail = 'harshkochar88@gmail.com';
 

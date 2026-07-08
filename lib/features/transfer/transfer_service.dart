@@ -19,6 +19,7 @@ import '../../core/network/network_errors.dart';
 import '../../core/offline/pending_backend_jobs.dart';
 import '../../core/supabase_config.dart';
 import '../identity/identity_service.dart';
+import 'r2_storage.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -432,6 +433,32 @@ class TransferService {
     void Function(int sent, int total)? onProgress,
     TransferCancellationToken? cancellationToken,
   }) async {
+    if (R2Storage.enabled) {
+      final slash = storagePath.indexOf('/');
+      String? signedUrl;
+      if (slash > 0) {
+        try {
+          signedUrl = await R2Storage.getUploadUrl(
+            transferId: storagePath.substring(0, slash),
+            fileName: storagePath.substring(slash + 1),
+          );
+        } on R2SigningException catch (e) {
+          // R2 not configured/deployed yet — use the Supabase path instead.
+          if (kDebugMode) debugPrint('R2 upload signing unavailable: $e');
+        }
+      }
+      if (signedUrl != null) {
+        await _r2Upload(
+          url: signedUrl,
+          file: file,
+          contentType: contentType,
+          onProgress: onProgress,
+          cancellationToken: cancellationToken,
+        );
+        return;
+      }
+    }
+
     await SupabaseConfig.ensureValidSession();
     final session = SupabaseConfig.client.auth.currentSession;
     if (session == null) throw AuthenticationException();
@@ -517,6 +544,44 @@ class TransferService {
           await workDir!.delete(recursive: true);
         }
       } catch (_) {}
+    }
+  }
+
+  // ── Cloudflare R2: streaming PUT to a presigned URL (constant memory) ────────
+
+  static Future<void> _r2Upload({
+    required String url,
+    required File file,
+    required String contentType,
+    void Function(int sent, int total)? onProgress,
+    TransferCancellationToken? cancellationToken,
+  }) async {
+    final fileLength = await file.length();
+    final httpClient = HttpClient();
+    try {
+      final request = await httpClient.putUrl(Uri.parse(url));
+      request.headers.set('Content-Type', contentType);
+      request.contentLength = fileLength;
+
+      var bytesSent = 0;
+      final progressStream = file.openRead().map((chunk) {
+        if (cancellationToken?.isCancelled == true) {
+          throw TransferCancelledException();
+        }
+        bytesSent += chunk.length;
+        onProgress?.call(bytesSent, fileLength);
+        return chunk;
+      });
+
+      await request.addStream(progressStream);
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode >= 400) {
+        throw StorageUploadException(response.statusCode, body);
+      }
+    } finally {
+      httpClient.close();
     }
   }
 
@@ -1430,9 +1495,9 @@ class TransferService {
     int? encChunkSize,
   }) async {
     await SupabaseConfig.ensureValidSession();
-    final url = await SupabaseConfig.client.storage
-        .from('transfers')
-        .createSignedUrl(storagePath, 3600);
+    // R2 hybrid: prefer a presigned R2 URL, falling back to Supabase Storage
+    // when signing fails or the object predates the R2 cutover (HTTP 404).
+    var useR2 = R2Storage.enabled;
 
     final httpClient = HttpClient();
     IOSink? sink;
@@ -1458,6 +1523,19 @@ class TransferService {
         final existingBytes = await file.exists() ? await file.length() : 0;
         HttpClientResponse? response;
         try {
+          String url;
+          if (useR2) {
+            try {
+              url = await R2Storage.getDownloadUrl(storagePath);
+            } on R2SigningException catch (e) {
+              if (kDebugMode) debugPrint('R2 download signing unavailable: $e');
+              useR2 = false;
+              url = await _supabaseSignedUrl(storagePath);
+            }
+          } else {
+            url = await _supabaseSignedUrl(storagePath);
+          }
+
           final request = await httpClient.getUrl(Uri.parse(url));
           if (existingBytes > 0) {
             request.headers
@@ -1527,6 +1605,12 @@ class TransferService {
           await sink?.close();
           sink = null;
           lastError = e.toString().replaceAll('Exception: ', '');
+
+          // Object not on R2 (uploaded before the cutover) — use Supabase
+          // Storage for the remaining attempts.
+          if (useR2 && lastError.contains('HTTP 404')) {
+            useR2 = false;
+          }
 
           if (cancellationToken?.isCancelled == true) {
             if (await file.exists()) {
@@ -1612,7 +1696,20 @@ class TransferService {
   }
 
   /// Convenience: get a signed URL for browser/external download.
+  /// Prefers R2 when the hybrid path is enabled, with Supabase fallback.
   static Future<String> getDownloadUrl(String storagePath) async {
+    if (R2Storage.enabled) {
+      try {
+        return await R2Storage.getDownloadUrl(storagePath);
+      } on R2SigningException catch (e) {
+        if (kDebugMode) debugPrint('R2 download signing unavailable: $e');
+      }
+    }
+    return _supabaseSignedUrl(storagePath);
+  }
+
+  /// Supabase Storage signed URL for one stored object (1 hour validity).
+  static Future<String> _supabaseSignedUrl(String storagePath) async {
     await SupabaseConfig.ensureValidSession();
     return await SupabaseConfig.client.storage
         .from('transfers')
