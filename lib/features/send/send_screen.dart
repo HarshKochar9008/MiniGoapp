@@ -205,16 +205,31 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       return;
     }
 
+    final resumedKey = pending.receiverPublicKey;
+    final hasResumedKey = resumedKey != null && resumedKey.isNotEmpty;
     setState(() {
       _selectedFiles = existing;
-      _validatedRecipientId = pending.receiverId;
-      _codeValidated = true;
       _codeError = null;
       _error = 'Resumed interrupted upload. Tap Send to continue.';
       if (pending.receiverCode != null && pending.receiverCode!.isNotEmpty) {
         _codeController.text = pending.receiverCode!;
       }
+      if (hasResumedKey) {
+        _validatedRecipientId = pending.receiverId;
+        _validatedRecipientKey = resumedKey;
+        _codeValidated = true;
+      } else {
+        // Job predates key persistence (or the recipient had no key when the
+        // send started). Re-validate so a keyed recipient never resumes into
+        // an unencrypted upload.
+        _validatedRecipientId = null;
+        _validatedRecipientKey = null;
+        _codeValidated = false;
+      }
     });
+    if (!hasResumedKey && _codeController.text.trim().isNotEmpty) {
+      await _validateCode();
+    }
   }
 
   Future<bool> _isLikelyMeteredConnection() async {
@@ -470,6 +485,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   /// Row shown once a code is validated: confirmation + an optional action to
   /// save (or rename) a local, device-only nickname for this recipient.
   Widget _recipientNameRow() {
+    final c = context.mini;
     final alias = ContactAliases.aliasFor(_validatedRecipientId);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
@@ -495,13 +511,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       ? Icons.edit_outlined
                       : Icons.person_add_alt_outlined,
                   size: 15,
-                  color: MiniColors.blue600,
+                  color: c.accent,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   alias != null ? 'Rename' : 'Name this person',
                   style: MiniText.small.copyWith(
-                    color: MiniColors.blue600,
+                    color: c.accent,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -831,8 +847,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -848,7 +865,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: MiniColors.paperDeep,
+                color: c.paperDeep,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -857,7 +874,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                     child: TextField(
                       controller: _codeController,
                       focusNode: _codeFocus,
-                      enabled: !_sending && !_codeValidated,
+                      // Stays editable after validation: onChanged resets the
+                      // validated state, so the user can switch recipients
+                      // without leaving the screen.
+                      enabled: !_sending,
                       textCapitalization: TextCapitalization.characters,
                       maxLength: AppConstants.codeLength,
                       textAlign: TextAlign.center,
@@ -870,13 +890,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         fontSize: 22,
                         letterSpacing: 3,
                         fontWeight: FontWeight.w500,
-                        color: MiniColors.ink,
+                        color: c.ink,
                       ),
                       decoration: InputDecoration(
                         hintText: '— — —   — — —',
                         hintStyle: GoogleFonts.jetBrainsMono(
                           fontSize: 18,
-                          color: MiniColors.inkFaint,
+                          color: c.inkFaint,
                           letterSpacing: 3,
                         ),
                         counterText: '',
@@ -906,7 +926,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           Icons.qr_code_scanner_rounded,
                           size: 20,
                         ),
-                        color: MiniColors.inkSoft,
+                        color: c.inkSoft,
                         onPressed: _scanCode,
                         tooltip: 'Scan QR code',
                       ),
@@ -960,9 +980,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Container(
                 decoration: BoxDecoration(
-                  color: MiniColors.paper,
+                  color: c.paper,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: MiniColors.divider),
+                  border: Border.all(color: c.divider),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -977,8 +997,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               horizontal: 14, vertical: 11),
                           child: Row(
                             children: [
-                              const Icon(Icons.history_rounded,
-                                  size: 16, color: MiniColors.inkFaint),
+                              Icon(Icons.history_rounded,
+                                  size: 16, color: c.inkFaint),
                               const SizedBox(width: 10),
                               Text(
                                 fmtCode(_recentSuggestions[i].code),
@@ -986,7 +1006,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                   fontSize: 15,
                                   letterSpacing: 2,
                                   fontWeight: FontWeight.w500,
-                                  color: MiniColors.ink,
+                                  color: c.ink,
                                 ),
                               ),
                               if (_recentSuggestions[i].label != null) ...[
@@ -996,13 +1016,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                     _recentSuggestions[i].label!,
                                     overflow: TextOverflow.ellipsis,
                                     style: MiniText.small
-                                        .copyWith(color: MiniColors.inkSoft),
+                                        .copyWith(color: c.inkSoft),
                                   ),
                                 ),
                               ] else
                                 const Spacer(),
-                              const Icon(Icons.north_west_rounded,
-                                  size: 14, color: MiniColors.inkFaint),
+                              Icon(Icons.north_west_rounded,
+                                  size: 14, color: c.inkFaint),
                             ],
                           ),
                         ),
@@ -1026,7 +1046,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       padding: const EdgeInsets.only(top: 2),
                       child: _GhostAction(
                         label: 'Forget this code',
-                        color: MiniColors.blue600,
+                        color: c.accent,
                         onTap: _forgetStaleRecentCode,
                       ),
                     ),
@@ -1091,7 +1111,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: MiniColors.paperDeep.withValues(alpha: 0.5),
+                          color: c.paperDeep.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: MiniFileRow(
@@ -1103,10 +1123,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               ? null
                               : GestureDetector(
                                   onTap: () => _removeFile(i),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
                                     child: Icon(Icons.close_rounded,
-                                        size: 16, color: MiniColors.inkFaint),
+                                        size: 16, color: c.inkFaint),
                                   ),
                                 ),
                         ),
@@ -1147,8 +1167,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         onPressed: null,
                         leading: GestureDetector(
                           onTap: _cancelUpload,
-                          child: const Icon(Icons.close_rounded,
-                              size: 16, color: MiniColors.inkFaint),
+                          child: Icon(Icons.close_rounded,
+                              size: 16, color: c.inkFaint),
                         ),
                       )
                     : _SwipeToSendButton(onSend: _send),
@@ -1174,21 +1194,22 @@ class _EmptyFilesMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return GestureDetector(
       onTap: onPick,
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          color: MiniColors.paperDeep,
+          color: c.paperDeep,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: MiniColors.divider),
+          border: Border.all(color: c.divider),
         ),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add_circle_outline_rounded,
-                  size: 36, color: MiniColors.inkFaint),
+              Icon(Icons.add_circle_outline_rounded,
+                  size: 36, color: c.inkFaint),
               const SizedBox(height: 14),
               Text('Tap to choose files', style: MiniText.bodySoft),
               const SizedBox(height: 4),
@@ -1210,6 +1231,7 @@ class _GhostAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return GestureDetector(
       onTap: onTap,
       child: Padding(
@@ -1218,7 +1240,7 @@ class _GhostAction extends StatelessWidget {
           label,
           style: GoogleFonts.outfit(
             fontSize: 13,
-            color: color ?? MiniColors.inkSoft,
+            color: color ?? c.inkSoft,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1236,7 +1258,7 @@ class _UpperCaseFormatter extends TextInputFormatter {
 }
 
 class _SwipeToSendButton extends StatefulWidget {
-  final VoidCallback onSend;
+  final Future<void> Function() onSend;
   const _SwipeToSendButton({required this.onSend});
 
   @override
@@ -1283,15 +1305,26 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
       ..forward();
   }
 
-  void _fireSend() {
+  Future<void> _fireSend() async {
     if (_fired) return;
     _fired = true;
     HapticFeedback.heavyImpact();
-    widget.onSend();
+    try {
+      await widget.onSend();
+    } finally {
+      // Re-arm once the send returns. This matters when the send aborts
+      // pre-flight (declined dialog, offline) without ever flipping the
+      // parent's _sending flag — otherwise the thumb stays stuck forever.
+      if (mounted) {
+        setState(() => _fired = false);
+        _snapBack();
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth.clamp(220.0, 360.0);
@@ -1310,9 +1343,9 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                 filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: MiniColors.paperDeep.withValues(alpha: 0.55),
+                    color: c.paperDeep.withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: MiniColors.divider),
+                    border: Border.all(color: c.divider),
                   ),
                   child: GestureDetector(
                     onHorizontalDragStart: (_) {
@@ -1344,7 +1377,7 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                           width: fillWidth,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: MiniColors.blue600.withValues(alpha: 0.16),
+                              color: c.accent.withValues(alpha: 0.16),
                               borderRadius: BorderRadius.circular(100),
                             ),
                           ),
@@ -1355,7 +1388,7 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                             style: GoogleFonts.outfit(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: MiniColors.inkSoft,
+                              color: c.inkSoft,
                             ),
                           ),
                         ),
@@ -1442,6 +1475,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -1456,7 +1490,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
               child: Container(
                 padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
                 decoration: BoxDecoration(
-                  color: MiniColors.paper,
+                  color: c.paper,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -1481,7 +1515,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                       'Sent',
                       style: GoogleFonts.outfit(
                         fontSize: 26,
-                        color: MiniColors.ink,
+                        color: c.ink,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1491,7 +1525,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                           : '${widget.fileCount} files delivered',
                       style: GoogleFonts.outfit(
                         fontSize: 13,
-                        color: MiniColors.inkSoft,
+                        color: c.inkSoft,
                       ),
                     ),
                   ],

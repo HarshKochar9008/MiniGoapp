@@ -139,7 +139,7 @@ class OfflineSyncCoordinator {
           'You have an unfinished send. Open Send Files to resume or discard.',
         ),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: MiniColors.ink,
+        backgroundColor: ctx.mini.ink,
         duration: const Duration(seconds: 5),
       ),
     );

@@ -212,14 +212,15 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final powerSave = await _isPowerSaveModeEnabled();
     if (!powerSave || !mounted) return true;
 
+    final c = context.mini;
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: MiniColors.paper,
+        backgroundColor: c.paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Battery saver is on',
-          style: GoogleFonts.outfit(color: MiniColors.ink, fontSize: 18),
+          style: GoogleFonts.outfit(color: c.ink, fontSize: 18),
         ),
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
@@ -274,8 +275,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   }
 
   Widget _buildBatteryBadge() {
+    final c = context.mini;
     final levelText = _batteryLevel != null ? '${_batteryLevel!}%' : '--%';
-    final tint = _powerSaveMode ? MiniColors.warn : MiniColors.blue600;
+    final tint = _powerSaveMode ? MiniColors.warn : c.accent;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -297,7 +299,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           Text(
             levelText,
             style: GoogleFonts.outfit(
-              color: MiniColors.inkSoft,
+              color: c.inkSoft,
               fontSize: 11,
               fontWeight: FontWeight.w400,
             ),
@@ -488,6 +490,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   }
 
   Widget _buildReceiveBody() {
+    final c = context.mini;
     final files = _files ?? const <Map<String, dynamic>>[];
     final hasFiles = files.isNotEmpty;
     final live = _senderLiveStates;
@@ -501,8 +504,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.hourglass_empty_rounded,
-                  size: 40, color: MiniColors.inkFaint),
+              Icon(Icons.hourglass_empty_rounded,
+                  size: 40, color: c.inkFaint),
               const SizedBox(height: 16),
               Text(
                 waiting
@@ -586,13 +589,14 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     final allCompleted = _files != null &&
         _files!.isNotEmpty &&
         _files!.every(
             (f) => _dlStates[f['id']]?.status == _DownloadStatus.completed);
 
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Column(
           children: [
@@ -603,8 +607,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.arrow_back_rounded,
-                        color: MiniColors.inkFaint, size: 22),
+                    child: Icon(Icons.arrow_back_rounded,
+                        color: c.inkFaint, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -615,7 +619,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         const SizedBox(height: 2),
                         Text(
                           fmtCode(widget.senderCode),
-                          style: MiniText.codeSmall.copyWith(color: MiniColors.ink),
+                          style: MiniText.codeSmall.copyWith(color: c.ink),
                         ),
                       ],
                     ),
@@ -629,22 +633,22 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
-                          color: MiniColors.blue600.withValues(alpha: 0.08),
+                          color: c.accent.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: MiniColors.blue600.withValues(alpha: 0.2)),
+                              color: c.accent.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.download_rounded,
-                                size: 14, color: MiniColors.blue600),
+                            Icon(Icons.download_rounded,
+                                size: 14, color: c.accent),
                             const SizedBox(width: 5),
                             Text(
                               'All',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: MiniColors.blue600,
+                                color: c.accent,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -742,14 +746,15 @@ class _FileDownloadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     final status = state?.status ?? _DownloadStatus.idle;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: MiniColors.paperDeep,
+        color: c.paperDeep,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: MiniColors.dividerSoft),
+        border: Border.all(color: c.dividerSoft),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -760,11 +765,11 @@ class _FileDownloadTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _iconBg(status),
+                  color: _iconBg(status, c.accent),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(_fileIcon(status),
-                    color: _iconColor(status), size: 18),
+                    color: _iconColor(status, c.accent), size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -778,7 +783,7 @@ class _FileDownloadTile extends StatelessWidget {
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: MiniColors.ink,
+                        color: c.ink,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -787,7 +792,7 @@ class _FileDownloadTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _buildTrailing(status),
+              _buildTrailing(status, c.accent),
             ],
           ),
           if (status == _DownloadStatus.downloading) ...[
@@ -796,9 +801,9 @@ class _FileDownloadTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: state!.progress,
-                backgroundColor: MiniColors.divider,
+                backgroundColor: c.divider,
                 valueColor:
-                    const AlwaysStoppedAnimation(MiniColors.blue500),
+                    AlwaysStoppedAnimation(c.accent),
                 minHeight: 3,
               ),
             ),
@@ -812,7 +817,7 @@ class _FileDownloadTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text('Verifying integrity…',
                 style: GoogleFonts.outfit(
-                    color: MiniColors.blue600, fontSize: 11)),
+                    color: c.accent, fontSize: 11)),
           ],
           if (status == _DownloadStatus.saving) ...[
             const SizedBox(height: 6),
@@ -832,8 +837,8 @@ class _FileDownloadTile extends StatelessWidget {
                       style: GoogleFonts.outfit(
                           color: MiniColors.success, fontSize: 11)),
                 ] else ...[
-                  const Icon(Icons.check_circle_outline,
-                      color: MiniColors.inkFaint, size: 12),
+                  Icon(Icons.check_circle_outline,
+                      color: c.inkFaint, size: 12),
                   const SizedBox(width: 4),
                   Text('Saved', style: MiniText.small),
                 ],
@@ -846,7 +851,7 @@ class _FileDownloadTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.jetBrainsMono(
-                    color: MiniColors.inkFaint, fontSize: 10),
+                    color: c.inkFaint, fontSize: 10),
               ),
             ],
           ],
@@ -874,29 +879,29 @@ class _FileDownloadTile extends StatelessWidget {
     }
   }
 
-  Color _iconBg(_DownloadStatus status) {
+  Color _iconBg(_DownloadStatus status, Color accent) {
     switch (status) {
       case _DownloadStatus.completed:
         return MiniColors.success.withValues(alpha: 0.1);
       case _DownloadStatus.failed:
         return MiniColors.danger.withValues(alpha: 0.1);
       default:
-        return MiniColors.blue500.withValues(alpha: 0.1);
+        return accent.withValues(alpha: 0.1);
     }
   }
 
-  Color _iconColor(_DownloadStatus status) {
+  Color _iconColor(_DownloadStatus status, Color accent) {
     switch (status) {
       case _DownloadStatus.completed:
         return MiniColors.success;
       case _DownloadStatus.failed:
         return MiniColors.danger;
       default:
-        return MiniColors.blue600;
+        return accent;
     }
   }
 
-  Widget _buildTrailing(_DownloadStatus status) {
+  Widget _buildTrailing(_DownloadStatus status, Color accent) {
     switch (status) {
       case _DownloadStatus.idle:
       case _DownloadStatus.failed:
@@ -905,11 +910,11 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: MiniColors.blue500.withValues(alpha: 0.1),
+              color: accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.download_rounded,
-                color: MiniColors.blue600, size: 18),
+            child: Icon(Icons.download_rounded,
+                color: accent, size: 18),
           ),
         );
       case _DownloadStatus.downloading:
@@ -927,12 +932,12 @@ class _FileDownloadTile extends StatelessWidget {
         );
       case _DownloadStatus.verifying:
       case _DownloadStatus.saving:
-        return const SizedBox(
+        return SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: MiniColors.blue500,
+            color: accent,
           ),
         );
       case _DownloadStatus.completed:

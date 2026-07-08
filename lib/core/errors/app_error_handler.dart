@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../analytics/analytics.dart';
 import '../network/network_errors.dart';
+import '../theme.dart';
 import 'service_health.dart';
 import 'service_unavailable_sheet.dart';
 
@@ -102,14 +103,17 @@ class AppErrorHandler {
   static void showErrorSnackBar(BuildContext context, String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    final iconColor =
+        Theme.of(context).snackBarTheme.contentTextStyle?.color ??
+            context.mini.paper;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.error_outline_rounded,
-                  size: 18, color: Colors.white),
+              Icon(Icons.error_outline_rounded,
+                  size: 18, color: iconColor),
               const SizedBox(width: 10),
               Expanded(child: Text(message)),
             ],

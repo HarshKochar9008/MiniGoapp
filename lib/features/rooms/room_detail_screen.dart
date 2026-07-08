@@ -79,7 +79,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     if (widget.room.isExpired) return MiniColors.danger;
     return widget.room.timeLeft.inMinutes < 10
         ? MiniColors.warn
-        : MiniColors.inkFaint;
+        : context.mini.inkFaint;
   }
 
   void _showQr() {
@@ -240,7 +240,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       color: c.sand,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: MiniColors.blue600.withValues(alpha: 0.18),
+                        color: c.accent.withValues(alpha: 0.18),
                       ),
                     ),
                     child: Column(
@@ -315,15 +315,15 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   const HairLine(),
 
                   if (_loading)
-                    const Padding(
-                      padding: EdgeInsets.all(28),
+                    Padding(
+                      padding: const EdgeInsets.all(28),
                       child: Center(
                         child: SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: MiniColors.blue600,
+                            color: c.accent,
                           ),
                         ),
                       ),
@@ -441,7 +441,7 @@ class _MemberRow extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: isHost ? MiniColors.blue50 : c.paperDeep,
+                color: isHost ? c.accent.withValues(alpha: 0.10) : c.paperDeep,
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -450,7 +450,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: isHost ? MiniColors.blue600 : c.inkSoft,
+                    color: isHost ? c.accent : c.inkSoft,
                   ),
                 ),
               ),
@@ -485,7 +485,7 @@ class _MemberRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: MiniColors.blue50,
+                  color: c.accent.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -493,7 +493,7 @@ class _MemberRow extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: MiniColors.blue600,
+                    color: c.accent,
                   ),
                 ),
               )

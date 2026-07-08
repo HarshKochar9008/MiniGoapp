@@ -186,7 +186,7 @@ class _StepRow extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: MiniColors.blue600.withValues(alpha: 0.1),
+              color: c.accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
@@ -195,7 +195,7 @@ class _StepRow extends StatelessWidget {
               style: GoogleFonts.outfit(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
-                color: MiniColors.blue600,
+                color: c.accent,
               ),
             ),
           ),
