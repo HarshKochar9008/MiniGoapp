@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: const SingleChildScrollView(
           child: Text(
             'This device will forget your short code, onboarding, theme, and '
-            'pending uploads, and sign out of Supabase here.\n\n'
+            'pending uploads, and sign out of your account here.\n\n'
             'Network issues are not fixed by a reset.',
           ),
         ),

@@ -9,7 +9,7 @@ Future<void> initSupabase() async {
   final key = AppConstants.supabaseAnonKey;
   if (url.isEmpty || key.isEmpty) {
     throw StateError(
-      'Missing Supabase config. Pass --dart-define=SUPABASE_URL=... '
+      'Missing backend config. Pass --dart-define=SUPABASE_URL=... '
       'and --dart-define=SUPABASE_ANON_KEY=...',
     );
   }
@@ -45,8 +45,11 @@ class SupabaseConfig {
 
   static SupabaseClient get client {
     if (!_initialized) {
+      // Developer-facing only — UI layers must catch this and show generic
+      // "could not start" copy, never this text.
       throw StateError(
-        'Supabase is not initialized. Check that .env contains valid SUPABASE_URL and SUPABASE_ANON_KEY.',
+        'Backend client is not initialized. Check that .env contains valid '
+        'SUPABASE_URL and SUPABASE_ANON_KEY.',
       );
     }
     return Supabase.instance.client;

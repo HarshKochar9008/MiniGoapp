@@ -14,6 +14,7 @@ import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/contacts/recent_recipients.dart';
+import '../../core/errors/app_error_handler.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../../core/network/connection_status.dart';
 import '../../core/network/network_errors.dart';
@@ -575,22 +576,25 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       HapticFeedback.lightImpact();
       Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated);
     } on PostgrestException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
       if (mounted) {
         setState(() {
-          _codeError = e.message.isNotEmpty
-              ? 'Server error: ${e.message}'
-              : 'Server rejected this lookup.';
+          _codeError = 'We had trouble checking this code. Please try again.';
           _validatingCode = false;
         });
+        unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
       }
     } catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
       if (mounted) {
         setState(() {
           _codeError = NetworkErrors.isRetryableFailure(e)
-              ? 'Cannot reach server to validate this code.'
-              : 'Could not validate code: $e';
+              ? 'Cannot reach MiniGo to validate this code. '
+                  'Check your connection and try again.'
+              : 'Could not validate this code. Please try again.';
           _validatingCode = false;
         });
+        unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
       }
     }
   }
@@ -713,6 +717,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           _error = _toUserFriendlyError(e.toString());
           _sending = false;
         });
+        // If this failed because our backend is down (not the user's
+        // connection), escalate to the service-unavailable sheet.
+        unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
       }
     } finally {
       _uploadCancellationToken = null;
@@ -804,6 +811,12 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (message.toLowerCase().contains('invalid') &&
         message.toLowerCase().contains('mime')) {
       return 'This file format is not supported.';
+    }
+    // Unrecognized errors: never surface raw exception text to the user.
+    if (message.length > 120 ||
+        message.toLowerCase().contains('exception') ||
+        message.contains('errno')) {
+      return 'Something went wrong while sending. Please try again.';
     }
     return message;
   }
@@ -913,7 +926,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               : MiniColors.blue600,
                           disabledBackgroundColor: _codeValidated
                               ? MiniColors.success
-                              : MiniColors.blue600.withOpacity(0.5),
+                              : MiniColors.blue600.withValues(alpha: 0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -1078,7 +1091,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: MiniColors.paperDeep.withOpacity(0.5),
+                          color: MiniColors.paperDeep.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: MiniFileRow(
@@ -1447,7 +1460,7 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: MiniColors.success.withOpacity(0.18),
+                      color: MiniColors.success.withValues(alpha: 0.18),
                       blurRadius: 32,
                       spreadRadius: 4,
                     ),
@@ -1502,7 +1515,7 @@ class _CheckmarkPainter extends CustomPainter {
     final center = Offset(r, r);
 
     final ringPaint = Paint()
-      ..color = MiniColors.success.withOpacity(0.18)
+      ..color = MiniColors.success.withValues(alpha: 0.18)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, r, ringPaint);
 

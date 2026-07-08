@@ -208,10 +208,15 @@ class IdentityService {
     final user = authResponse.user;
     final session = authResponse.session ?? SupabaseConfig.client.auth.currentSession;
     if (user == null) {
+      // Dev hint stays in the console only: anonymous auth must be enabled
+      // in the backend dashboard (Auth → Settings).
+      if (kDebugMode) {
+        debugPrint('Anonymous sign-in returned no user — is anonymous auth '
+            'enabled in the Supabase dashboard?');
+      }
       throw AuthFailedException(
-        'Anonymous sign-in failed. '
-        'Ensure anonymous auth is enabled in Supabase Dashboard '
-        '→ Auth → Settings.',
+        'Could not set up your account right now. '
+        'Please try again in a few minutes.',
       );
     }
     if (session == null) {

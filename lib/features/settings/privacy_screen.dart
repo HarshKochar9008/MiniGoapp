@@ -47,8 +47,8 @@ class PrivacyScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: MiniColors.success.withOpacity(0.08),
-                border: Border.all(color: MiniColors.success.withOpacity(0.2)),
+                color: MiniColors.success.withValues(alpha: 0.08),
+                border: Border.all(color: MiniColors.success.withValues(alpha: 0.2)),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
@@ -78,7 +78,7 @@ class PrivacyScreen extends StatelessWidget {
               title: 'Anonymous device identity',
               body:
                   'When you first open MiniGo, a random 6-character code and anonymous '
-                  'user ID are generated on your device and stored in Supabase. No name, '
+                  'user ID are generated on your device and stored on our servers. No name, '
                   'email, or phone number is ever collected.',
               c: c,
             ),
@@ -87,7 +87,7 @@ class PrivacyScreen extends StatelessWidget {
               icon: Icons.upload_file_rounded,
               title: 'Temporary file storage',
               body:
-                  'Files you send are uploaded to Supabase Storage for delivery only. '
+                  'Files you send are uploaded to our secure cloud storage for delivery only. '
                   'They are automatically deleted after 24 hours. We do not read, scan, '
                   'or process the contents of your files.',
               c: c,
@@ -123,7 +123,7 @@ class PrivacyScreen extends StatelessWidget {
               icon: Icons.https_rounded,
               title: 'Encrypted in transit',
               body:
-                  'All communication between the app and Supabase uses HTTPS/TLS. '
+                  'All communication between the app and our servers uses HTTPS/TLS. '
                   'Files are transferred over encrypted connections.',
               c: c,
             ),

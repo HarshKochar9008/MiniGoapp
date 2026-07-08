@@ -1,15 +1,15 @@
-import 'dart:io';
 import 'dart:async';
 
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'core/constants.dart';
 import 'core/analytics/analytics.dart';
+import 'core/constants.dart';
 import 'core/contacts/contact_aliases.dart';
+import 'core/errors/service_health.dart';
 import 'core/native/share_intent_bridge.dart';
 import 'core/navigation/root_navigator.dart';
 import 'core/widget_bridge.dart';
@@ -145,16 +145,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _isNetworkLookupFailure(Object error) =>
       NetworkErrors.isRetryableFailure(error);
 
-  String _buildStartupErrorMessage(Object error, {required bool willAutoRetry}) {
+  String _buildStartupErrorMessage(
+    Object error, {
+    required bool willAutoRetry,
+    BackendHealth health = BackendHealth.unknown,
+  }) {
+    if (health == BackendHealth.serviceDown) {
+      return 'MiniGo is temporarily unavailable. This is on our side — '
+          'not your connection. Please try again in a few minutes.';
+    }
     if (_isNetworkLookupFailure(error)) {
       if (willAutoRetry) {
-        return 'Could not reach Server. Check your internet connection. Retrying…';
+        return 'Could not reach MiniGo. Check your internet connection. Retrying…';
       }
-      return 'Could not reach Server. Check your internet connection, then tap Retry.';
+      return 'Could not reach MiniGo. Check your internet connection, then tap Retry.';
     }
-    return kDebugMode
-        ? 'Startup failed: $error'
-        : 'Could not connect. Check your internet and try again.';
+    if (kDebugMode) debugPrint('Startup failed: $error');
+    return 'Could not connect. Check your internet and try again.';
   }
 
   @override
@@ -236,8 +243,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _diagnosticsReport = null;
     });
     try {
+      if (!SupabaseConfig.isInitialized) {
+        // Startup init failed and was swallowed in main() — retry it here so
+        // the Retry button can actually recover instead of failing forever.
+        await initSupabase();
+        SupabaseConfig.startAuthListener();
+      }
       final identity = await _initializeIdentityWithRetry();
       if (mounted) {
+        ServiceHealth.instance.markHealthy();
         Analytics.instance
             .identify(identity.id, shortCode: identity.shortCode);
         Analytics.instance.logEvent(AnalyticsEvents.identityReady);
@@ -271,9 +285,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         });
       }
     } on StateError catch (e) {
+      // Configuration/init failures are developer problems — never show the
+      // raw message to users; route it to Crashlytics and the console.
+      Analytics.instance.logError('startup_config_error', e);
+      if (kDebugMode) debugPrint('Startup config error: ${e.message}');
       if (mounted) {
         setState(() {
-          _error = e.message;
+          _error = 'Please close and reopen '
+              'the app. If this keeps happening,'
+               ' contact support.';
           _loading = false;
         });
       }
@@ -282,8 +302,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         final networkFailure = _isNetworkLookupFailure(e);
         final willAutoRetry =
             networkFailure && _autoRetryAttempts < _maxAutoRetryAttempts;
+        // Distinguish "your connection is down" from "our service is down"
+        // so the error screen tells the user the truth.
+        final health = networkFailure
+            ? await ServiceHealth.instance.check()
+            : BackendHealth.unknown;
+        if (!mounted) return;
         setState(() {
-          _error = _buildStartupErrorMessage(e, willAutoRetry: willAutoRetry);
+          _error = _buildStartupErrorMessage(
+            e,
+            willAutoRetry: willAutoRetry,
+            health: health,
+          );
           _loading = false;
         });
         if (willAutoRetry) {
@@ -302,6 +332,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _contactSupport() async {
+    await Clipboard.setData(
+      const ClipboardData(text: AppConstants.supportEmail),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Support email copied: ${AppConstants.supportEmail}'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _runDiagnostics() async {
     if (_runningDiagnostics) return;
     setState(() {
@@ -309,49 +352,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _diagnosticsReport = 'Running diagnostics…';
     });
 
-    final lines = <String>[];
-    try {
-      final connectivity = await Connectivity().checkConnectivity();
-      lines.add('Connectivity: ${connectivity.map((e) => e.name).join(", ")}');
-    } catch (e) {
-      lines.add('Connectivity check failed: $e');
-    }
-
-    final host = Uri.parse(AppConstants.supabaseUrl).host;
-    try {
-      final lookup = await InternetAddress.lookup(host);
-      lines.add(
-        'DNS lookup: OK (${lookup.map((e) => e.address).toSet().join(", ")})',
-      );
-    } catch (e) {
-      lines.add('DNS lookup: FAILED ($e)');
-    }
-
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 8);
-    try {
-      final request = await client
-          .getUrl(Uri.parse('${AppConstants.supabaseUrl}/auth/v1/health'));
-      request.headers.add('apikey', AppConstants.supabaseAnonKey);
-      final response = await request.close();
-      lines.add('Auth health endpoint: HTTP ${response.statusCode}');
-    } catch (e) {
-      lines.add('Auth health endpoint: FAILED ($e)');
-    } finally {
-      client.close(force: true);
-    }
-
-    try {
-      await SupabaseConfig.ensureValidSession();
-      lines.add('Session refresh check: OK');
-    } catch (e) {
-      lines.add('Session refresh check: FAILED ($e)');
-    }
+    final report = await ServiceHealth.instance.runDiagnosticsReport();
 
     if (mounted) {
       setState(() {
         _runningDiagnostics = false;
-        _diagnosticsReport = lines.join('\n');
+        _diagnosticsReport = report;
       });
     }
   }
@@ -415,12 +421,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   label: 'Retry',
                   onPressed: _loadIdentity,
                 ),
-                const SizedBox(height: 10),
+                // const SizedBox(height: 10),
+                // _MiniGhostButton(
+                //   label: _runningDiagnostics
+                //       ? 'Running diagnostics…'
+                //       : 'Run diagnostics',
+                //   onPressed: _runningDiagnostics ? null : _runDiagnostics,
+                // ),
                 _MiniGhostButton(
-                  label: _runningDiagnostics
-                      ? 'Running diagnostics…'
-                      : 'Run diagnostics',
-                  onPressed: _runningDiagnostics ? null : _runDiagnostics,
+                  label: 'Contact support',
+                  onPressed: _contactSupport,
                 ),
                 if (_diagnosticsReport != null) ...[
                   const SizedBox(height: 16),

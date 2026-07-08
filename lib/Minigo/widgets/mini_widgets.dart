@@ -106,7 +106,7 @@ class MiniButton extends StatelessWidget {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: fg.withOpacity(0.7),
+                      color: fg.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -119,7 +119,7 @@ class MiniButton extends StatelessWidget {
                   style: GoogleFonts.outfit(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: disabled ? fg.withOpacity(0.4) : fg,
+                    color: disabled ? fg.withValues(alpha: 0.4) : fg,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -217,7 +217,7 @@ class MiniFileRow extends StatelessWidget {
                 end: Alignment.bottomRight,
               ),
             ),
-            child: Icon(_icon, color: c.ink.withOpacity(0.55), size: 22),
+            child: Icon(_icon, color: c.ink.withValues(alpha: 0.55), size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -368,8 +368,8 @@ class StatusBanner extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: tint.withOpacity(0.08),
-          border: Border.all(color: tint.withOpacity(0.18)),
+          color: tint.withValues(alpha: 0.08),
+          border: Border.all(color: tint.withValues(alpha: 0.18)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -447,7 +447,7 @@ class _MiniSkeletonState extends State<MiniSkeleton>
                   end: Alignment(0 + 2 * t, 0),
                   colors: [
                     c.paperDeep,
-                    c.sand.withOpacity(0.55),
+                    c.sand.withValues(alpha: 0.55),
                     c.paperDeep,
                   ],
                 ),

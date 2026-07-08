@@ -458,7 +458,7 @@ class _ReceivedTile extends StatelessWidget {
                     ? Icons.download_done_rounded
                     : Icons.south_west_rounded,
                 size: 18,
-                color: c.ink.withOpacity(0.55),
+                color: c.ink.withValues(alpha: 0.55),
               ),
             ),
             const SizedBox(width: 12),

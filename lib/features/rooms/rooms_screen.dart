@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/constants.dart';
+import '../../core/errors/app_error_handler.dart';
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
@@ -471,12 +474,13 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       if (!mounted) return;
       HapticFeedback.lightImpact();
       Navigator.pop(context, room);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _creating = false;
         _error = 'Could not create the room. Check your connection.';
       });
+      unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
     }
   }
 
@@ -594,12 +598,13 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
         _joining = false;
         _error = 'This room has expired.';
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _joining = false;
         _error = 'Could not join the room. Check your connection.';
       });
+      unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
     }
   }
 

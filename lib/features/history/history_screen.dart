@@ -403,7 +403,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         padding: const EdgeInsets.only(
                                             right: 24),
                                         color: MiniColors.danger
-                                            .withOpacity(0.10),
+                                            .withValues(alpha: 0.10),
                                         child: const Icon(
                                           Icons.delete_outline_rounded,
                                           color: MiniColors.danger,
@@ -525,7 +525,7 @@ class _HistoryTile extends StatelessWidget {
               child: Icon(
                 isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
                 size: 16,
-                color: c.ink.withOpacity(0.55),
+                color: c.ink.withValues(alpha: 0.55),
               ),
             ),
             const SizedBox(width: 12),
