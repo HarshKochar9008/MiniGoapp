@@ -43,6 +43,15 @@ class MiniGoApp extends StatelessWidget {
         theme: buildAppTheme(),
         darkTheme: buildDarkAppTheme(),
         themeMode: themeMode,
+        builder: (context, child) {
+          // MaterialApp has resolved light vs dark by here (including
+          // ThemeMode.system). Sync the static MiniText palette so its
+          // styles follow the theme without each call site needing context.
+          MiniText.palette =
+              Theme.of(context).extension<MiniThemeExtension>() ??
+                  MiniThemeExtension.light;
+          return child!;
+        },
         home: const _AppEntry(),
       ),
     );

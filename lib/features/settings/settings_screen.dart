@@ -76,7 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmFullLocalReset() async {
-    final c = context.mini;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -96,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: MiniColors.danger,
-              foregroundColor: c.paper,
+              foregroundColor: MiniColors.paper,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reset this app'),
@@ -147,8 +146,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: const BoxDecoration(
-                        color: MiniColors.blue50,
+                      decoration: BoxDecoration(
+                        color: c.accent.withValues(alpha: 0.10),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -160,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: GoogleFonts.outfit(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: MiniColors.blue600,
+                            color: c.accent,
                           ),
                         ),
                       ),
@@ -238,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.info_outline_rounded,
-                  iconTint: MiniColors.blue600,
+                  iconTint: c.accent,
                   label: 'About MiniGo',
                   sub: 'Version, how it works, and legal',
                   onTap: () => Navigator.of(context).push(
@@ -247,7 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.play_circle_outline_rounded,
-                  iconTint: MiniColors.blue600,
+                  iconTint: c.accent,
                   label: 'App walkthrough',
                   sub: 'Replay the onboarding walkthrough',
                   onTap: () => Navigator.of(context).push(
@@ -269,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.tag_rounded,
-                  iconTint: MiniColors.inkFaint,
+                  iconTint: c.inkFaint,
                   label: 'Version',
                   trailingText: 'MiniGo 1.1.0',
                 ),
@@ -299,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final readiness = _pushReadiness;
     final ready = readiness?.ready == true;
     final tint = _checkingPush
-        ? MiniColors.blue600
+        ? c.accent
         : ready
             ? MiniColors.success
             : MiniColors.warn;

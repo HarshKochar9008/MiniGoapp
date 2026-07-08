@@ -331,7 +331,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
-                              color: MiniColors.blue500,
+                              color: c.accent,
                               child: Builder(builder: (context) {
                                 final visible =
                                     _applyFilter(_transfers!);
@@ -516,7 +516,10 @@ class _HistoryTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: isOut
-                      ? [MiniColors.blue200, MiniColors.blue50]
+                      ? [
+                          c.accent.withValues(alpha: 0.35),
+                          c.accent.withValues(alpha: 0.10)
+                        ]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,

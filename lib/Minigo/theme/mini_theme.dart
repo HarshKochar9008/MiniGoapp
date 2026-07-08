@@ -28,11 +28,16 @@ String fmtCode(String code) {
 }
 
 class MiniText {
+  /// Palette the static text styles resolve against. Kept in sync with the
+  /// active theme by MaterialApp.builder in app.dart, so every MiniText call
+  /// site is theme-aware without needing a BuildContext.
+  static MiniThemeExtension palette = MiniThemeExtension.light;
+
   static TextStyle get display => GoogleFonts.outfit(
         fontSize: 32,
         fontWeight: FontWeight.w300,
         height: 1.1,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: -0.5,
       );
 
@@ -40,7 +45,7 @@ class MiniText {
         fontSize: 32,
         fontWeight: FontWeight.w300,
         height: 1.1,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: -0.5,
         fontStyle: FontStyle.italic,
       );
@@ -49,7 +54,7 @@ class MiniText {
         fontSize: 24,
         fontWeight: FontWeight.w300,
         height: 1.2,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: -0.3,
       );
 
@@ -57,7 +62,7 @@ class MiniText {
         fontSize: 24,
         fontWeight: FontWeight.w300,
         height: 1.2,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: -0.3,
         fontStyle: FontStyle.italic,
       );
@@ -66,27 +71,27 @@ class MiniText {
         fontSize: 14,
         fontWeight: FontWeight.w300,
         height: 1.5,
-        color: MiniColors.ink,
+        color: palette.ink,
       );
 
   static TextStyle get bodySoft => GoogleFonts.outfit(
         fontSize: 14,
         fontWeight: FontWeight.w300,
         height: 1.5,
-        color: MiniColors.inkSoft,
+        color: palette.inkSoft,
       );
 
   static TextStyle get small => GoogleFonts.outfit(
         fontSize: 12,
         fontWeight: FontWeight.w300,
         height: 1.4,
-        color: MiniColors.inkSoft,
+        color: palette.inkSoft,
       );
 
   static TextStyle get label => GoogleFonts.outfit(
         fontSize: 11,
         height: 1,
-        color: MiniColors.inkSoft,
+        color: palette.inkSoft,
         letterSpacing: 1.6,
         fontWeight: FontWeight.w400,
       );
@@ -94,14 +99,14 @@ class MiniText {
   static TextStyle get code => GoogleFonts.jetBrainsMono(
         fontSize: 18,
         height: 1.1,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: 1.2,
       );
 
   static TextStyle get codeLarge => GoogleFonts.jetBrainsMono(
         fontSize: 36,
         height: 1.05,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: 3,
         fontWeight: FontWeight.w400,
       );
@@ -109,7 +114,7 @@ class MiniText {
   static TextStyle get codeSmall => GoogleFonts.jetBrainsMono(
         fontSize: 13,
         height: 1.2,
-        color: MiniColors.ink,
+        color: palette.ink,
         letterSpacing: 0.8,
       );
 }

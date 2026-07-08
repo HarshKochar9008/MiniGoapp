@@ -80,6 +80,10 @@ class PendingUploadJob {
   final String senderId;
   final String receiverId;
   final String? receiverCode;
+
+  /// Recipient's X25519 public key at validation time; persisted so a resumed
+  /// send stays end-to-end encrypted instead of silently uploading plaintext.
+  final String? receiverPublicKey;
   /// Server `transfers.id` for this interrupted send; persisted so resume never
   /// creates a second row for the same pending job.
   final String? transferId;
@@ -92,6 +96,7 @@ class PendingUploadJob {
     required this.files,
     required this.createdAt,
     this.receiverCode,
+    this.receiverPublicKey,
     this.transferId,
   });
 
@@ -109,10 +114,12 @@ class PendingUploadJob {
 
   Map<String, dynamic> toJson() {
     final tid = transferId?.trim();
+    final key = receiverPublicKey?.trim();
     return {
       'sender_id': senderId,
       'receiver_id': receiverId,
       'receiver_code': receiverCode,
+      if (key != null && key.isNotEmpty) 'receiver_public_key': key,
       if (tid != null && tid.isNotEmpty) 'transfer_id': tid,
       'created_at': createdAt.toIso8601String(),
       'files': files.map((f) => f.toJson()).toList(),
@@ -135,11 +142,13 @@ class PendingUploadJob {
 
     final tidRaw = (json['transfer_id']?.toString() ?? '').trim();
     final transferId = tidRaw.isNotEmpty ? tidRaw : null;
+    final keyRaw = (json['receiver_public_key']?.toString() ?? '').trim();
 
     return PendingUploadJob(
       senderId: senderId,
       receiverId: receiverId,
       receiverCode: (json['receiver_code'] as String?)?.trim(),
+      receiverPublicKey: keyRaw.isNotEmpty ? keyRaw : null,
       transferId: transferId,
       createdAt: DateTime.tryParse((json['created_at'] ?? '').toString()) ??
           DateTime.now().toUtc(),
@@ -222,6 +231,23 @@ class StorageUploadException implements Exception {
 
   @override
   String toString() => 'Upload failed ($statusCode): $details';
+}
+
+/// The uploaded bytes are ciphertext but the server schema cannot store the
+/// encryption metadata; committing the row anyway would hand the receiver
+/// undecryptable data. Not retryable.
+class EncryptedSchemaUnsupportedException implements Exception {
+  @override
+  String toString() =>
+      'The server does not support encrypted transfers yet. Please update and try again.';
+}
+
+/// A second sendFiles started while one is in flight; they would fight over
+/// the single persisted pending-job slot and mark each other failed.
+class ConcurrentTransferException implements Exception {
+  @override
+  String toString() =>
+      'Another transfer is already in progress. Wait for it to finish first.';
 }
 
 class PushReadinessResult {
@@ -702,6 +728,11 @@ class TransferService {
 
   // ── Send files ───────────────────────────────────────────────────────────
 
+  /// True while a [sendFiles] call is running. Two concurrent sends would
+  /// fight over the single persisted pending-job slot and mark each other's
+  /// in-flight transfer as failed, so the second caller is rejected instead.
+  static bool _sendInFlight = false;
+
   static Future<TransferResult> sendFiles({
     required String senderId,
     required String receiverId,
@@ -713,6 +744,36 @@ class TransferService {
     String? roomName,
     /// Recipient's base64url X25519 public key. When present, every file is
     /// end-to-end encrypted before upload so the server only stores ciphertext.
+    String? recipientPublicKey,
+  }) async {
+    if (_sendInFlight) throw ConcurrentTransferException();
+    _sendInFlight = true;
+    try {
+      return await _sendFilesInner(
+        senderId: senderId,
+        receiverId: receiverId,
+        files: files,
+        onProgress: onProgress,
+        cancellationToken: cancellationToken,
+        receiverCode: receiverCode,
+        roomId: roomId,
+        roomName: roomName,
+        recipientPublicKey: recipientPublicKey,
+      );
+    } finally {
+      _sendInFlight = false;
+    }
+  }
+
+  static Future<TransferResult> _sendFilesInner({
+    required String senderId,
+    required String receiverId,
+    required List<PlatformFile> files,
+    required void Function(List<FileUploadProgress> states) onProgress,
+    TransferCancellationToken? cancellationToken,
+    String? receiverCode,
+    String? roomId,
+    String? roomName,
     String? recipientPublicKey,
   }) async {
     for (final file in files) {
@@ -761,6 +822,7 @@ class TransferService {
       senderId: senderId,
       receiverId: receiverId,
       receiverCode: receiverCode,
+      receiverPublicKey: recipientPublicKey,
       files: validFiles,
       transferId: earlyTid,
       createdAt: createdAtBase,
@@ -812,6 +874,7 @@ class TransferService {
       senderId: senderId,
       receiverId: receiverId,
       receiverCode: receiverCode,
+      receiverPublicKey: recipientPublicKey,
       files: validFiles,
       transferId: transferId,
       createdAt: createdAtBase,
@@ -880,7 +943,11 @@ class TransferService {
         final safeName = sanitizeFileName(file.name);
         final mimeType =
             lookupMimeType(file.name) ?? 'application/octet-stream';
-        final storagePath = '$transferId/$safeName';
+        // Index prefix keeps paths unique when two files share a name (or
+        // sanitize to the same name) — otherwise the upsert upload of the
+        // second file overwrites the first object. Receivers read the path
+        // from transfer_files.storage_path, so the format is free to change.
+        final storagePath = '$transferId/${i}_$safeName';
 
         // ── Phase 1: SHA-256 ────────────────────────────────────────────
         states = _updateState(
@@ -961,16 +1028,24 @@ class TransferService {
               'enc_chunk_size': E2ECrypto.chunkSize,
             };
           } catch (e) {
-            // Never block a transfer on encryption; fall back to plaintext.
+            // The recipient has a public key, so silently downgrading to a
+            // plaintext upload would break the E2E guarantee. Fail this file.
             if (kDebugMode) debugPrint('Encrypt failed for $safeName: $e');
             try {
               if (encTemp != null && encTemp.existsSync()) {
                 await encTemp.delete();
               }
             } catch (_) {}
-            encTemp = null;
-            uploadFile = diskFile;
-            encMeta = const {'is_encrypted': false};
+            states = _updateState(
+              states,
+              i,
+              states[i].copyWith(
+                status: FileUploadStatus.failed,
+                error: 'Could not encrypt this file for the recipient.',
+              ),
+            );
+            report(states);
+            continue;
           }
         }
 
@@ -1019,6 +1094,9 @@ class TransferService {
             } catch (e) {
               if (e is TransferCancelledException) rethrow;
               lastError = e.toString().replaceAll('Exception: ', '');
+              // Schema-level failures are deterministic; retrying re-uploads
+              // the whole file for the same result.
+              if (e is EncryptedSchemaUnsupportedException) break;
               if (attempt < _maxRetries) {
                 await Future.delayed(Duration(seconds: attempt * 2));
               }
@@ -1100,6 +1178,7 @@ class TransferService {
     required String receiverId,
     required List<PlatformFile> files,
     String? receiverCode,
+    String? receiverPublicKey,
     /// When null, job is still "in flight" before a `transfers` row exists; used
     /// so a process kill still leaves enough state to offer resume/discards UI.
     String? transferId,
@@ -1123,6 +1202,7 @@ class TransferService {
       senderId: senderId,
       receiverId: receiverId,
       receiverCode: receiverCode,
+      receiverPublicKey: receiverPublicKey,
       transferId: (tid != null && tid.isNotEmpty) ? tid : null,
       createdAt: createdAt ?? DateTime.now().toUtc(),
       files: serializableFiles,
@@ -1244,6 +1324,11 @@ class TransferService {
       await SupabaseConfig.client.from('transfer_files').insert(data);
     } on PostgrestException catch (e) {
       if (e.code == '42703' || e.code == 'PGRST204') {
+        if (data['is_encrypted'] == true) {
+          // The stored bytes are ciphertext; a row without the enc_* metadata
+          // would make the receiver save undecryptable garbage.
+          throw EncryptedSchemaUnsupportedException();
+        }
         // Drop optional columns a not-yet-migrated schema may lack.
         final fallback = Map<String, dynamic>.from(data)
           ..remove('sha256_hash')

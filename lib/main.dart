@@ -46,13 +46,18 @@ void main() async {
   Analytics.instance.init();
   Analytics.instance.logEvent(AnalyticsEvents.appOpened);
 
+  // Load the saved theme before the first frame — otherwise dark-mode users
+  // get a flash of the light theme on every cold start.
+  try {
+    await ThemeController.load();
+  } catch (_) {}
+
   runApp(const MiniGoApp());
   unawaited(_initializeServices());
 }
 
 Future<void> _initializeServices() async {
   try {
-    await ThemeController.load();
     await NotificationService.initialize();
     SupabaseConfig.startAuthListener();
   } catch (e) {

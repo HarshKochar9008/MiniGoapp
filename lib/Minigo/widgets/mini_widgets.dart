@@ -181,19 +181,29 @@ class MiniFileRow extends StatelessWidget {
     }
   }
 
-  List<Color> _tone(MiniThemeExtension c) {
+  List<Color> _tone(BuildContext context) {
+    final c = context.mini;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // Light mode: original pastels. Dark mode: same hue as a subtle tint
+    // blended over the dark surface so the tile doesn't glow.
+    List<Color> pair(Color a, Color b) => dark
+        ? [
+            Color.alphaBlend(a.withValues(alpha: 0.16), c.paperDeep),
+            c.paperDeep,
+          ]
+        : [a, b];
     switch (mimeCategory) {
       case 'Image':
-        return [MiniColors.blue200, MiniColors.blue50];
+        return pair(MiniColors.blue200, MiniColors.blue50);
       case 'Video':
-        return [const Color(0xFFF2DFDF), c.paperDeep];
+        return pair(const Color(0xFFF2DFDF), c.paperDeep);
       case 'Audio':
-        return [const Color(0xFFE0EFE6), c.paperDeep];
+        return pair(const Color(0xFFE0EFE6), c.paperDeep);
       case 'PDF':
       case 'Document':
-        return [const Color(0xFFE6DFF2), c.paperDeep];
+        return pair(const Color(0xFFE6DFF2), c.paperDeep);
       case 'Archive':
-        return [const Color(0xFFDCE8F6), c.paperDeep];
+        return pair(const Color(0xFFDCE8F6), c.paperDeep);
       default:
         return [c.sand, c.paperDeep];
     }
@@ -212,7 +222,7 @@ class MiniFileRow extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               gradient: LinearGradient(
-                colors: _tone(c),
+                colors: _tone(context),
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -277,7 +287,7 @@ class ProgressArc extends StatelessWidget {
               strokeWidth: 5,
               strokeCap: StrokeCap.round,
               backgroundColor: c.paperDeep,
-              valueColor: AlwaysStoppedAnimation(color ?? MiniColors.blue500),
+              valueColor: AlwaysStoppedAnimation(color ?? c.accent),
             ),
           ),
           Column(

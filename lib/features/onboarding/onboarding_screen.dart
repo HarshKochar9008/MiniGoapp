@@ -146,6 +146,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return RichText(
       textAlign: TextAlign.center,
       text: TextSpan(
@@ -153,7 +154,7 @@ class _CodeShufflerState extends State<_CodeShuffler> {
           ..._buildChars(0, 3),
           TextSpan(
             text: ' · ',
-            style: widget.style.copyWith(color: MiniColors.inkFaint),
+            style: widget.style.copyWith(color: c.inkFaint),
           ),
           ..._buildChars(3, 6),
         ],
@@ -162,12 +163,13 @@ class _CodeShufflerState extends State<_CodeShuffler> {
   }
 
   List<TextSpan> _buildChars(int start, int end) {
+    final c = context.mini;
     return List.generate(end - start, (j) {
       final i = start + j;
       return TextSpan(
         text: _display[i],
         style: widget.style.copyWith(
-          color: _locked[i] ? MiniColors.ink : MiniColors.blue500,
+          color: _locked[i] ? c.ink : c.accent,
         ),
       );
     });
@@ -184,8 +186,9 @@ class _OnbWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -215,7 +218,7 @@ class _OnbWelcome extends StatelessWidget {
                 'to anyone, anywhere.',
                 style: MiniText.display.copyWith(
                   fontStyle: FontStyle.italic,
-                  color: MiniColors.blue600,
+                  color: c.accent,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -256,8 +259,9 @@ class _OnbGenerateState extends State<_OnbGenerate> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -289,8 +293,9 @@ class _OnbCode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -308,7 +313,7 @@ class _OnbCode extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
-                  color: MiniColors.paperDeep,
+                  color: c.paperDeep,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
@@ -342,8 +347,9 @@ class _OnbPermissions extends StatelessWidget {
       ['Files & photos', 'to pick what to send or save what you receive'],
       ['Camera', 'for scanning QR codes'],
     ];
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -358,7 +364,7 @@ class _OnbPermissions extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: MiniColors.paperDeep,
+                      color: c.paperDeep,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -366,8 +372,8 @@ class _OnbPermissions extends StatelessWidget {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: const BoxDecoration(
-                            color: MiniColors.blue500,
+                          decoration: BoxDecoration(
+                            color: c.accent,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -381,7 +387,7 @@ class _OnbPermissions extends StatelessWidget {
                                 style: GoogleFonts.outfit(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: MiniColors.ink,
+                                  color: c.ink,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -427,8 +433,9 @@ class _OnbNickname extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),
@@ -452,7 +459,7 @@ class _OnbNickname extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: 'e.g., Alex, BlueBunny, ...',
                   filled: true,
-                  fillColor: MiniColors.paperDeep,
+                  fillColor: c.paperDeep,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -463,7 +470,7 @@ class _OnbNickname extends StatelessWidget {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: MiniColors.blue500, width: 2),
+                    borderSide: BorderSide(color: c.accent, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -496,8 +503,9 @@ class _OnbReady extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Scaffold(
-      backgroundColor: MiniColors.paper,
+      backgroundColor: c.paper,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 60, 28, 32),

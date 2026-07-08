@@ -237,21 +237,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
-                        color: MiniColors.blue50,
+                        color: c.accent.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: MiniColors.blue200),
+                        border: Border.all(
+                            color: c.accent.withValues(alpha: 0.35)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline_rounded,
-                              size: 18, color: MiniColors.blue600),
+                          Icon(Icons.info_outline_rounded,
+                              size: 18, color: c.accent),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Share this code with others to send them files. ',
                               style: GoogleFonts.outfit(
                                 fontSize: 12,
-                                color: MiniColors.blue600,
+                                color: c.accent,
                                 height: 1.5,
                               ),
                             ),

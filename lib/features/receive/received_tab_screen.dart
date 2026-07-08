@@ -270,7 +270,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                           ? _buildEmpty(c)
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
-                              color: MiniColors.blue500,
+                              color: c.accent,
                               child: ListView.separated(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 16, vertical: 12),
@@ -447,7 +447,10 @@ class _ReceivedTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 gradient: LinearGradient(
                   colors: status == 'completed'
-                      ? [MiniColors.blue200, MiniColors.blue50]
+                      ? [
+                          c.accent.withValues(alpha: 0.35),
+                          c.accent.withValues(alpha: 0.10)
+                        ]
                       : [c.sand, c.paperDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -531,14 +534,14 @@ class _ReceivedTile extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: MiniColors.blue50,
+                              color: c.accent.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.groups_rounded,
-                                    size: 11, color: MiniColors.blue600),
+                                Icon(Icons.groups_rounded,
+                                    size: 11, color: c.accent),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
@@ -547,7 +550,7 @@ class _ReceivedTile extends StatelessWidget {
                                     style: GoogleFonts.outfit(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
-                                      color: MiniColors.blue600,
+                                      color: c.accent,
                                     ),
                                   ),
                                 ),

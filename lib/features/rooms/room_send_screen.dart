@@ -128,14 +128,11 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
       setState(() => state.status = _MemberSendStatus.sending);
       try {
         // Resolve the member's E2E public key so their files are encrypted.
-        String? recipientKey;
-        try {
-          final recip =
-              await IdentityService.findUserByCode(state.member.shortCode);
-          recipientKey = recip?['public_key'] as String?;
-        } catch (_) {
-          recipientKey = null; // fall back to plaintext if lookup fails
-        }
+        // A lookup failure must fail this member, not silently fall back to a
+        // plaintext upload — a keyed recipient expects ciphertext only.
+        final recip =
+            await IdentityService.findUserByCode(state.member.shortCode);
+        final recipientKey = recip?['public_key'] as String?;
         final result = await TransferService.sendFiles(
           senderId: widget.identity.id,
           receiverId: state.member.userId,
@@ -201,7 +198,21 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return Scaffold(
+    // System back must be blocked too, not just the AppBar close: popping
+    // mid-send silently abandons the loop between members, so some members
+    // get the files and the rest never do.
+    return PopScope(
+      canPop: !_sending,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _sending) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sending in progress — please wait for it to finish.'),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
       backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
@@ -303,11 +314,11 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                                         List.from(_selectedFiles)
                                           ..removeAt(i);
                                   }),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
                                     child: Icon(Icons.close_rounded,
                                         size: 16,
-                                        color: MiniColors.inkFaint),
+                                        color: c.inkFaint),
                                   ),
                                 ),
                         ),
@@ -371,6 +382,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 }
@@ -403,7 +415,7 @@ class _MemberProgressRow extends StatelessWidget {
         ),
       _MemberSendStatus.sending => (
           Icons.north_east_rounded,
-          MiniColors.blue600,
+          c.accent,
           'Sending $completedFiles / $totalFiles',
         ),
       _MemberSendStatus.done => (

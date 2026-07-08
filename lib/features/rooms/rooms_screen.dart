@@ -150,13 +150,13 @@ class _RoomsScreenState extends State<RoomsScreen> {
 
             Expanded(
               child: _loading
-                  ? const Center(
+                  ? Center(
                       child: SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: MiniColors.blue600,
+                          color: c.accent,
                         ),
                       ),
                     )
@@ -174,7 +174,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                           ? _EmptyRooms(c: c)
                           : RefreshIndicator(
                               onRefresh: _loadRooms,
-                              color: MiniColors.blue600,
+                              color: c.accent,
                               child: ListView.separated(
                                 physics:
                                     const AlwaysScrollableScrollPhysics(),
@@ -285,11 +285,11 @@ class _RoomCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: MiniColors.blue50,
+                  color: c.accent.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.groups_rounded,
-                    size: 20, color: MiniColors.blue600),
+                child: Icon(Icons.groups_rounded,
+                    size: 20, color: c.accent),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -376,10 +376,11 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: MiniColors.blue50,
+        color: c.accent.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -387,7 +388,7 @@ class _Chip extends StatelessWidget {
         style: GoogleFonts.outfit(
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: MiniColors.blue600,
+          color: c.accent,
         ),
       ),
     );
@@ -486,6 +487,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return _RoomSheetScaffold(
       title: 'Create a room',
       subtitle: 'You get a code others can use to join — '
@@ -502,14 +504,14 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         autofocus: true,
         maxLength: AppConstants.maxRoomNameLength,
         textCapitalization: TextCapitalization.sentences,
-        style: GoogleFonts.outfit(fontSize: 16, color: MiniColors.ink),
+        style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
         decoration: InputDecoration(
           hintText: 'Room name',
           hintStyle:
-              GoogleFonts.outfit(fontSize: 16, color: MiniColors.inkFaint),
+              GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
           counterText: '',
           filled: true,
-          fillColor: MiniColors.paperDeep,
+          fillColor: c.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
@@ -610,6 +612,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.mini;
     return _RoomSheetScaffold(
       title: 'Join a room',
       subtitle: 'Ask the host for their room code.',
@@ -634,25 +637,25 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           fontSize: 22,
           letterSpacing: 3,
           fontWeight: FontWeight.w500,
-          color: MiniColors.ink,
+          color: c.ink,
         ),
         decoration: InputDecoration(
           hintText: '— — —   — — —',
           hintStyle: GoogleFonts.jetBrainsMono(
             fontSize: 18,
-            color: MiniColors.inkFaint,
+            color: c.inkFaint,
             letterSpacing: 3,
           ),
           counterText: '',
           filled: true,
-          fillColor: MiniColors.paperDeep,
+          fillColor: c.paperDeep,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none,
           ),
           suffixIcon: IconButton(
-            icon: const Icon(Icons.qr_code_scanner_rounded,
-                size: 20, color: MiniColors.inkSoft),
+            icon: Icon(Icons.qr_code_scanner_rounded,
+                size: 20, color: c.inkSoft),
             tooltip: 'Scan room QR',
             onPressed: _joining ? null : _scanQr,
           ),
