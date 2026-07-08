@@ -279,9 +279,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: tint.withOpacity(0.1),
+        color: tint.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tint.withOpacity(0.25)),
+        border: Border.all(color: tint.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -629,10 +629,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
-                          color: MiniColors.blue600.withOpacity(0.08),
+                          color: MiniColors.blue600.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: MiniColors.blue600.withOpacity(0.2)),
+                              color: MiniColors.blue600.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -877,11 +877,11 @@ class _FileDownloadTile extends StatelessWidget {
   Color _iconBg(_DownloadStatus status) {
     switch (status) {
       case _DownloadStatus.completed:
-        return MiniColors.success.withOpacity(0.1);
+        return MiniColors.success.withValues(alpha: 0.1);
       case _DownloadStatus.failed:
-        return MiniColors.danger.withOpacity(0.1);
+        return MiniColors.danger.withValues(alpha: 0.1);
       default:
-        return MiniColors.blue500.withOpacity(0.1);
+        return MiniColors.blue500.withValues(alpha: 0.1);
     }
   }
 
@@ -905,7 +905,7 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: MiniColors.blue500.withOpacity(0.1),
+              color: MiniColors.blue500.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.download_rounded,
@@ -918,7 +918,7 @@ class _FileDownloadTile extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: MiniColors.danger.withOpacity(0.1),
+              color: MiniColors.danger.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(Icons.close_rounded,

@@ -132,7 +132,7 @@ class AboutScreen extends StatelessWidget {
             const HairLine(indent: 20),
             _InfoRow(label: 'Platform', value: 'Flutter', c: c),
             const HairLine(indent: 20),
-            _InfoRow(label: 'Backend', value: 'Supabase', c: c),
+            _InfoRow(label: 'Backend', value: 'Secure cloud infrastructure', c: c),
             const HairLine(indent: 20),
             _InfoRow(label: 'Notifications', value: 'Firebase Cloud Messaging', c: c),
             const HairLine(indent: 20),
@@ -186,7 +186,7 @@ class _StepRow extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: MiniColors.blue600.withOpacity(0.1),
+              color: MiniColors.blue600.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,

@@ -33,6 +33,9 @@ class AppConstants {
     return _cleanEnvValue(dotenv.env['SUPABASE_ANON_KEY'] ?? '');
   }
 
+  // Support contact shown when the service is unavailable.
+  static const supportEmail = 'harshkochar88@gmail.com';
+
   // Short code alphabet — ambiguous chars excluded (O, 0, I, 1, L)
   static const codeAlphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   static const codeLength = 6;
