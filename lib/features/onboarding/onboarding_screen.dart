@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
+import '../../core/supabase_config.dart';
 import '../../features/identity/identity_service.dart';
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
@@ -19,6 +20,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _step = 0;
   String? _nickname;
+  String? _shortCode;
   final _nicknameController = TextEditingController();
 
   Future<void> _finish() async {
@@ -45,18 +47,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case 0:
         return _OnbWelcome(onNext: _next, onSkip: _finish);
       case 1:
-        return _OnbGenerate(onNext: _next);
-      case 2:
-        return _OnbCode(onNext: _next);
-      case 3:
         return _OnbNickname(
           onNext: _next,
           onSkip: _next,
           onNicknameChanged: (nick) => _nickname = nick,
           controller: _nicknameController,
         );
-      case 4:
+      case 2:
         return _OnbPermissions(onNext: _next);
+      case 3:
+        return _OnbGenerate(
+          onReady: (code) {
+            _shortCode = code;
+            _next();
+          },
+        );
+      case 4:
+        return _OnbCode(code: _shortCode, onNext: _next);
       case 5:
         return _OnbReady(onDone: _finish);
       default:
@@ -81,7 +88,8 @@ class _CodeShuffler extends StatefulWidget {
   const _CodeShuffler({
     this.settle,
     required this.style,
-  }) : onSettled = null, shuffleDuration = const Duration(seconds: 2), lockInterval = const Duration(milliseconds: 80);
+    this.onSettled,
+  }) : shuffleDuration = const Duration(seconds: 2), lockInterval = const Duration(milliseconds: 80);
 
   @override
   State<_CodeShuffler> createState() => _CodeShufflerState();
@@ -177,6 +185,37 @@ class _CodeShufflerState extends State<_CodeShuffler> {
 }
 
 // ---------------------------------------------------------------------------
+// Page position indicator – small dots, current page shown as a dash
+// ---------------------------------------------------------------------------
+class _PageDots extends StatelessWidget {
+  final int index;
+  static const _total = 5;
+  const _PageDots({required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_total, (i) {
+        final active = i == index;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          height: 4,
+          width: active ? 20 : 4,
+          decoration: BoxDecoration(
+            color: active ? c.ink : c.inkFaint,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Step 0 – Welcome
 // ---------------------------------------------------------------------------
 class _OnbWelcome extends StatelessWidget {
@@ -229,6 +268,8 @@ class _OnbWelcome extends StatelessWidget {
                 style: MiniText.bodySoft,
               ),
               const Spacer(),
+              const _PageDots(index: 0),
+              const SizedBox(height: 16),
               MiniButton(label: 'Begin', onPressed: onNext),
             ],
           ),
@@ -242,19 +283,40 @@ class _OnbWelcome extends StatelessWidget {
 // Step 1 – Generating (shuffling animation, auto-advances)
 // ---------------------------------------------------------------------------
 class _OnbGenerate extends StatefulWidget {
-  final VoidCallback onNext;
-  const _OnbGenerate({required this.onNext});
+  /// Called with the real short code once the identity exists server-side.
+  final ValueChanged<String> onReady;
+  const _OnbGenerate({required this.onReady});
   @override
   State<_OnbGenerate> createState() => _OnbGenerateState();
 }
 
 class _OnbGenerateState extends State<_OnbGenerate> {
+  bool _failed = false;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2600), () {
-      if (mounted) widget.onNext();
-    });
+    _createIdentity();
+  }
+
+  Future<void> _createIdentity() async {
+    if (_failed) setState(() => _failed = false);
+    // Let the shuffle play at least this long so the reveal never feels
+    // instant, even on a fast network.
+    final minShuffle = Future.delayed(const Duration(milliseconds: 2600));
+    try {
+      if (!SupabaseConfig.isInitialized) {
+        await initSupabase();
+        SupabaseConfig.startAuthListener();
+      }
+      final identity = await IdentityService.initialize()
+          .timeout(const Duration(seconds: 20));
+      await minShuffle;
+      if (mounted) widget.onReady(identity.shortCode);
+    } catch (_) {
+      await minShuffle;
+      if (mounted) setState(() => _failed = true);
+    }
   }
 
   @override
@@ -263,20 +325,33 @@ class _OnbGenerateState extends State<_OnbGenerate> {
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CodeShuffler(style: MiniText.codeLarge),
-              const SizedBox(height: 40),
-              Text(
-                'Crafting your code',
-                style: MiniText.title,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Text('a few quiet moments…', style: MiniText.bodySoft),
-            ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _CodeShuffler(style: MiniText.codeLarge),
+                const SizedBox(height: 40),
+                Text(
+                  _failed ? 'Couldn\'t craft your code' : 'Crafting your code',
+                  style: MiniText.title,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _failed
+                      ? 'Check your internet connection and try again.'
+                      : 'a few quiet moments…',
+                  style: MiniText.bodySoft,
+                  textAlign: TextAlign.center,
+                ),
+                if (_failed) ...[
+                  const SizedBox(height: 28),
+                  MiniButton(label: 'Retry', onPressed: _createIdentity),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -287,9 +362,19 @@ class _OnbGenerateState extends State<_OnbGenerate> {
 // ---------------------------------------------------------------------------
 // Step 2 – Code reveal (settles on demo code)
 // ---------------------------------------------------------------------------
-class _OnbCode extends StatelessWidget {
+class _OnbCode extends StatefulWidget {
+  /// The user's real short code; falls back to a demo code if identity
+  /// creation was skipped (e.g. arriving here via a dev shortcut).
+  final String? code;
   final VoidCallback onNext;
-  const _OnbCode({required this.onNext});
+  const _OnbCode({required this.code, required this.onNext});
+
+  @override
+  State<_OnbCode> createState() => _OnbCodeState();
+}
+
+class _OnbCodeState extends State<_OnbCode> {
+  bool _settled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -302,29 +387,38 @@ class _OnbCode extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('How it works', style: MiniText.label),
+              Text('YOUR UNIQUE CODE', style: MiniText.label),
               const SizedBox(height: 24),
               _CodeShuffler(
-                settle: 'A4X9K2',
+                settle: widget.code ?? 'A4X9K2',
                 style: MiniText.codeLarge,
+                onSettled: () {
+                  if (mounted) setState(() => _settled = true);
+                },
               ),
               const SizedBox(height: 28),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                decoration: BoxDecoration(
-                  color: c.paperDeep,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  'Your unique 6-character code is your address. Share it to receive files, or ask for someone else\'s to send. '
-                  'You can rotate it anytime from Settings.',
-                  textAlign: TextAlign.center,
-                  style: MiniText.bodySoft,
+              AnimatedOpacity(
+                opacity: _settled ? 1 : 0,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeIn,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: c.paperDeep,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'This is you. Anyone can send you files with this code – it never changes and reveals nothing about you.',
+                    textAlign: TextAlign.center,
+                    style: MiniText.bodySoft,
+                  ),
                 ),
               ),
               const Spacer(),
-              MiniButton(label: 'Continue', onPressed: onNext),
+              const _PageDots(index: 3),
+              const SizedBox(height: 16),
+              MiniButton(label: 'Continue', onPressed: widget.onNext),
             ],
           ),
         ),
@@ -400,6 +494,8 @@ class _OnbPermissions extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
+              const Center(child: _PageDots(index: 2)),
+              const SizedBox(height: 16),
               MiniButton(label: 'Continue', onPressed: onNext),
               const SizedBox(height: 8),
               MiniButton(
@@ -479,6 +575,8 @@ class _OnbNickname extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              const _PageDots(index: 1),
+              const SizedBox(height: 16),
               MiniButton(label: 'Continue', onPressed: onNext),
               const SizedBox(height: 8),
               MiniButton(
@@ -530,6 +628,8 @@ class _OnbReady extends StatelessWidget {
                 style: MiniText.bodySoft,
               ),
               const Spacer(),
+              const _PageDots(index: 4),
+              const SizedBox(height: 16),
               MiniButton(label: 'Open MiniGo', onPressed: onDone),
             ],
           ),
