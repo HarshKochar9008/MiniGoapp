@@ -1,4 +1,10 @@
-import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show
+        PostgresChangeEvent,
+        PostgresChangeFilter,
+        PostgresChangeFilterType,
+        PostgrestException,
+        RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/network/network_errors.dart';
@@ -13,6 +19,10 @@ class Room {
   final String ownerId;
   final int memberCount;
 
+  /// Display names (nickname or short code) of members, for avatar initials
+  /// on the room card. Empty when not fetched (create/join paths).
+  final List<String> memberNames;
+
   /// Rooms live 1 hour; the server deletes them (and their files) afterwards.
   final DateTime expiresAt;
 
@@ -23,6 +33,7 @@ class Room {
     required this.ownerId,
     required this.expiresAt,
     this.memberCount = 0,
+    this.memberNames = const [],
   });
 
   bool isOwnedBy(String userId) => ownerId == userId;
@@ -210,22 +221,25 @@ class RoomService {
     final rows = await SupabaseConfig.client
         .from('rooms')
         .select('id, code, name, owner_id, created_at, expires_at, '
-            'room_members(count)')
+            'room_members(short_code, nickname)')
         .inFilter('id', roomIds)
         .gt('expires_at', DateTime.now().toUtc().toIso8601String())
         .order('created_at', ascending: false);
     return rows.map<Room>((row) {
-      final counts = row['room_members'] as List?;
-      final count = counts != null && counts.isNotEmpty
-          ? (counts.first['count'] as num).toInt()
-          : 0;
+      final members = (row['room_members'] as List?) ?? const [];
+      final names = members.map((m) {
+        final nick = (m['nickname'] as String?)?.trim();
+        if (nick != null && nick.isNotEmpty) return nick;
+        return (m['short_code'] as String?) ?? '';
+      }).where((n) => n.isNotEmpty).toList();
       return Room(
         id: row['id'] as String,
         code: row['code'] as String,
         name: row['name'] as String,
         ownerId: row['owner_id'] as String,
         expiresAt: Room.parseExpiry(row['expires_at']),
-        memberCount: count,
+        memberCount: members.length,
+        memberNames: names,
       );
     }).toList();
   }
@@ -253,6 +267,83 @@ class RoomService {
         canShare: row['can_share'] as bool? ?? true,
       );
     }).toList();
+  }
+
+  /// Monotonic suffix so every subscription gets its own channel topic
+  /// (same rationale as TransferService: shared topics die together).
+  static int _channelSeq = 0;
+
+  /// Live changes to the user's room list. RLS scopes events to rows the
+  /// user can see, so an unfiltered room_members listener only fires for
+  /// rooms they belong to. Payloads don't carry enough to patch the list
+  /// locally — callers just reload on [onChange].
+  static RealtimeChannel? subscribeToMyRooms({
+    required String userId,
+    required void Function() onChange,
+  }) {
+    try {
+      final channel =
+          SupabaseConfig.client.channel('my-rooms-$userId-${++_channelSeq}');
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'room_members',
+        callback: (_) => onChange(),
+      );
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'rooms',
+        callback: (_) => onChange(),
+      );
+      channel.subscribe();
+      return channel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Live updates for one room: members joining/leaving/permission changes,
+  /// plus [onRoomDeleted] when the room is disbanded while open.
+  static RealtimeChannel? subscribeToRoom({
+    required String roomId,
+    required void Function() onMembersChanged,
+    void Function()? onRoomDeleted,
+  }) {
+    try {
+      final channel =
+          SupabaseConfig.client.channel('room-$roomId-${++_channelSeq}');
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'room_members',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'room_id',
+          value: roomId,
+        ),
+        callback: (_) => onMembersChanged(),
+      );
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'rooms',
+        callback: (payload) {
+          // Delete events can't be column-filtered; match on the old row's PK.
+          if ((payload.oldRecord['id'] ?? '').toString() == roomId) {
+            onRoomDeleted?.call();
+          }
+        },
+      );
+      channel.subscribe();
+      return channel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> unsubscribe(RealtimeChannel channel) async {
+    await SupabaseConfig.client.removeChannel(channel);
   }
 
   /// Host-only (enforced by RLS): allow or block a member from sharing files.

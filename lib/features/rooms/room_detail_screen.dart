@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
@@ -43,6 +44,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   Timer? _expiryTicker;
+  RealtimeChannel? _channel;
+  Timer? _liveReloadDebounce;
 
   @override
   void initState() {
@@ -55,15 +58,42 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       (_) => mounted ? setState(() {}) : null,
     );
     _loadMembers();
+    _channel = RoomService.subscribeToRoom(
+      roomId: widget.room.id,
+      onMembersChanged: _onLiveChange,
+      onRoomDeleted: _onRoomDisbanded,
+    );
   }
 
   void _onAliasesChanged() {
     if (mounted) setState(() {});
   }
 
+  /// Collapses bursts of member events into one silent reload.
+  void _onLiveChange() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted && !_loading) _loadMembers(silent: true);
+    });
+  }
+
+  /// The host disbanded the room while we were looking at it.
+  void _onRoomDisbanded() {
+    if (!mounted || _leaving) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This room was closed by the host.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
   @override
   void dispose() {
     _expiryTicker?.cancel();
+    _liveReloadDebounce?.cancel();
+    if (_channel != null) RoomService.unsubscribe(_channel!);
     ContactAliases.revision.removeListener(_onAliasesChanged);
     super.dispose();
   }
@@ -104,20 +134,24 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     );
   }
 
-  Future<void> _loadMembers() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _loadMembers({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final members = await RoomService.listMembers(widget.room.id);
       if (!mounted) return;
       setState(() {
         _members = members;
         _loading = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
+      if (silent) return; // keep showing the last good list
       setState(() {
         _error = 'Could not load members. Check your connection.';
         _loading = false;
