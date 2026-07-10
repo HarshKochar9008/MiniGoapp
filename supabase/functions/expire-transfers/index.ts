@@ -3,16 +3,17 @@
  * expired in the DB, and hard-deletes rows older than 7 days to keep the
  * database lean.
  *
- * Also handles room expiry: rooms live 1 hour. Transfers sent through an
- * expired room have their storage files deleted and are marked expired
- * immediately (their history rows are kept), then the room itself is deleted.
+ * Also handles room expiry: rooms live for the lifetime chosen at creation
+ * (30 min / 1 h / 2 h). Transfers sent through an expired room have their
+ * storage files deleted and are marked expired immediately (their history
+ * rows are kept), then the room itself is deleted.
  *
  * Cloudflare R2 hybrid path: when R2_ACCOUNT_ID / R2_ACCESS_KEY_ID /
  * R2_SECRET_ACCESS_KEY secrets are set (see docs/R2_SETUP.md), expired
  * transfers' objects are also deleted from R2. A 1-day lifecycle rule on the
  * bucket is the recommended backstop — with it, this block only matters for
- * room transfers, which must lose their files at room expiry (1 hour), well
- * before the lifecycle rule fires.
+ * room transfers, which must lose their files at room expiry (as soon as
+ * 30 minutes), well before the lifecycle rule fires.
  *
  * Deploy:
  *   supabase functions deploy expire-transfers --no-verify-jwt
@@ -20,9 +21,13 @@
  * Schedule via pg_cron (Supabase Dashboard → Database → Cron Jobs).
  * Requires the pg_net extension to be enabled.
  *
+ * Run every 15 minutes so 30-minute rooms are deleted promptly after expiry
+ * (expired rooms are already invisible to clients in the meantime — the app
+ * filters on expires_at).
+ *
  *   select cron.schedule(
- *     'expire-transfers-hourly',
- *     '0 * * * *',
+ *     'expire-transfers-15min',
+ *     '0,15,30,45 * * * *',
  *     $$
  *       select net.http_post(
  *         url     := '<YOUR_SUPABASE_URL>/functions/v1/expire-transfers',

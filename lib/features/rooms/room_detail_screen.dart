@@ -100,9 +100,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   String get _expiryLabel {
     if (widget.room.isExpired) return 'Room expired';
-    final mins = widget.room.timeLeft.inMinutes;
-    if (mins < 1) return 'Expires in under a minute';
-    return 'Expires in $mins min';
+    final left = widget.room.timeLeft;
+    if (left.inMinutes < 1) return 'Expires in under a minute';
+    if (left.inHours >= 1) {
+      final mins = left.inMinutes % 60;
+      return 'Expires in ${left.inHours} h${mins > 0 ? ' $mins min' : ''}';
+    }
+    return 'Expires in ${left.inMinutes} min';
   }
 
   Color get _expiryTint {

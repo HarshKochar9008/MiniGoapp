@@ -16,6 +16,9 @@ import '../transfer/transfer_service.dart';
 
 enum _HistoryFilter { all, received, sent }
 
+/// Top-level split: person-to-person transfers vs transfers through rooms.
+enum _HistorySource { direct, rooms }
+
 class HistoryScreen extends StatefulWidget {
   final UserIdentity identity;
   const HistoryScreen({super.key, required this.identity});
@@ -32,6 +35,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   int _currentPage = 0;
   bool _hasMore = true;
   _HistoryFilter _filter = _HistoryFilter.all;
+  _HistorySource _source = _HistorySource.direct;
   late final VoidCallback _onConnectionChanged;
   final Set<String> _hiddenIds = <String>{};
 
@@ -202,10 +206,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return merged;
   }
 
+  /// Room transfers keep their denormalized room_name even after the room
+  /// row is deleted (room_id goes NULL then), so check both.
+  static bool _isRoomTransfer(Map<String, dynamic> t) =>
+      t['room_id'] != null || t['room_name'] != null;
+
   List<Map<String, dynamic>> _applyFilter(
       List<Map<String, dynamic>> transfers) {
     final visible = transfers
         .where((t) => !_hiddenIds.contains((t['id'] ?? '').toString()))
+        .where((t) => _source == _HistorySource.rooms
+            ? _isRoomTransfer(t)
+            : !_isRoomTransfer(t))
         .toList();
     switch (_filter) {
       case _HistoryFilter.sent:
@@ -263,6 +275,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
             const HairLine(indent: 20),
+
+            // Direct / Rooms tabs
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  _SourceTab(
+                    icon: Icons.swap_horiz_rounded,
+                    label: 'Direct',
+                    active: _source == _HistorySource.direct,
+                    onTap: () => setState(
+                        () => _source = _HistorySource.direct),
+                  ),
+                  const SizedBox(width: 22),
+                  _SourceTab(
+                    icon: Icons.groups_outlined,
+                    label: 'Rooms',
+                    active: _source == _HistorySource.rooms,
+                    onTap: () =>
+                        setState(() => _source = _HistorySource.rooms),
+                  ),
+                ],
+              ),
+            ),
 
             // Filter pills
             Padding(
@@ -328,7 +364,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         )
                       : _transfers == null ||
                               _applyFilter(_transfers!).isEmpty
-                          ? _buildEmpty(c)
+                          // The current tab may be empty only because its
+                          // transfers sit on pages not fetched yet — keep
+                          // paging before declaring it empty.
+                          ? (_transfers != null && _hasMore
+                              ? Builder(builder: (context) {
+                                  _loadMore();
+                                  return ListView.builder(
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: 3,
+                                    itemBuilder: (_, __) =>
+                                        const TransferTileSkeleton(),
+                                  );
+                                })
+                              : _buildEmpty(c))
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
                               color: c.accent,
@@ -430,29 +480,99 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildEmpty(MiniThemeExtension c) {
+    final inRooms = _source == _HistorySource.rooms;
     final title = switch (_filter) {
-      _HistoryFilter.sent => 'No files sent yet',
-      _HistoryFilter.received => 'No files received yet',
-      _HistoryFilter.all => 'No transfers yet',
-    };
-    final subtitle = switch (_filter) {
-      _HistoryFilter.sent => 'Send files to see them here',
+      _HistoryFilter.sent =>
+        inRooms ? 'No files sent in rooms yet' : 'No files sent yet',
       _HistoryFilter.received =>
-        'Share your code so others can send you files',
+        inRooms ? 'No files received in rooms yet' : 'No files received yet',
       _HistoryFilter.all =>
-        'Your sent and received files will appear here',
+        inRooms ? 'No room transfers yet' : 'No direct transfers yet',
     };
+    final subtitle = inRooms
+        ? 'Files shared in rooms will appear here, '
+            'even after the room expires.'
+        : switch (_filter) {
+            _HistoryFilter.sent => 'Send files to see them here',
+            _HistoryFilter.received =>
+              'Share your code so others can send you files',
+            _HistoryFilter.all =>
+              'Your sent and received files will appear here',
+          };
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inbox_outlined, size: 48, color: c.inkFaint),
+          Icon(inRooms ? Icons.groups_outlined : Icons.inbox_outlined,
+              size: 48, color: c.inkFaint),
           const SizedBox(height: 18),
           Text(title, style: MiniText.title.copyWith(color: c.ink)),
           const SizedBox(height: 6),
           Text(subtitle,
               textAlign: TextAlign.center,
               style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Underlined scope tab (Direct / Rooms) — visually distinct from the
+/// direction filter pills below it.
+class _SourceTab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _SourceTab({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    final color = active ? c.ink : c.inkFaint;
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            height: 2,
+            width: active ? 40 : 0,
+            decoration: BoxDecoration(
+              color: c.accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
         ],
       ),
     );
