@@ -436,9 +436,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   }
 
   /// Recent recipient codes to suggest under the field, filtered by what's
-  /// typed. Hidden once a code is validated, while sending, or when unfocused.
+  /// typed. Hidden once a code is validated or while sending.
   List<RecentRecipient> get _recentSuggestions {
-    if (_codeValidated || _sending || !_codeFocus.hasFocus) return const [];
+    if (_codeValidated || _sending) return const [];
     return RecentRecipients.matching(_codeController.text).take(5).toList();
   }
 
@@ -974,60 +974,65 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          // Recent recipients dropdown — shown while typing the code.
-          if (_recentSuggestions.isNotEmpty)
+          // Recent recipients — pill chips under the code field, filtered by
+          // what's typed so far. Tapping one fills and validates the code.
+          if (_recentSuggestions.isNotEmpty && !_codeValidated && !_sending)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: c.paper,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: c.divider),
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var i = 0; i < _recentSuggestions.length; i++) ...[
-                      if (i > 0) const HairLine(indent: 14),
-                      InkWell(
-                        onTap: () => _applyRecentCode(_recentSuggestions[i].code),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 11),
-                          child: Row(
-                            children: [
-                              Icon(Icons.history_rounded,
-                                  size: 16, color: c.inkFaint),
-                              const SizedBox(width: 10),
-                              Text(
-                                fmtCode(_recentSuggestions[i].code),
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 15,
-                                  letterSpacing: 2,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.ink,
+                    Text('RECENT', style: MiniText.label),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final r in _recentSuggestions)
+                          Material(
+                            color: c.paperDeep,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
+                              onTap: () => _applyRecentCode(r.code),
+                              borderRadius: BorderRadius.circular(14),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 9),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      fmtCode(r.code),
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 13,
+                                        letterSpacing: 1.2,
+                                        fontWeight: FontWeight.w500,
+                                        color: c.ink,
+                                      ),
+                                    ),
+                                    if (r.label != null) ...[
+                                      const SizedBox(height: 2),
+                                      ConstrainedBox(
+                                        constraints:
+                                            const BoxConstraints(maxWidth: 110),
+                                        child: Text(
+                                          r.label!,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: MiniText.small
+                                              .copyWith(color: c.inkSoft),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                              if (_recentSuggestions[i].label != null) ...[
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _recentSuggestions[i].label!,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: MiniText.small
-                                        .copyWith(color: c.inkSoft),
-                                  ),
-                                ),
-                              ] else
-                                const Spacer(),
-                              Icon(Icons.north_west_rounded,
-                                  size: 14, color: c.inkFaint),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ],
                 ),
               ),
