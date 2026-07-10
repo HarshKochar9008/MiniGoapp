@@ -89,4 +89,40 @@ class AppConstants {
 
   static bool isValidShortCodeFormat(String value) =>
       _shortCodePattern.hasMatch(normalizeShortCode(value));
+
+  // Deep links — QR codes encode a link so the system camera can open the
+  // app directly ("scan with normal camera → land on the send screen").
+  static const deepLinkScheme = 'minigo';
+  static const deepLinkSendHost = 'send';
+
+  /// `minigo://send?code=A4X9K2`
+  static String sendDeepLink(String code) =>
+      '$deepLinkScheme://$deepLinkSendHost?code=${normalizeShortCode(code)}';
+
+  /// What the user's QR encodes. An https link to the `qr` edge function,
+  /// because stock camera apps only treat http(s) URLs as tappable — the
+  /// page then bounces into the app. Falls back to the raw scheme link when
+  /// the backend URL is unavailable (e.g. misconfigured build).
+  static String qrPayloadForCode(String code) {
+    final base = supabaseUrl;
+    if (base.isEmpty) return sendDeepLink(code);
+    return '$base/functions/v1/qr?code=${normalizeShortCode(code)}';
+  }
+
+  /// Extracts the recipient code from any MiniGo send link:
+  /// `minigo://send?code=X`, the https QR-redirect link, or an intent URL
+  /// resolved to the scheme. Returns null when [raw] is not one (e.g. a bare
+  /// code from an older QR).
+  static String? codeFromSendDeepLink(String raw) {
+    final uri = Uri.tryParse(raw.trim());
+    if (uri == null) return null;
+    final scheme = uri.scheme.toLowerCase();
+    final isSchemeLink =
+        scheme == deepLinkScheme && uri.host.toLowerCase() == deepLinkSendHost;
+    final isHttpsQrLink = (scheme == 'https' || scheme == 'http') &&
+        uri.path.endsWith('/functions/v1/qr');
+    if (!isSchemeLink && !isHttpsQrLink) return null;
+    final code = normalizeShortCode(uri.queryParameters['code'] ?? '');
+    return isValidShortCodeFormat(code) ? code : null;
+  }
 }

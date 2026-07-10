@@ -17,6 +17,17 @@ class SharedIncomingFile {
 class ShareIntentBridge {
   static const _channel = MethodChannel('minigo/share_intent');
 
+  /// Returns the deep link (minigo://…) that launched or re-launched the app,
+  /// if any, then clears it natively so it is only handled once.
+  static Future<String?> getAndClearDeepLink() async {
+    if (kIsWeb) return null;
+    try {
+      return await _channel.invokeMethod<String>('getAndClearDeepLink');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Returns files shared to the app from another app's share sheet (if any),
   /// then clears them natively so they are only handled once.
   static Future<List<SharedIncomingFile>> getAndClearSharedFiles() async {
