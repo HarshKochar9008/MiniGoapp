@@ -143,6 +143,27 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
+  /// If the app was opened via a minigo://send QR scanned with the system
+  /// camera, open the Send flow with that recipient prefilled.
+  Future<void> _consumeDeepLink() async {
+    final identity = _identity;
+    if (identity == null) return;
+    final link = await ShareIntentBridge.getAndClearDeepLink();
+    if (link == null || !mounted) return;
+    final code = AppConstants.codeFromSendDeepLink(link);
+    if (code == null) return;
+    // Scanning your own QR shouldn't offer to send files to yourself.
+    if (code == identity.shortCode) return;
+    Analytics.instance
+        .logEvent(AnalyticsEvents.qrScanned, {'source': 'system_camera'});
+    rootNavigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) =>
+            SendScreen(identity: identity, initialRecipientCode: code),
+      ),
+    );
+  }
+
   Future<UserIdentity> _initializeIdentityWithRetry() async {
     // Keep startup responsive: one bounded attempt here, then let the
     // outer auto-retry scheduler handle subsequent retries.
@@ -225,6 +246,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         NotificationService.syncFcmToken(_identity!.id);
         unawaited(OfflineSyncCoordinator.instance.onAppResumed());
         unawaited(_consumeSharedFiles());
+        unawaited(_consumeDeepLink());
         WidgetBridge.getAndClearAction().then((rawAction) {
           if (!mounted || rawAction == null) return;
           HomeAutoAction? action;
@@ -283,7 +305,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           if (widgetAction != null) _currentIndex = 0;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) unawaited(_consumeSharedFiles());
+          if (!mounted) return;
+          unawaited(_consumeSharedFiles());
+          unawaited(_consumeDeepLink());
         });
       }
     } on AuthFailedException catch (e) {

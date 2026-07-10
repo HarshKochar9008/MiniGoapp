@@ -395,6 +395,11 @@ verify_jwt = true
 [functions.r2-sign-download]
 verify_jwt = true
 
+# qr serves the public QR-scan redirect page (camera scan → open the app).
+# It renders nothing but a strictly validated 6-char code, so no auth.
+[functions.qr]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

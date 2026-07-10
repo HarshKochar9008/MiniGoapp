@@ -24,9 +24,13 @@ class MainActivity : FlutterActivity() {
     // Files shared to us from another app's share sheet, waiting for Flutter to collect
     private val pendingSharedUris = mutableListOf<Uri>()
 
+    // Deep link (minigo://…) that launched or re-launched the app
+    private var pendingDeepLink: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         captureShareIntent(intent)
+        captureDeepLink(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -73,20 +77,26 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, shareIntentChannel)
             .setMethodCallHandler { call, result ->
-                if (call.method == "getAndClearSharedFiles") {
-                    val uris = pendingSharedUris.toList()
-                    pendingSharedUris.clear()
-                    if (uris.isEmpty()) {
-                        result.success(emptyList<Map<String, Any>>())
-                        return@setMethodCallHandler
+                when (call.method) {
+                    "getAndClearSharedFiles" -> {
+                        val uris = pendingSharedUris.toList()
+                        pendingSharedUris.clear()
+                        if (uris.isEmpty()) {
+                            result.success(emptyList<Map<String, Any>>())
+                            return@setMethodCallHandler
+                        }
+                        // Copy off the main thread — shared videos can be large
+                        Thread {
+                            val files = copySharedUrisToCache(uris)
+                            Handler(Looper.getMainLooper()).post { result.success(files) }
+                        }.start()
                     }
-                    // Copy off the main thread — shared videos can be large
-                    Thread {
-                        val files = copySharedUrisToCache(uris)
-                        Handler(Looper.getMainLooper()).post { result.success(files) }
-                    }.start()
-                } else {
-                    result.notImplemented()
+                    "getAndClearDeepLink" -> {
+                        val link = pendingDeepLink
+                        pendingDeepLink = null
+                        result.success(link)
+                    }
+                    else -> result.notImplemented()
                 }
             }
     }
@@ -97,6 +107,13 @@ class MainActivity : FlutterActivity() {
         val action = intent.getStringExtra("widget_action")
         if (action != null) pendingWidgetAction = action
         captureShareIntent(intent)
+        captureDeepLink(intent)
+    }
+
+    private fun captureDeepLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val data = intent.data ?: return
+        if (data.scheme == "minigo") pendingDeepLink = data.toString()
     }
 
     private fun captureShareIntent(intent: Intent?) {

@@ -57,7 +57,9 @@ class QrCodeSheet extends StatelessWidget {
               ],
             ),
             child: QrImageView(
-              data: code,
+              // An https link (not the bare code) so every camera app offers
+              // to open it; the page redirects into MiniGo's send screen.
+              data: AppConstants.qrPayloadForCode(code),
               version: QrVersions.auto,
               size: 220,
               backgroundColor: Colors.white,
@@ -125,7 +127,9 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue;
       if (raw == null) continue;
-      final code = AppConstants.normalizeShortCode(raw.trim());
+      // New QRs carry a minigo://send deep link; older ones the bare code.
+      final code = AppConstants.codeFromSendDeepLink(raw) ??
+          AppConstants.normalizeShortCode(raw.trim());
       if (AppConstants.isValidShortCodeFormat(code)) {
         _scanned = true;
         HapticFeedback.mediumImpact();

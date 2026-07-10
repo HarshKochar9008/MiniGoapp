@@ -44,6 +44,14 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep link: minigo://send?code=XXXXXX — opened when a QR is
+                 scanned with the system camera or a link is tapped -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="minigo" android:host="send"/>
+            </intent-filter>
             <!-- Receive files shared from other apps (share sheet target) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
