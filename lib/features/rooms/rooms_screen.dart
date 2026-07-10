@@ -516,8 +516,12 @@ class _CreateRoomSheet extends StatefulWidget {
 
 class _CreateRoomSheetState extends State<_CreateRoomSheet> {
   final _nameController = TextEditingController();
+  int _lifetimeMinutes = AppConstants.defaultRoomLifetimeMinutes;
   bool _creating = false;
   String? _error;
+
+  static String _lifetimeLabel(int minutes) =>
+      minutes < 60 ? '${minutes}m' : '${minutes ~/ 60}h';
 
   @override
   void dispose() {
@@ -539,6 +543,7 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
       final room = await RoomService.createRoom(
         ownerId: widget.ownerId,
         name: name,
+        lifetimeMinutes: _lifetimeMinutes,
       );
       if (!mounted) return;
       HapticFeedback.lightImpact();
@@ -566,26 +571,90 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
         loading: _creating,
         onPressed: _creating ? null : _create,
       ),
-      child: TextField(
-        controller: _nameController,
-        enabled: !_creating,
-        autofocus: true,
-        maxLength: AppConstants.maxRoomNameLength,
-        textCapitalization: TextCapitalization.sentences,
-        style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
-        decoration: InputDecoration(
-          hintText: 'Room name',
-          hintStyle:
-              GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
-          counterText: '',
-          filled: true,
-          fillColor: c.paperDeep,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameController,
+            enabled: !_creating,
+            autofocus: true,
+            maxLength: AppConstants.maxRoomNameLength,
+            textCapitalization: TextCapitalization.sentences,
+            style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
+            decoration: InputDecoration(
+              hintText: 'Room name',
+              hintStyle:
+                  GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+              counterText: '',
+              filled: true,
+              fillColor: c.paperDeep,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            onSubmitted: (_) => _create(),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Expires in',
+                    style: MiniText.small.copyWith(color: c.inkSoft)),
+              ),
+              for (final minutes
+                  in AppConstants.roomLifetimeMinutesOptions) ...[
+                const SizedBox(width: 8),
+                _LifetimeChip(
+                  label: _lifetimeLabel(minutes),
+                  selected: minutes == _lifetimeMinutes,
+                  onTap: _creating
+                      ? null
+                      : () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _lifetimeMinutes = minutes);
+                        },
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LifetimeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _LifetimeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    return Material(
+      color: selected ? MiniColors.blue600 : c.paperDeep,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: selected ? MiniColors.paper : c.inkSoft,
+            ),
           ),
         ),
-        onSubmitted: (_) => _create(),
       ),
     );
   }

@@ -58,6 +58,11 @@ class AppConstants {
   static const maxRoomMembers = 10;
   static const maxRoomNameLength = 50;
 
+  /// Room lifetimes the user can pick at creation. Must match the
+  /// `rooms_lifetime_minutes_allowed` CHECK constraint in the database.
+  static const roomLifetimeMinutesOptions = [30, 60, 120];
+  static const defaultRoomLifetimeMinutes = 60;
+
   // File limits
   static const maxFileSizeBytes = 100 * 1024 * 1024; // 100 MB
   static const maxFilesPerTransfer = 20;

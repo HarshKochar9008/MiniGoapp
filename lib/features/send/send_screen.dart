@@ -31,10 +31,15 @@ class SendScreen extends StatefulWidget {
   /// Files to pre-select, e.g. shared to the app via the system share sheet.
   final List<PlatformFile> initialFiles;
 
+  /// Recipient code to prefill and validate on open, e.g. from the home
+  /// screen's QR scan shortcut.
+  final String? initialRecipientCode;
+
   const SendScreen({
     super.key,
     required this.identity,
     this.initialFiles = const [],
+    this.initialRecipientCode,
   });
 
   @override
@@ -73,8 +78,12 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     _codeFocus.addListener(_onCodeFocusChanged);
     _applyInitialFiles();
     _refreshPowerSaveMode();
+    final initialCode = widget.initialRecipientCode;
+    if (initialCode != null) _codeController.text = initialCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_checkInterruptedUploadRecovery());
+      if (!mounted) return;
+      unawaited(_checkInterruptedUploadRecovery());
+      if (initialCode != null) unawaited(_validateCode());
     });
   }
 

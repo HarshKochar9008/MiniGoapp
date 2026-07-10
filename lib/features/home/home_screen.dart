@@ -77,6 +77,22 @@ class _HomeScreenState extends State<HomeScreen> {
     QrCodeSheet.show(context, widget.identity.shortCode);
   }
 
+  /// Scan a friend's QR and jump straight into sending to them.
+  Future<void> _scanAndSend() async {
+    HapticFeedback.selectionClick();
+    final code = await QrScannerSheet.show(context);
+    if (code == null || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SendScreen(
+          identity: widget.identity,
+          initialRecipientCode: code,
+        ),
+      ),
+    );
+  }
+
   void _openSend() {
     HapticFeedback.selectionClick();
     Navigator.push(
@@ -205,9 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Expanded(
                                 child: _OutlineBtn(
-                                  icon: Icons.copy_rounded,
-                                  label: 'Copy',
-                                  onTap: _copyCode,
+                                  icon: Icons.qr_code_scanner_rounded,
+                                  label: 'Scan',
+                                  onTap: _scanAndSend,
                                 ),
                               ),
                               const SizedBox(width: 8),

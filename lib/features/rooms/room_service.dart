@@ -23,7 +23,8 @@ class Room {
   /// on the room card. Empty when not fetched (create/join paths).
   final List<String> memberNames;
 
-  /// Rooms live 1 hour; the server deletes them (and their files) afterwards.
+  /// Rooms live for the lifetime chosen at creation (30 min, 1 h or 2 h);
+  /// the server deletes them (and their files) once this passes.
   final DateTime expiresAt;
 
   const Room({
@@ -110,9 +111,14 @@ class RoomService {
   }
 
   /// Creates a room with a fresh unique code and joins the owner to it.
+  ///
+  /// [lifetimeMinutes] must be one of
+  /// [AppConstants.roomLifetimeMinutesOptions]; the server computes the
+  /// actual `expires_at` from its own clock.
   static Future<Room> createRoom({
     required String ownerId,
     required String name,
+    int lifetimeMinutes = AppConstants.defaultRoomLifetimeMinutes,
   }) async {
     await _ensureSession();
     const maxAttempts = 4;
@@ -121,7 +127,12 @@ class RoomService {
       try {
         final row = await SupabaseConfig.client
             .from('rooms')
-            .insert({'code': code, 'name': name, 'owner_id': ownerId})
+            .insert({
+              'code': code,
+              'name': name,
+              'owner_id': ownerId,
+              'lifetime_minutes': lifetimeMinutes,
+            })
             .select('id, code, name, owner_id, expires_at')
             .single();
         final room = Room(
