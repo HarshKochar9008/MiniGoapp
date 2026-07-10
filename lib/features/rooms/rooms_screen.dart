@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/errors/app_error_handler.dart';
@@ -25,27 +26,53 @@ class _RoomsScreenState extends State<RoomsScreen> {
   List<Room> _rooms = [];
   bool _loading = true;
   String? _error;
+  RealtimeChannel? _channel;
+  Timer? _liveReloadDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadRooms();
+    _channel = RoomService.subscribeToMyRooms(
+      userId: widget.identity.id,
+      onChange: _onLiveChange,
+    );
   }
 
-  Future<void> _loadRooms() async {
-    setState(() {
-      _loading = true;
-      _error = null;
+  @override
+  void dispose() {
+    _liveReloadDebounce?.cancel();
+    if (_channel != null) RoomService.unsubscribe(_channel!);
+    super.dispose();
+  }
+
+  /// A burst of realtime events (e.g. several members joining) collapses
+  /// into one silent reload.
+  void _onLiveChange() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted && !_loading) _loadRooms(silent: true);
     });
+  }
+
+  Future<void> _loadRooms({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final rooms = await RoomService.listMyRooms(widget.identity.id);
       if (!mounted) return;
       setState(() {
         _rooms = rooms;
         _loading = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
+      if (silent) return; // keep showing the last good list
       setState(() {
         _error = 'Could not load rooms. Check your connection.';
         _loading = false;
@@ -268,103 +295,145 @@ class _RoomCard extends StatelessWidget {
     required this.onTap,
   });
 
+  String _timeLeftLabel() {
+    if (room.isExpired) return 'Expired';
+    final left = room.timeLeft;
+    if (left.inHours > 0) {
+      return '${left.inHours}h ${left.inMinutes % 60}m left';
+    }
+    return '${left.inMinutes}m left';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
     return Material(
       color: c.paperDeep.withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: c.accent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.groups_rounded,
-                    size: 20, color: c.accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            room.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
-                            ),
-                          ),
-                        ),
-                        if (isOwner) ...[
-                          const SizedBox(width: 6),
-                          _Chip(label: 'Host'),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      fmtCode(room.code),
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 12,
-                        letterSpacing: 1.5,
-                        color: c.inkSoft,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_outline_rounded,
-                          size: 14, color: c.inkFaint),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${room.memberCount}/${AppConstants.maxRoomMembers}',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          color: c.inkFaint,
-                          fontWeight: FontWeight.w500,
-                        ),
+                  Expanded(
+                    child: Text(
+                      room.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 3),
+                  if (isOwner) _Chip(label: 'Host'),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: c.paperDeep,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  fmtCode(room.code),
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w500,
+                    color: c.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  if (room.memberNames.isNotEmpty) ...[
+                    _MemberAvatars(names: room.memberNames),
+                    const SizedBox(width: 8),
+                  ],
                   Text(
-                    room.isExpired
-                        ? 'Expired'
-                        : '${room.timeLeft.inMinutes}m left',
+                    '${room.memberCount} member${room.memberCount == 1 ? '' : 's'}',
                     style: GoogleFonts.outfit(
-                      fontSize: 11,
-                      color: room.timeLeft.inMinutes < 10
+                      fontSize: 13,
+                      color: c.inkSoft,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _timeLeftLabel(),
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: !room.isExpired && room.timeLeft.inMinutes < 10
                           ? MiniColors.warn
                           : c.inkFaint,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, size: 18, color: c.inkFaint),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Overlapping pastel initial circles for up to three room members.
+class _MemberAvatars extends StatelessWidget {
+  final List<String> names;
+  const _MemberAvatars({required this.names});
+
+  static const _tints = [
+    MiniColors.blue600,
+    MiniColors.success,
+    MiniColors.warn,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    final shown = names.take(3).toList();
+    const size = 22.0;
+    const overlap = 14.0;
+    return SizedBox(
+      width: size + (shown.length - 1) * overlap,
+      height: size,
+      child: Stack(
+        children: [
+          for (var i = 0; i < shown.length; i++)
+            Positioned(
+              left: i * overlap,
+              child: Container(
+                width: size,
+                height: size,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Color.alphaBlend(
+                    _tints[i % _tints.length].withValues(alpha: 0.18),
+                    c.paper,
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: c.paper, width: 1.5),
+                ),
+                child: Text(
+                  shown[i].characters.first.toUpperCase(),
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: _tints[i % _tints.length],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -376,19 +445,18 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mini;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: c.accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
+        color: MiniColors.blue600.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: GoogleFonts.outfit(
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: c.accent,
+          color: MiniColors.blue600,
         ),
       ),
     );

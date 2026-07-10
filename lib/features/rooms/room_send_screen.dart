@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
@@ -49,12 +50,40 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   bool _sending = false;
   bool _sent = false;
   String? _error;
+  RealtimeChannel? _channel;
+
+  /// Live mirror of my can_share flag; the server enforces it on send, this
+  /// just keeps the UI honest the moment the host flips the toggle.
+  bool _canShare = true;
 
   @override
   void initState() {
     super.initState();
     _memberStates =
         widget.recipients.map((m) => _MemberSendState(m)).toList();
+    _channel = RoomService.subscribeToRoom(
+      roomId: widget.room.id,
+      onMembersChanged: _refreshMyPermission,
+    );
+    _refreshMyPermission();
+  }
+
+  @override
+  void dispose() {
+    if (_channel != null) RoomService.unsubscribe(_channel!);
+    super.dispose();
+  }
+
+  Future<void> _refreshMyPermission() async {
+    try {
+      final members = await RoomService.listMembers(widget.room.id);
+      if (!mounted) return;
+      final mine = members.where((m) => m.userId == widget.identity.id);
+      final allowed = mine.isEmpty || mine.first.canShare;
+      if (allowed != _canShare) setState(() => _canShare = allowed);
+    } catch (_) {
+      // Keep the last known state; the server still enforces on send.
+    }
   }
 
   Future<void> _pickFiles() async {
@@ -104,6 +133,11 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
 
   Future<void> _send() async {
     if (_selectedFiles.isEmpty || _sending) return;
+    if (!_canShare) {
+      setState(
+          () => _error = 'The host has paused sharing for you in this room.');
+      return;
+    }
     if (widget.room.isExpired) {
       setState(() => _error = 'This room has expired.');
       return;
@@ -344,6 +378,16 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                       ),
                     ),
 
+                  if (!_canShare && !_sent) ...[
+                    const SizedBox(height: 8),
+                    StatusBanner(
+                      icon: Icons.block_rounded,
+                      text: 'The host has paused sharing for you '
+                          'in this room.',
+                      tint: MiniColors.warn,
+                    ),
+                  ],
+
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     StatusBanner(
@@ -376,8 +420,9 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                         ? 'Sending…'
                         : 'Send to ${_memberStates.length} member(s)',
                     loading: _sending,
-                    onPressed:
-                        _selectedFiles.isEmpty || _sending ? null : _send,
+                    onPressed: _selectedFiles.isEmpty || _sending || !_canShare
+                        ? null
+                        : _send,
                   ),
           ),
         ],
