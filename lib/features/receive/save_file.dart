@@ -6,6 +6,8 @@ import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/utils/safe_file_name.dart';
+
 class PermissionDeniedException implements Exception {
   final String message;
   PermissionDeniedException(this.message);
@@ -22,7 +24,12 @@ class SaveFileException implements Exception {
 
 /// Save a file to a user-visible location.
 /// Images / videos → device gallery.  Everything else → Downloads / Documents.
-Future<String> saveFileToDevice(File file, String fileName) async {
+///
+/// [fileName] arrives from `transfer_files.file_name`, i.e. it is chosen by the
+/// sender — it is sanitized here, at the sink, rather than trusted to have been
+/// sanitized on the way in. See [safeFileName].
+Future<String> saveFileToDevice(File file, String rawFileName) async {
+  final fileName = safeFileName(rawFileName);
   final ext = fileName.split('.').last.toLowerCase();
   final isImage = _imageExts.contains(ext);
   final isVideo = _videoExts.contains(ext);

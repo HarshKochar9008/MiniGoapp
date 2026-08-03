@@ -167,11 +167,17 @@ class RoomService {
   }) async {
     await _ensureSession();
     final normalized = AppConstants.normalizeShortCode(code);
-    final row = await SupabaseConfig.client
-        .from('rooms')
-        .select('id, code, name, owner_id, expires_at')
-        .eq('code', normalized)
-        .maybeSingle();
+    // `rooms` SELECT is membership-scoped, so a code lookup cannot go through
+    // the table — it happens before membership exists. The narrow
+    // `lookup_room_by_code` RPC resolves exactly the columns a joiner needs
+    // (same pattern as `lookup_user_by_code` for recipients). It returns
+    // expired rooms too, so the isExpired check below still distinguishes
+    // "expired" from "no such room".
+    final rpcRows = await SupabaseConfig.client
+        .rpc('lookup_room_by_code', params: {'p_code': normalized});
+    final row = (rpcRows is List && rpcRows.isNotEmpty)
+        ? Map<String, dynamic>.from(rpcRows.first as Map)
+        : null;
     if (row == null) throw RoomNotFoundException(normalized);
 
     final room = Room(

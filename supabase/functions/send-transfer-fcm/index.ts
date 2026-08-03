@@ -33,6 +33,9 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------------------------------------------------------------------------
 // Google OAuth2 via service account — uses only Web Crypto (no npm deps)
 // ---------------------------------------------------------------------------
@@ -164,24 +167,46 @@ Deno.serve(async (req) => {
   const dryRun = body.dry_run === true;
 
   // ----- DRY RUN: readiness check for a transfer the caller will send -------
-  // Only reveals readiness for the CALLER's own account by default; if a
-  // receiver_id is supplied it must be a real user, but no other data leaks.
+  // This unavoidably tells the caller something about another account ("can it
+  // receive a push"), which is why it is metered and why every negative answer
+  // is indistinguishable. Reaching it at all now requires a session AND the
+  // recipient's short code (lookup_user_by_code is no longer granted to anon),
+  // so it is no longer a bulk presence oracle over harvested ids.
   if (dryRun) {
     const receiverId = record?.receiver_id;
-    if (!receiverId) {
-      return json({ error: "Missing receiver_id" }, 400);
+    if (!receiverId || !UUID_RE.test(receiverId)) {
+      return json({ error: "Missing or invalid receiver_id" }, 400);
     }
+
+    const { data: allowed, error: rlErr } = await admin.rpc("rate_limit_hit", {
+      p_bucket: "fcm_dry_run",
+      p_subject: callerUserId,
+      p_limit: 60,
+      p_window: "00:10:00",
+    });
+    // Fail closed: if the throttle itself is unavailable, do not hand out an
+    // unmetered probe. The client treats "not ready" as a warning, not a block.
+    if (rlErr || allowed !== true) {
+      if (rlErr) console.error("rate_limit_hit", rlErr.message);
+      return json({
+        ready: false,
+        reason: "Too many delivery checks just now. Please try again shortly.",
+      });
+    }
+
     const { data: receiver } = await admin
       .from("users")
-      .select("fcm_token")
+      .select("fcm_token, deleted_at")
       .eq("id", receiverId)
       .maybeSingle();
     const token = (receiver?.fcm_token as string | undefined)?.trim();
-    if (!token) {
+    // One response for "no such user", "retired user" and "no token", so this
+    // cannot also be used to test whether a user id exists.
+    if (!receiver || receiver.deleted_at || !token) {
       return json({
         ready: false,
         reason:
-          "Recipient has no FCM token yet (app not opened / notifications not granted).",
+          "Recipient cannot receive push notifications yet (app not opened / notifications not granted).",
       });
     }
     return json({ ready: true });

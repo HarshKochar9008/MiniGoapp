@@ -65,7 +65,6 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   TransferCancellationToken? _uploadCancellationToken;
   final Battery _battery = Battery();
   bool _powerSaveMode = false;
-  int? _batteryLevel;
 
   @override
   void initState() {
@@ -130,15 +129,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   Future<void> _refreshPowerSaveMode() async {
     final enabled = await _isPowerSaveModeEnabled();
-    int? level;
-    try {
-      level = await _battery.batteryLevel;
-    } catch (_) {}
     if (!mounted) return;
-    setState(() {
-      _powerSaveMode = enabled;
-      _batteryLevel = level;
-    });
+    setState(() => _powerSaveMode = enabled);
   }
 
   Future<void> _checkInterruptedUploadRecovery() async {
@@ -624,8 +616,22 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// True when the validated recipient published an X25519 public key, i.e.
+  /// their files can actually be end-to-end encrypted.
+  bool get _recipientIsEncryptable =>
+      (_validatedRecipientKey?.trim().isNotEmpty) ?? false;
+
   Future<void> _send() async {
     if (_validatedRecipientId == null || _selectedFiles.isEmpty) return;
+
+    // Checked before the push probe: it costs no network round trip, and it is
+    // the more consequential of the two warnings.
+    if (!_recipientIsEncryptable) {
+      final proceed = await _confirmSendWithoutEncryption();
+      if (proceed != true || !mounted) return;
+      setState(() => _error = null);
+    }
+
     final pushReadiness =
         await TransferService.verifyClosedAppDeliveryReadiness(
       receiverId: _validatedRecipientId!,
@@ -674,6 +680,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         receiverId: _validatedRecipientId!,
         receiverCode: AppConstants.normalizeShortCode(_codeController.text),
         recipientPublicKey: _validatedRecipientKey,
+        // Only ever true once _confirmSendWithoutEncryption() said so above.
+        allowUnencrypted: !_recipientIsEncryptable,
         files: _selectedFiles,
         cancellationToken: _uploadCancellationToken,
         onProgress: (states) {
@@ -749,6 +757,47 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     } finally {
       _uploadCancellationToken = null;
     }
+  }
+
+  /// Asked before sending when the recipient has published no X25519 public
+  /// key. Their files can then only be uploaded as plaintext, which is a real
+  /// change in what the server can see — so it is an explicit decision rather
+  /// than a silent downgrade. Usually means they are on an older app build.
+  Future<bool?> _confirmSendWithoutEncryption() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Not end-to-end encrypted'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This recipient has not published an encryption key, so these '
+              'files cannot be encrypted for them.',
+              style: MiniText.bodySoft,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'They will be uploaded as-is, which means the server can read '
+              'them while the transfer is live. Ask them to update MiniGo and '
+              'open it once to fix this.',
+              style: MiniText.small,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send unencrypted'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Asked before sending when the recipient hasn't registered for push.
@@ -1068,6 +1117,16 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               ),
             ),
           if (_codeValidated) _recipientNameRow(),
+
+          // The recipient published no X25519 key, so these files would go up
+          // as plaintext. Say so before the send, not after.
+          if (_codeValidated && !_recipientIsEncryptable)
+            StatusBanner(
+              icon: Icons.lock_open_rounded,
+              text: 'This recipient has no encryption key yet — files will '
+                  'not be end-to-end encrypted.',
+              tint: MiniColors.warn,
+            ),
 
           // Power save banner
           if (_powerSaveMode)

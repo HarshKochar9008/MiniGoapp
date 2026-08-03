@@ -48,19 +48,45 @@ const TTL_HOURS = 24;
 const HARD_DELETE_DAYS = 7;
 const BATCH_SIZE = 100; // transfers processed per invocation
 
+/// Constant-time string compare. Length is allowed to leak (the length of a
+/// service-role key is not a secret); the contents are not.
+function timingSafeEqual(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a);
+  const eb = new TextEncoder().encode(b);
+  if (ea.length !== eb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
   // Only the service role key may trigger this — prevents arbitrary callers
-  // from wiping storage via a public HTTP request.
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  if (req.headers.get("Authorization") !== `Bearer ${serviceKey}`) {
+  // from wiping storage via a public HTTP request. This endpoint is deployed
+  // with verify_jwt = false (a service-role key is not a user JWT), so this
+  // check is the ONLY thing standing in front of a destructive job.
+  //
+  // The env lookup is explicitly guarded: `Deno.env.get(...)!` is a
+  // compile-time assertion only, so with the secret unset the comparison used
+  // to degrade to `=== "Bearer undefined"` — which any caller can send.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!serviceKey || !supabaseUrl) {
+    console.error(
+      "expire-transfers: SUPABASE_SERVICE_ROLE_KEY / SUPABASE_URL not set — " +
+        "refusing to run rather than accepting an empty credential.",
+    );
+    return new Response("Server not configured", { status: 500 });
+  }
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!timingSafeEqual(authHeader, `Bearer ${serviceKey}`)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabase = createClient(supabaseUrl, serviceKey);
 
   const now = Date.now();

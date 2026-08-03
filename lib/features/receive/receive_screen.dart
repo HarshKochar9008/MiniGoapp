@@ -47,7 +47,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   final Map<String, TransferCancellationToken> _downloadTokens = {};
   Set<String> _persistedDownloads = {};
   bool _powerSaveMode = false;
-  int? _batteryLevel;
   late final VoidCallback _onConnectionChanged;
 
   bool get _transferTerminal {
@@ -132,15 +131,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Future<void> _refreshPowerSaveMode() async {
     final enabled = await _isPowerSaveModeEnabled();
-    int? level;
-    try {
-      level = await _battery.batteryLevel;
-    } catch (_) {}
     if (!mounted) return;
-    setState(() {
-      _powerSaveMode = enabled;
-      _batteryLevel = level;
-    });
+    setState(() => _powerSaveMode = enabled);
   }
 
   Future<void> _loadPersistedState() async {
@@ -274,41 +266,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     );
   }
 
-  Widget _buildBatteryBadge() {
-    final c = context.mini;
-    final levelText = _batteryLevel != null ? '${_batteryLevel!}%' : '--%';
-    final tint = _powerSaveMode ? MiniColors.warn : c.accent;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tint.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _powerSaveMode
-                ? Icons.battery_saver_rounded
-                : Icons.battery_std_rounded,
-            size: 14,
-            color: tint,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            levelText,
-            style: GoogleFonts.outfit(
-              color: c.inkSoft,
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _downloadFile(Map<String, dynamic> file) async {
     final fileId = file['id'] as String;
     final storagePath = file['storage_path'] as String;
@@ -317,6 +274,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final isEncrypted = file['is_encrypted'] == true;
     final encWrappedKey = file['enc_wrapped_key'] as String?;
     final encNonce = file['enc_nonce'] as String?;
+    final encAlgo = file['enc_algo'] as String?;
     final rawChunk = file['enc_chunk_size'];
     final encChunkSize =
         rawChunk is int ? rawChunk : int.tryParse('$rawChunk');
@@ -383,6 +341,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         encWrappedKey: encWrappedKey,
         encNonce: encNonce,
         encChunkSize: encChunkSize,
+        encAlgo: encAlgo,
         onProgress: (received, total) {
           if (mounted) {
             setState(() => _dlStates[fileId] = _FileDownloadState(
@@ -400,23 +359,24 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ));
       }
 
-      bool? hashVerified;
-      if (expectedHash != null && expectedHash.isNotEmpty) {
-        hashVerified = await TransferService.verifySha256(
-          downloadedFile,
-          expectedHash,
-        );
-        if (hashVerified == false) {
-          if (mounted) {
-            setState(() => _dlStates[fileId] = const _FileDownloadState(
-                  status: _DownloadStatus.failed,
-                  error: 'Integrity check failed — file may be corrupted',
-                  hashVerified: false,
-                ));
-          }
-          return;
+      final integrity = await TransferService.verifySha256(
+        downloadedFile,
+        expectedHash,
+      );
+      if (integrity == IntegrityCheck.mismatch) {
+        if (mounted) {
+          setState(() => _dlStates[fileId] = const _FileDownloadState(
+                status: _DownloadStatus.failed,
+                error: 'Integrity check failed — file may be corrupted',
+                hashVerified: false,
+              ));
         }
+        return;
       }
+      // noHashRecorded stays null rather than true: the file is saved, but
+      // nothing here is entitled to call it verified.
+      final bool? hashVerified =
+          integrity == IntegrityCheck.verified ? true : null;
 
       if (mounted) {
         setState(() => _dlStates[fileId] = _FileDownloadState(
@@ -443,12 +403,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
               savedLocation: location,
             ));
 
+        // Say "not verified" out loud. Previously this just dropped the
+        // "(verified)" suffix, which nobody reads as a warning.
+        final suffix = hashVerified == true
+            ? '  (verified)'
+            : isEncrypted
+                ? ''
+                : '  (integrity not verified)';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Saved to $location'
-              '${hashVerified == true ? '  (verified)' : ''}',
-            ),
+            content: Text('Saved to $location$suffix'),
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
           ),
@@ -624,8 +588,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                       ],
                     ),
                   ),
-                  _buildBatteryBadge(),
-                  const SizedBox(width: 8),
                   if (_files != null && _files!.isNotEmpty && !allCompleted)
                     GestureDetector(
                       onTap: _downloadAll,

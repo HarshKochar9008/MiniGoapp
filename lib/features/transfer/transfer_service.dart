@@ -18,12 +18,18 @@ import '../../core/crypto/e2e_crypto.dart';
 import '../../core/network/network_errors.dart';
 import '../../core/offline/pending_backend_jobs.dart';
 import '../../core/supabase_config.dart';
+import '../../core/utils/safe_file_name.dart';
 import '../identity/identity_service.dart';
 import 'r2_storage.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
 enum FileUploadStatus { pending, hashing, uploading, completed, failed }
+
+/// Outcome of checking a downloaded file against the sender's recorded
+/// SHA-256. [noHashRecorded] is deliberately distinct from [verified]: a file
+/// nobody can check is not a file that passed.
+enum IntegrityCheck { verified, mismatch, noHashRecorded }
 
 class FileUploadProgress {
   final String fileName;
@@ -242,6 +248,17 @@ class EncryptedSchemaUnsupportedException implements Exception {
       'The server does not support encrypted transfers yet. Please update and try again.';
 }
 
+/// The recipient published no X25519 public key, so their files can only be
+/// uploaded as plaintext. Sending is refused unless the caller explicitly opts
+/// in via `allowUnencrypted: true`, so the end-to-end guarantee can never be
+/// dropped silently — the caller has to have told the user first.
+class RecipientNotEncryptableException implements Exception {
+  @override
+  String toString() =>
+      'This recipient has not published an encryption key, so these files '
+      'cannot be end-to-end encrypted.';
+}
+
 /// A second sendFiles started while one is in flight; they would fight over
 /// the single persisted pending-job slot and mark each other failed.
 class ConcurrentTransferException implements Exception {
@@ -414,12 +431,9 @@ class TransferService {
   }
 
   /// Strip dangerous chars from file names to prevent path traversal.
-  static String sanitizeFileName(String name) {
-    var safe = name.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_');
-    safe = safe.replaceAll('..', '_');
-    if (safe.isEmpty) safe = 'unnamed_file';
-    return safe;
-  }
+  /// Delegates to the shared [safeFileName] primitive so the upload path and
+  /// the receiver's save path can never drift apart.
+  static String sanitizeFileName(String name) => safeFileName(name);
 
   /// Human-readable file size formatting.
   static String formatFileSize(int bytes) {
@@ -745,7 +759,18 @@ class TransferService {
     /// Recipient's base64url X25519 public key. When present, every file is
     /// end-to-end encrypted before upload so the server only stores ciphertext.
     String? recipientPublicKey,
+    /// Set only after the user has been told, in the UI, that this transfer
+    /// will not be end-to-end encrypted. Without it a missing
+    /// [recipientPublicKey] is a hard error rather than a quiet downgrade to a
+    /// plaintext upload.
+    bool allowUnencrypted = false,
   }) async {
+    final hasKey =
+        recipientPublicKey != null && recipientPublicKey.trim().isNotEmpty;
+    if (!hasKey && !allowUnencrypted) {
+      throw RecipientNotEncryptableException();
+    }
+
     if (_sendInFlight) throw ConcurrentTransferException();
     _sendInFlight = true;
     try {
@@ -1316,9 +1341,16 @@ class TransferService {
   }
 
   /// Insert a transfer_files row.
-  /// Falls back without optional columns when they don't exist:
+  /// Falls back without the optional `enc_*` columns when they don't exist:
   ///   - 42703: PostgreSQL undefined_column
   ///   - PGRST204: PostgREST column not found in schema cache
+  ///
+  /// `sha256_hash` is NOT part of that fallback. Dropping it used to produce a
+  /// row the receiver can never integrity-check, which for an unencrypted
+  /// transfer means no integrity signal at all — a silent downgrade of the
+  /// same shape as sending plaintext to a keyed recipient. The column predates
+  /// every migration in this repo, so its absence is a broken schema, not an
+  /// old one, and failing loudly is correct.
   static Future<void> _insertTransferFile(Map<String, dynamic> data) async {
     try {
       await SupabaseConfig.client.from('transfer_files').insert(data);
@@ -1331,7 +1363,6 @@ class TransferService {
         }
         // Drop optional columns a not-yet-migrated schema may lack.
         final fallback = Map<String, dynamic>.from(data)
-          ..remove('sha256_hash')
           ..remove('is_encrypted')
           ..remove('enc_algo')
           ..remove('enc_wrapped_key')
@@ -1578,6 +1609,10 @@ class TransferService {
     String? encWrappedKey,
     String? encNonce,
     int? encChunkSize,
+    /// `transfer_files.enc_algo`. Selects the chunk format; only v2 can detect
+    /// a truncated ciphertext. Defaults to v1 because rows written before the
+    /// v2 rollout have no tag recorded.
+    String? encAlgo,
   }) async {
     await SupabaseConfig.ensureValidSession();
     // R2 hybrid: prefer a presigned R2 URL, falling back to Supabase Storage
@@ -1685,6 +1720,7 @@ class TransferService {
             encWrappedKey: encWrappedKey,
             encNonce: encNonce,
             encChunkSize: encChunkSize,
+            encAlgo: encAlgo,
           );
         } catch (e) {
           await sink?.close();
@@ -1732,6 +1768,7 @@ class TransferService {
     required String? encWrappedKey,
     required String? encNonce,
     required int? encChunkSize,
+    required String? encAlgo,
   }) async {
     final authUid = SupabaseConfig.client.auth.currentUser?.id;
     if (authUid == null) {
@@ -1758,6 +1795,10 @@ class TransferService {
         dst: plainFile,
         contentKey: contentKey,
         baseNonce: E2ECrypto.decodeB64(encNonce),
+        // Rows predating the v2 rollout carry no tag; they are all v1.
+        algo: (encAlgo == null || encAlgo.isEmpty)
+            ? E2ECrypto.algoTagV1
+            : encAlgo,
         plaintextChunkSize: encChunkSize ?? E2ECrypto.chunkSize,
       );
     } catch (e) {
@@ -1774,10 +1815,23 @@ class TransferService {
   }
 
   /// Verify a downloaded file's SHA-256 against the stored hash.
-  static Future<bool> verifySha256(File file, String? expectedHash) async {
-    if (expectedHash == null || expectedHash.isEmpty) return true;
+  ///
+  /// Returns a tri-state rather than a bool on purpose. This used to answer
+  /// `true` when no hash was recorded, which reads as "verified" at every call
+  /// site and quietly turns an unverifiable file into a passing one.
+  /// [IntegrityCheck.noHashRecorded] forces the caller to decide.
+  static Future<IntegrityCheck> verifySha256(
+    File file,
+    String? expectedHash,
+  ) async {
+    final expected = expectedHash?.trim();
+    if (expected == null || expected.isEmpty) {
+      return IntegrityCheck.noHashRecorded;
+    }
     final actualHash = await computeSha256(file);
-    return actualHash == expectedHash;
+    return actualHash == expected
+        ? IntegrityCheck.verified
+        : IntegrityCheck.mismatch;
   }
 
   /// Convenience: get a signed URL for browser/external download.

@@ -27,7 +27,14 @@ class MinigoWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_COPY) {
-            val code = intent.getStringExtra(EXTRA_CODE) ?: return
+            // An AppWidgetProvider must stay exported so the system can deliver
+            // APPWIDGET_UPDATE, which means any app on the device can send this
+            // component an explicit broadcast. Read the code from our own
+            // SharedPreferences rather than from the intent extra: trusting the
+            // extra let a caller write arbitrary attacker-chosen text into the
+            // user's clipboard under a "Code copied" toast.
+            val code = readShortCode(context) ?: return
+            if (code.isBlank()) return
             val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clip.setPrimaryClip(ClipData.newPlainText("MiniGo code", code))
             // Only show toast on older Android — 13+ shows its own clipboard banner
@@ -39,7 +46,12 @@ class MinigoWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_COPY = "com.Zen.app.WIDGET_COPY_CODE"
-        const val EXTRA_CODE = "minigo_code"
+
+        /** Flutter's shared_preferences stores keys with the "flutter." prefix. */
+        private fun readShortCode(context: Context): String? =
+            context
+                .getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                .getString("flutter.short_code", null)
 
         private fun launchIntent(context: Context, action: String): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
@@ -57,9 +69,7 @@ class MinigoWidgetProvider : AppWidgetProvider() {
         }
 
         fun updateWidget(context: Context, mgr: AppWidgetManager, widgetId: Int) {
-            // Flutter's shared_preferences stores keys with the "flutter." prefix
-            val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-            val raw = prefs.getString("flutter.short_code", null)
+            val raw = readShortCode(context)
             val displayCode = if (!raw.isNullOrBlank() && raw.length == 6) {
                 "${raw.substring(0, 3)} ${raw.substring(3)}"
             } else {
@@ -71,9 +81,9 @@ class MinigoWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_btn_send, launchIntent(context, "send"))
             views.setOnClickPendingIntent(R.id.widget_btn_qr, launchIntent(context, "qr"))
 
+            // No code in the extra — onReceive reads it from prefs itself.
             val copyIntent = Intent(context, MinigoWidgetProvider::class.java).apply {
                 action = ACTION_COPY
-                putExtra(EXTRA_CODE, raw ?: "")
             }
             val copyPi = PendingIntent.getBroadcast(
                 context, 12, copyIntent,
