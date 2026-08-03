@@ -28,8 +28,24 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class E2ECrypto {
   E2ECrypto._();
 
-  /// Algorithm tag persisted in `transfer_files.enc_algo`.
-  static const algoTag = 'x25519-aesgcm-v1';
+  /// Original chunked format. Each chunk is authenticated independently with
+  /// no associated data, so whole trailing chunks can be removed and the
+  /// remainder still decrypts cleanly — truncation is invisible to the cipher
+  /// and only the plaintext SHA-256 catches it. Still accepted on decrypt
+  /// because a transfer in flight during an app update was written this way.
+  static const algoTagV1 = 'x25519-aesgcm-v1';
+
+  /// Adds a per-chunk AAD binding the chunk index and whether it is the final
+  /// chunk, which makes truncation and extension detectable by the cipher
+  /// itself. See [_chunkAad].
+  static const algoTagV2 = 'x25519-aesgcm-v2';
+
+  /// Algorithm tag persisted in `transfer_files.enc_algo` for new transfers.
+  static const algoTag = algoTagV2;
+
+  /// AAD domain separator, so a chunk can never be reinterpreted as anything
+  /// but a v2 file chunk.
+  static const _aadPrefix = 'mg-e2e-v2';
 
   /// Plaintext chunk size for the streaming file cipher (1 MiB).
   static const chunkSize = 1 << 20;
@@ -184,8 +200,20 @@ class E2ECrypto {
         baseNonce: _randomBytes(_baseNonceLen),
       );
 
-  /// Encrypts [src] into [dst] under [contentKey]/[baseNonce]. Each 1 MiB
-  /// plaintext chunk becomes `ciphertext ‖ tag` in [dst].
+  /// Encrypts [src] into [dst] under [contentKey]/[baseNonce] in the [algoTagV2]
+  /// format. Each 1 MiB plaintext chunk becomes `ciphertext ‖ tag` in [dst].
+  ///
+  /// Two invariants make truncation detectable on the way back, and
+  /// [decryptFile] depends on both:
+  ///
+  ///  * Every non-final chunk holds *exactly* [chunkSize] plaintext bytes, and
+  ///    the final chunk holds strictly fewer. So the final chunk is the one and
+  ///    only short block, identifiable by length alone — no length header and
+  ///    no lookahead needed.
+  ///  * A final chunk is always written, even for an empty file (as a bare
+  ///    16-byte tag) and even when the plaintext is an exact multiple of
+  ///    [chunkSize]. Without that, "file ended" and "stream was cut at a chunk
+  ///    boundary" would be the same observation.
   static Future<void> encryptFile({
     required File src,
     required File dst,
@@ -199,16 +227,18 @@ class E2ECrypto {
       var index = 0;
       while (true) {
         final chunk = await _readFully(input, chunkSize);
-        if (chunk.isEmpty) break;
+        // A short read is only possible at EOF, so it marks the final chunk.
+        final isFinal = chunk.length < chunkSize;
         final box = await _aes.encrypt(
           chunk,
           secretKey: key,
           nonce: _chunkNonce(baseNonce, index),
+          aad: _chunkAad(index, isFinal),
         );
         output.add(box.cipherText);
         output.add(box.mac.bytes);
         index++;
-        if (chunk.length < chunkSize) break;
+        if (isFinal) break;
       }
     } finally {
       await input.close();
@@ -217,13 +247,110 @@ class E2ECrypto {
   }
 
   /// Decrypts [src] (produced by [encryptFile]) into [dst]. Throws
-  /// [E2EDecryptException] if any chunk fails authentication.
+  /// [E2EDecryptException] if any chunk fails authentication, if the stream is
+  /// truncated or extended, or if [algo] is not a format we know.
+  ///
+  /// [algo] is `transfer_files.enc_algo`. [algoTagV1] takes the legacy path,
+  /// which cannot detect truncation — that is the whole reason v2 exists.
   static Future<void> decryptFile({
     required File src,
     required File dst,
     required List<int> contentKey,
     required List<int> baseNonce,
+    String algo = algoTag,
     int plaintextChunkSize = chunkSize,
+  }) async {
+    switch (algo) {
+      case algoTagV2:
+        return _decryptV2(
+          src: src,
+          dst: dst,
+          contentKey: contentKey,
+          baseNonce: baseNonce,
+          plaintextChunkSize: plaintextChunkSize,
+        );
+      case algoTagV1:
+        return _decryptV1(
+          src: src,
+          dst: dst,
+          contentKey: contentKey,
+          baseNonce: baseNonce,
+          plaintextChunkSize: plaintextChunkSize,
+        );
+      default:
+        // Never guess at an unknown format: guessing wrong either fails
+        // confusingly or, worse, succeeds on a weaker interpretation.
+        throw E2EDecryptException(
+          'These files use an encryption format this version does not support '
+          '($algo). Please update MiniGo.',
+        );
+    }
+  }
+
+  static Future<void> _decryptV2({
+    required File src,
+    required File dst,
+    required List<int> contentKey,
+    required List<int> baseNonce,
+    required int plaintextChunkSize,
+  }) async {
+    final encChunk = plaintextChunkSize + _tagLen;
+    final key = SecretKey(contentKey);
+    final input = await src.open();
+    final output = dst.openWrite();
+    try {
+      var index = 0;
+      while (true) {
+        final block = await _readFully(input, encChunk);
+
+        // Relies on encryptFile's invariant: only the final block is short.
+        // So a stream cut at a chunk boundary runs out here with nothing left
+        // to read, and an empty read is never a legitimate end.
+        final isFinal = block.length < encChunk;
+        if (block.length < _tagLen) {
+          throw const E2EDecryptException(
+            'Encrypted file is truncated — it did not finish uploading, or it '
+            'was modified in transit.',
+          );
+        }
+
+        final mac = block.sublist(block.length - _tagLen);
+        final cipherText = block.sublist(0, block.length - _tagLen);
+        try {
+          final plain = await _aes.decrypt(
+            SecretBox(cipherText,
+                nonce: _chunkNonce(baseNonce, index), mac: Mac(mac)),
+            secretKey: key,
+            aad: _chunkAad(index, isFinal),
+          );
+          output.add(plain);
+        } catch (_) {
+          // Also the failure mode for a removed or appended trailing chunk:
+          // the final-chunk flag in the AAD no longer matches what was signed.
+          throw const E2EDecryptException(
+            'Decryption failed — the file was modified, truncated, or the '
+            'wrong key was used.',
+          );
+        }
+
+        index++;
+        if (isFinal) break;
+      }
+    } finally {
+      await input.close();
+      await output.close();
+    }
+  }
+
+  /// Legacy [algoTagV1] reader. Kept so a transfer already in flight when the
+  /// app updated still decrypts. Cannot detect truncation at a chunk boundary;
+  /// for these files the plaintext SHA-256 is the only integrity signal.
+  static Future<void> _decryptV1({
+    required File src,
+    required File dst,
+    required List<int> contentKey,
+    required List<int> baseNonce,
+    required int plaintextChunkSize,
   }) async {
     final encChunk = plaintextChunkSize + _tagLen;
     final key = SecretKey(contentKey);
@@ -241,8 +368,8 @@ class E2ECrypto {
         final cipherText = block.sublist(0, block.length - _tagLen);
         try {
           final plain = await _aes.decrypt(
-            SecretBox(cipherText, nonce: _chunkNonce(baseNonce, index),
-                mac: Mac(mac)),
+            SecretBox(cipherText,
+                nonce: _chunkNonce(baseNonce, index), mac: Mac(mac)),
             secretKey: key,
           );
           output.add(plain);
@@ -273,6 +400,25 @@ class E2ECrypto {
       remaining -= part.length;
     }
     return buffer.toBytes();
+  }
+
+  /// Associated data for one v2 chunk: `"mg-e2e-v2" ‖ uint32(index) ‖ final`.
+  ///
+  /// The index is already in the nonce, so it is the trailing final-chunk byte
+  /// that does the work here: it signs *where the file ends* into the tag of
+  /// the last chunk. Drop trailing chunks and the new last chunk was signed
+  /// with final=0 but gets verified with final=1; append chunks and the real
+  /// last chunk is verified with final=0. Either way the tag check fails.
+  static Uint8List _chunkAad(int index, bool isFinal) {
+    final prefix = utf8.encode(_aadPrefix);
+    final aad = Uint8List(prefix.length + 5);
+    aad.setRange(0, prefix.length, prefix);
+    aad[prefix.length] = (index >> 24) & 0xff;
+    aad[prefix.length + 1] = (index >> 16) & 0xff;
+    aad[prefix.length + 2] = (index >> 8) & 0xff;
+    aad[prefix.length + 3] = index & 0xff;
+    aad[prefix.length + 4] = isFinal ? 1 : 0;
+    return aad;
   }
 
   /// 12-byte per-chunk nonce: baseNonce(8) ‖ big-endian uint32(index).

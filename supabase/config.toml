@@ -115,7 +115,9 @@ port = 54324
 [storage]
 enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+# Matches AppConstants.maxFileSizeBytes (100 * 1024 * 1024 = 100 MiB) so the
+# app's 100 MB per-file limit works on the Supabase Storage fallback path too.
+file_size_limit = "100MiB"
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]

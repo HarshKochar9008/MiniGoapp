@@ -41,6 +41,27 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+    }
+
+    // Strip x86/x86_64 from release fat APKs — those ABIs are emulators only;
+    // all production Android phones are ARM. ndk.abiFilters is silently
+    // ignored here (in both defaultConfig and buildTypes.release) with the
+    // Flutter Gradle plugin — x86_64 libs end up packaged anyway (~25 MB;
+    // verified 2026-07-12) — so exclude at the packaging step instead.
+    // Gated on the requested task so debug builds keep every ABI and still
+    // run on x86_64 emulators. Harmless with --split-per-abi (the x86_64
+    // split APK just comes out empty of ARM libs as usual), but skipped for
+    // consistency via the same -Psplit-per-abi property.
+    val isReleaseBuild = gradle.startParameter.taskNames.any {
+        it.contains("Release", ignoreCase = true)
+    }
+    if (isReleaseBuild && !project.hasProperty("split-per-abi")) {
+        packaging {
+            jniLibs {
+                excludes += listOf("lib/x86/**", "lib/x86_64/**")
+            }
+        }
     }
 
     signingConfigs {
@@ -68,16 +89,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Strip x86_64 from release only — that ABI is emulators only; all
-            // production Android phones are ARM. Debug keeps every ABI so the
-            // app still runs on x86_64 emulators.
-            // Gradle forbids ndk.abiFilters when ABI splits are active, so skip
-            // it for `flutter build apk --split-per-abi` (-Psplit-per-abi).
-            if (!project.hasProperty("split-per-abi")) {
-                ndk {
-                    abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-                }
-            }
         }
         debug {
             isMinifyEnabled = false

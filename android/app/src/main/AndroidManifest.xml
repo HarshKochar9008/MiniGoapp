@@ -8,10 +8,11 @@
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <!-- Media access (Android 13+) -->
+    <!-- Media access (Android 13+). Only images and video: saveFileToDevice()
+         routes those to the gallery via Gal, and everything else (audio
+         included) to Downloads, which needs no media permission. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
 
     <!-- Storage (Android 9 and below) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -22,7 +23,9 @@
     <application
         android:label="MiniGo"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -75,12 +78,17 @@
             android:value="incoming_transfers" />
 
         <!-- Home screen widget -->
+        <!-- exported="true" is required so the system can deliver
+             APPWIDGET_UPDATE. WIDGET_COPY_CODE is deliberately NOT advertised
+             here: the widget's own PendingIntent targets this component
+             explicitly, and an explicit broadcast bypasses filter matching, so
+             declaring it only made the action discoverable to other apps.
+             onReceive additionally ignores any caller-supplied code. -->
         <receiver
             android:name=".MinigoWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.Zen.app.WIDGET_COPY_CODE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

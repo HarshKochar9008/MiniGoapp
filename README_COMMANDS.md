@@ -164,16 +164,26 @@ Android APK (debug):
 flutter build apk --debug
 ```
 
-Android APK (release):
+Android APK (release, for direct install/sideload — one APK per CPU architecture, roughly half the size of a fat APK):
 
 ```bash
-flutter build apk --release
+flutter build apk --release --split-per-abi -Psplit-per-abi
 ```
 
-Latest release APK: run the command above, then install or copy `build\app\outputs\flutter-apk\app-release.apk`. On Windows, build and open that folder in one step:
+Install `app-arm64-v8a-release.apk` on modern phones (2017+); `app-armeabi-v7a-release.apk` covers older 32-bit devices.
+
+Android APK (release, single fat APK — only when you need one file that works everywhere; contains both ARM ABIs, x86_64 is stripped automatically):
+
+```bash
+flutter build apk --release --target-platform android-arm,android-arm64
+```
+
+(`--target-platform` also skips compiling the unused x86_64 Dart snapshot, so the build is faster.)
+
+Latest release APK: run the command above, then install or copy it from `build\app\outputs\flutter-apk`. On Windows, build and open that folder in one step:
 
 ```powershell
-flutter build apk --release; explorer build\app\outputs\flutter-apk
+flutter build apk --release --split-per-abi -Psplit-per-abi; explorer build\app\outputs\flutter-apk
 ```
 
 Android App Bundle (Play Store):

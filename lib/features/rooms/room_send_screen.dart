@@ -156,22 +156,67 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
     });
     HapticFeedback.lightImpact();
 
+    // Resolve every member's E2E public key up front. Doing it here rather
+    // than inside the send loop means the "these members can't be encrypted
+    // for" warning is one decision, not a dialog interrupting each upload.
+    //
+    // A lookup that *throws* fails that member — it must not fall back to a
+    // plaintext upload, because a keyed recipient expects ciphertext only.
+    // A lookup that succeeds with no key is a different case: that member is
+    // genuinely unencryptable, and the user is asked about it below.
+    final memberKeys = <String, String?>{};
+    final lookupFailed = <String>{};
+    for (final state in _memberStates) {
+      try {
+        final recip =
+            await IdentityService.findUserByCode(state.member.shortCode);
+        final key = (recip?['public_key'] as String?)?.trim();
+        memberKeys[state.member.userId] =
+            (key == null || key.isEmpty) ? null : key;
+      } catch (_) {
+        lookupFailed.add(state.member.userId);
+      }
+    }
+    if (!mounted) return;
+
+    final unencryptable = _memberStates
+        .where((s) =>
+            !lookupFailed.contains(s.member.userId) &&
+            memberKeys[s.member.userId] == null)
+        .toList();
+    if (unencryptable.isNotEmpty) {
+      final proceed = await _confirmSendWithoutEncryption(
+        unencryptable.map((s) => _memberName(s.member)).toList(),
+      );
+      if (proceed != true || !mounted) {
+        setState(() => _sending = false);
+        return;
+      }
+    }
+
     var failures = 0;
     for (final state in _memberStates) {
       if (!mounted) return;
+
+      if (lookupFailed.contains(state.member.userId)) {
+        failures++;
+        setState(() {
+          state.status = _MemberSendStatus.failed;
+          state.error = 'Could not check this member\'s encryption key';
+        });
+        continue;
+      }
+
       setState(() => state.status = _MemberSendStatus.sending);
       try {
-        // Resolve the member's E2E public key so their files are encrypted.
-        // A lookup failure must fail this member, not silently fall back to a
-        // plaintext upload — a keyed recipient expects ciphertext only.
-        final recip =
-            await IdentityService.findUserByCode(state.member.shortCode);
-        final recipientKey = recip?['public_key'] as String?;
+        final recipientKey = memberKeys[state.member.userId];
         final result = await TransferService.sendFiles(
           senderId: widget.identity.id,
           receiverId: state.member.userId,
           receiverCode: state.member.shortCode,
           recipientPublicKey: recipientKey,
+          // Only reachable once the dialog above was accepted.
+          allowUnencrypted: recipientKey == null,
           files: _selectedFiles,
           roomId: widget.room.id,
           roomName: widget.room.name,
@@ -221,6 +266,50 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
             : 'Sent, but $failures member(s) failed.';
       }
     });
+  }
+
+  /// Asked once when one or more members published no X25519 public key, so
+  /// their copy of the files can only be uploaded as plaintext. Named
+  /// explicitly, because in a room the user is picking recipients in bulk and
+  /// would otherwise have no idea which ones are unprotected.
+  Future<bool?> _confirmSendWithoutEncryption(List<String> names) {
+    final list = names.join(', ');
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Not end-to-end encrypted'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              names.length == 1
+                  ? '$list has not published an encryption key.'
+                  : 'These members have not published an encryption key: '
+                      '$list.',
+              style: MiniText.bodySoft,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Their copy will be uploaded as-is, which means the server can '
+              'read it while the transfer is live. Everyone else in this room '
+              'still gets an encrypted copy.',
+              style: MiniText.small,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send anyway'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _memberName(RoomMember m) =>
