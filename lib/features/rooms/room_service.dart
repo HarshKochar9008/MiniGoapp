@@ -230,9 +230,7 @@ class RoomService {
         .from('room_members')
         .select('room_id')
         .eq('user_id', userId);
-    final roomIds = memberships
-        .map((row) => row['room_id'] as String)
-        .toList();
+    final roomIds = memberships.map((row) => row['room_id'] as String).toList();
     if (roomIds.isEmpty) return const [];
 
     final rows = await SupabaseConfig.client
@@ -244,11 +242,14 @@ class RoomService {
         .order('created_at', ascending: false);
     return rows.map<Room>((row) {
       final members = (row['room_members'] as List?) ?? const [];
-      final names = members.map((m) {
-        final nick = (m['nickname'] as String?)?.trim();
-        if (nick != null && nick.isNotEmpty) return nick;
-        return (m['short_code'] as String?) ?? '';
-      }).where((n) => n.isNotEmpty).toList();
+      final names = members
+          .map((m) {
+            final nick = (m['nickname'] as String?)?.trim();
+            if (nick != null && nick.isNotEmpty) return nick;
+            return (m['short_code'] as String?) ?? '';
+          })
+          .where((n) => n.isNotEmpty)
+          .toList();
       return Room(
         id: row['id'] as String,
         code: row['code'] as String,

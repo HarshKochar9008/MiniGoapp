@@ -133,14 +133,13 @@ class _RoomsScreenState extends State<RoomsScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.refresh_rounded,
-                        color: c.inkFaint, size: 20),
+                    icon:
+                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
                     onPressed: _loadRooms,
                   ),
                 ],
               ),
             ),
-            const HairLine(indent: 20),
 
             // Create / Join actions
             Padding(
@@ -173,7 +172,6 @@ class _RoomsScreenState extends State<RoomsScreen> {
               title: 'Your rooms',
               counter: _rooms.isEmpty ? null : '${_rooms.length}',
             ),
-            const HairLine(indent: 20),
 
             Expanded(
               child: _loading
@@ -203,8 +201,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                               onRefresh: _loadRooms,
                               color: c.accent,
                               child: ListView.separated(
-                                physics:
-                                    const AlwaysScrollableScrollPhysics(),
+                                physics: const AlwaysScrollableScrollPhysics(),
                                 padding:
                                     const EdgeInsets.fromLTRB(20, 12, 20, 24),
                                 itemCount: _rooms.length,
@@ -212,8 +209,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                                     const SizedBox(height: 10),
                                 itemBuilder: (context, i) => _RoomCard(
                                   room: _rooms[i],
-                                  isOwner: _rooms[i]
-                                      .isOwnedBy(widget.identity.id),
+                                  isOwner:
+                                      _rooms[i].isOwnedBy(widget.identity.id),
                                   onTap: () => _openRoom(_rooms[i]),
                                 ),
                               ),
@@ -244,39 +241,58 @@ class _RoomAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    final fg = primary ? MiniColors.paper : c.ink;
-    return Material(
-      color: primary ? MiniColors.blue600 : c.paperDeep,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 22, color: fg),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: fg,
+    final fg = primary ? Colors.white : c.ink;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MiniRadius.card),
+        boxShadow: miniCardShadow(context, strong: primary),
+      ),
+      child: Material(
+        color: primary ? MiniColors.blue600 : c.paperDeep,
+        borderRadius: BorderRadius.circular(MiniRadius.card),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(MiniRadius.card),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: primary
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : c.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(icon,
+                      size: 20, color: primary ? Colors.white : c.accent),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: GoogleFonts.outfit(
-                  fontSize: 11,
-                  color: primary
-                      ? MiniColors.paper.withValues(alpha: 0.75)
-                      : c.inkFaint,
+                const SizedBox(height: 14),
+                Text(
+                  title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: fg,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: primary
+                        ? Colors.white.withValues(alpha: 0.8)
+                        : c.inkFaint,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -307,78 +323,87 @@ class _RoomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return Material(
-      color: c.paperDeep.withValues(alpha: 0.5),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      room.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w500,
-                        color: c.ink,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MiniRadius.card),
+        boxShadow: miniCardShadow(context),
+      ),
+      child: Material(
+        color: c.paperDeep,
+        borderRadius: BorderRadius.circular(MiniRadius.card),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(MiniRadius.card),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        room.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.4,
+                          color: c.ink,
+                        ),
                       ),
                     ),
-                  ),
-                  if (isOwner) _Chip(label: 'Host'),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: c.paperDeep,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  fmtCode(room.code),
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 13,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w500,
-                    color: c.ink,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  if (room.memberNames.isNotEmpty) ...[
-                    _MemberAvatars(names: room.memberNames),
-                    const SizedBox(width: 8),
+                    if (isOwner) _Chip(label: 'Host'),
                   ],
-                  Text(
-                    '${room.memberCount} member${room.memberCount == 1 ? '' : 's'}',
-                    style: GoogleFonts.outfit(
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: c.sand,
+                    borderRadius: BorderRadius.circular(MiniRadius.pill),
+                  ),
+                  child: Text(
+                    fmtCode(room.code),
+                    style: GoogleFonts.jetBrainsMono(
                       fontSize: 13,
-                      color: c.inkSoft,
+                      letterSpacing: 1,
+                      fontWeight: FontWeight.w600,
+                      color: c.ink,
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    _timeLeftLabel(),
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: !room.isExpired && room.timeLeft.inMinutes < 10
-                          ? MiniColors.warn
-                          : c.inkFaint,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    if (room.memberNames.isNotEmpty) ...[
+                      _MemberAvatars(names: room.memberNames),
+                      const SizedBox(width: 9),
+                    ],
+                    Text(
+                      '${room.memberCount} member${room.memberCount == 1 ? '' : 's'}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: c.inkSoft,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const Spacer(),
+                    Text(
+                      _timeLeftLabel(),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: !room.isExpired && room.timeLeft.inMinutes < 10
+                            ? MiniColors.warn
+                            : c.inkFaint,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -401,8 +426,8 @@ class _MemberAvatars extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     final shown = names.take(3).toList();
-    const size = 22.0;
-    const overlap = 14.0;
+    const size = 26.0;
+    const overlap = 17.0;
     return SizedBox(
       width: size + (shown.length - 1) * overlap,
       height: size,
@@ -417,16 +442,16 @@ class _MemberAvatars extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Color.alphaBlend(
-                    _tints[i % _tints.length].withValues(alpha: 0.18),
-                    c.paper,
+                    _tints[i % _tints.length].withValues(alpha: 0.20),
+                    c.paperDeep,
                   ),
                   shape: BoxShape.circle,
-                  border: Border.all(color: c.paper, width: 1.5),
+                  border: Border.all(color: c.paperDeep, width: 2),
                 ),
                 child: Text(
                   shown[i].characters.first.toUpperCase(),
                   style: GoogleFonts.outfit(
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: _tints[i % _tints.length],
                   ),
@@ -446,17 +471,18 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
       decoration: BoxDecoration(
-        color: MiniColors.blue600.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: context.mini.accentSoft,
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
       ),
       child: Text(
         label,
         style: GoogleFonts.outfit(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: MiniColors.blue600,
+          fontSize: 11.5,
+          height: 1,
+          fontWeight: FontWeight.w600,
+          color: context.mini.accent,
         ),
       ),
     );
@@ -475,10 +501,18 @@ class _EmptyRooms extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.groups_outlined, size: 44, color: c.inkFaint),
-            const SizedBox(height: 16),
-            Text('No rooms yet', style: MiniText.bodySoft),
-            const SizedBox(height: 6),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.accent.withValues(alpha: 0.12),
+              ),
+              child: Icon(Icons.groups_rounded, size: 30, color: c.accent),
+            ),
+            const SizedBox(height: 20),
+            Text('No rooms yet', style: MiniText.title.copyWith(color: c.ink)),
+            const SizedBox(height: 8),
             Text(
               'Create a room and share its code, or join one '
               'with a code from a friend. Up to '
@@ -580,16 +614,25 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
             autofocus: true,
             maxLength: AppConstants.maxRoomNameLength,
             textCapitalization: TextCapitalization.sentences,
-            style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
+            style: GoogleFonts.outfit(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: c.ink,
+            ),
             decoration: InputDecoration(
               hintText: 'Room name',
-              hintStyle:
-                  GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+              hintStyle: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: c.inkFaint,
+              ),
               counterText: '',
               filled: true,
-              fillColor: c.paperDeep,
+              fillColor: c.sand,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(MiniRadius.control),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -639,19 +682,20 @@ class _LifetimeChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Material(
-      color: selected ? MiniColors.blue600 : c.paperDeep,
-      borderRadius: BorderRadius.circular(999),
+      color: selected ? MiniColors.blue600 : c.sand,
+      borderRadius: BorderRadius.circular(MiniRadius.pill),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
           child: Text(
             label,
             style: GoogleFonts.outfit(
               fontSize: 13,
+              height: 1.1,
               fontWeight: FontWeight.w500,
-              color: selected ? MiniColors.paper : c.inkSoft,
+              color: selected ? Colors.white : c.inkSoft,
             ),
           ),
         ),
@@ -773,7 +817,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
         style: GoogleFonts.jetBrainsMono(
           fontSize: 22,
           letterSpacing: 3,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           color: c.ink,
         ),
         decoration: InputDecoration(
@@ -785,14 +829,15 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           ),
           counterText: '',
           filled: true,
-          fillColor: c.paperDeep,
+          fillColor: c.sand,
+          contentPadding: const EdgeInsets.symmetric(vertical: 18),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(MiniRadius.control),
             borderSide: BorderSide.none,
           ),
           suffixIcon: IconButton(
-            icon: Icon(Icons.qr_code_scanner_rounded,
-                size: 20, color: c.inkSoft),
+            icon:
+                Icon(Icons.qr_code_scanner_rounded, size: 20, color: c.inkSoft),
             tooltip: 'Scan room QR',
             onPressed: _joining ? null : _scanQr,
           ),
@@ -827,38 +872,43 @@ class _RoomSheetScaffold extends StatelessWidget {
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
-          color: c.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          color: c.paperDeep,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(MiniRadius.sheet),
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 36,
-                height: 4,
+                width: 40,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: c.divider,
-                  borderRadius: BorderRadius.circular(4),
+                  color: c.sandDeep,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
             Text(title, style: MiniText.title.copyWith(color: c.ink)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: MiniText.small),
-            const SizedBox(height: 16),
+            const SizedBox(height: 6),
+            Text(subtitle, style: MiniText.bodySoft),
+            const SizedBox(height: 20),
             child,
             if (error != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 error!,
-                style: MiniText.small.copyWith(color: MiniColors.danger),
+                style: MiniText.small.copyWith(
+                  color: MiniColors.danger,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             button,
           ],
         ),

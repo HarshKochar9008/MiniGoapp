@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +7,7 @@ import '../../core/constants.dart';
 import '../../core/supabase_config.dart';
 import '../../features/identity/identity_service.dart';
 import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_ufo.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -80,8 +81,10 @@ class _CodeShuffler extends StatefulWidget {
   final String? settle;
   final TextStyle style;
   final VoidCallback? onSettled;
+
   /// Delay before locking chars (ignored when settle is null).
   final Duration shuffleDuration;
+
   /// Gap between each char locking in.
   final Duration lockInterval;
 
@@ -89,7 +92,8 @@ class _CodeShuffler extends StatefulWidget {
     this.settle,
     required this.style,
     this.onSettled,
-  }) : shuffleDuration = const Duration(seconds: 2), lockInterval = const Duration(milliseconds: 80);
+  })  : shuffleDuration = const Duration(seconds: 2),
+        lockInterval = const Duration(milliseconds: 80);
 
   @override
   State<_CodeShuffler> createState() => _CodeShufflerState();
@@ -203,11 +207,11 @@ class _PageDots extends StatelessWidget {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
           margin: const EdgeInsets.symmetric(horizontal: 3),
-          height: 4,
-          width: active ? 20 : 4,
+          height: 5,
+          width: active ? 22 : 5,
           decoration: BoxDecoration(
-            color: active ? c.ink : c.inkFaint,
-            borderRadius: BorderRadius.circular(2),
+            color: active ? c.accent : c.sandDeep,
+            borderRadius: BorderRadius.circular(MiniRadius.pill),
           ),
         );
       }),
@@ -241,12 +245,8 @@ class _OnbWelcome extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Image.asset(
-                'assets/logo.png',
-                width: 96,
-                height: 96,
-              ),
-              const SizedBox(height: 36),
+              const MiniUfo(size: 190),
+              const SizedBox(height: 22),
               Text(
                 'Send anything.',
                 style: MiniText.display,
@@ -255,10 +255,7 @@ class _OnbWelcome extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'to anyone, anywhere.',
-                style: MiniText.display.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: c.accent,
-                ),
+                style: MiniText.display.copyWith(color: c.accent),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
@@ -403,11 +400,8 @@ class _OnbCodeState extends State<_OnbCode> {
                 curve: Curves.easeIn,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: c.paperDeep,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: miniCard(context, radius: MiniRadius.control),
                   child: Text(
                     'This is you. Anyone can send you files with this code – it never changes and reveals nothing about you.',
                     textAlign: TextAlign.center,
@@ -456,22 +450,19 @@ class _OnbPermissions extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: c.paperDeep,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    padding: const EdgeInsets.all(18),
+                    decoration: miniCard(context, radius: MiniRadius.control),
                     child: Row(
                       children: [
                         Container(
-                          width: 8,
-                          height: 8,
+                          width: 10,
+                          height: 10,
                           decoration: BoxDecoration(
                             color: c.accent,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,12 +470,13 @@ class _OnbPermissions extends StatelessWidget {
                               Text(
                                 r[0],
                                 style: GoogleFonts.outfit(
-                                  fontSize: 14,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w500,
+                                  letterSpacing: -0.2,
                                   color: c.ink,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 3),
                               Text(r[1], style: MiniText.small),
                             ],
                           ),
@@ -551,26 +543,29 @@ class _OnbNickname extends StatelessWidget {
                 onChanged: onNicknameChanged,
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
-                style: MiniText.body.copyWith(fontSize: 18),
+                style: MiniText.body.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
                 decoration: InputDecoration(
                   hintText: 'e.g., Alex, BlueBunny, ...',
                   filled: true,
-                  fillColor: c.paperDeep,
+                  fillColor: c.sand,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(MiniRadius.control),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(MiniRadius.control),
                     borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(MiniRadius.control),
                     borderSide: BorderSide(color: c.accent, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
-                    vertical: 16,
+                    vertical: 18,
                   ),
                 ),
               ),
@@ -610,12 +605,8 @@ class _OnbReady extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              const Icon(
-                Icons.check_circle_outline_rounded,
-                size: 56,
-                color: MiniColors.success,
-              ),
-              const SizedBox(height: 24),
+              const MiniUfo(size: 170, tint: MiniColors.success),
+              const SizedBox(height: 12),
               Text(
                 'You\'re ready.',
                 style: MiniText.display,

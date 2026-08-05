@@ -103,17 +103,15 @@ class AppErrorHandler {
   static void showErrorSnackBar(BuildContext context, String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
-    final iconColor =
-        Theme.of(context).snackBarTheme.contentTextStyle?.color ??
-            context.mini.paper;
+    final iconColor = Theme.of(context).snackBarTheme.contentTextStyle?.color ??
+        context.mini.paper;
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.error_outline_rounded,
-                  size: 18, color: iconColor),
+              Icon(Icons.error_outline_rounded, size: 18, color: iconColor),
               const SizedBox(width: 10),
               Expanded(child: Text(message)),
             ],

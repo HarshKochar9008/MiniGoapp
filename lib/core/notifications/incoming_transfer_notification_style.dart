@@ -4,7 +4,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 ///
 /// Android: [largeIcon] shows the MiniGo logo in the expanded notification header.
 /// The bitmap lives at `android/app/src/main/res/drawable/minigo_notif_logo.png`
-/// (kept in sync with `assets/logo.png`).
+/// (kept in sync with `assets/minigo_ufo.png`, on the same 45° diagonal plate
+/// as the launcher icon in `assets/icon/`).
 ///
 /// Use [stableNotificationId] + [androidTagForTransfer] so multiple FCM deliveries for the
 /// same transfer (e.g. webhook + client invoke) **replace** a single tray slot instead of
@@ -33,7 +34,8 @@ class IncomingTransferLocalNotifications {
     Map<String, dynamic> data, {
     String? messageId,
   }) {
-    final tid = (data['transfer_id'] ?? data['transferId'] ?? '').toString().trim();
+    final tid =
+        (data['transfer_id'] ?? data['transferId'] ?? '').toString().trim();
     if (tid.isNotEmpty) {
       return tid.hashCode.abs() % 2000000000;
     }
@@ -51,7 +53,8 @@ class IncomingTransferLocalNotifications {
 
   /// Android tag groups replacements; must stay stable per transfer.
   static String? androidTagForTransfer(Map<String, dynamic> data) {
-    final tid = (data['transfer_id'] ?? data['transferId'] ?? '').toString().trim();
+    final tid =
+        (data['transfer_id'] ?? data['transferId'] ?? '').toString().trim();
     if (tid.isEmpty) return 'minigo_incoming_unknown';
     return 'minigo_incoming_$tid';
   }

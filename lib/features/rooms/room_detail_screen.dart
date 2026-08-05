@@ -9,6 +9,7 @@ import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/native/native_share.dart';
 import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_code_reel.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
@@ -123,9 +124,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   void _openRoomSend() {
     HapticFeedback.selectionClick();
-    final recipients = _members
-        .where((m) => m.userId != widget.identity.id)
-        .toList();
+    final recipients =
+        _members.where((m) => m.userId != widget.identity.id).toList();
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -257,7 +257,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         title: Text(widget.room.name),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: c.inkFaint, size: 20),
+            icon: Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
             onPressed: _loadMembers,
           ),
         ],
@@ -273,74 +273,82 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   // Room code card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: c.sand,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: c.accent.withValues(alpha: 0.18),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text('Room code',
-                            style: MiniText.label.copyWith(color: c.inkSoft)),
-                        const SizedBox(height: 10),
-                        Text(
-                          fmtCode(widget.room.code),
-                          textAlign: TextAlign.center,
-                          style: MiniText.code.copyWith(
-                            fontSize: 30,
-                            color: c.ink,
-                            letterSpacing: 4,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: miniCard(context, strong: true),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Text('Room code',
+                              style:
+                                  MiniText.label.copyWith(color: c.inkFaint)),
+                          const SizedBox(height: 12),
+                          MiniCodeReel(
+                            code: widget.room.code,
+                            style: MiniText.code.copyWith(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w600,
+                              color: c.ink,
+                              letterSpacing: 4,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.timer_outlined,
-                                size: 13, color: _expiryTint),
-                            const SizedBox(width: 4),
-                            Text(
-                              _expiryLabel,
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: _expiryTint,
-                              ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 11, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _expiryTint.withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(MiniRadius.pill),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _OutlineBtn(
-                                icon: Icons.copy_rounded,
-                                label: 'Copy',
-                                onTap: _copyCode,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.timer_rounded,
+                                    size: 14, color: _expiryTint),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _expiryLabel,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    height: 1,
+                                    fontWeight: FontWeight.w600,
+                                    color: _expiryTint,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _OutlineBtn(
-                                icon: Icons.qr_code_rounded,
-                                label: 'QR',
-                                onTap: _showQr,
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.copy_rounded,
+                                  label: 'Copy',
+                                  onTap: _copyCode,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _OutlineBtn(
-                                icon: Icons.share_rounded,
-                                label: 'Invite',
-                                onTap: _shareCode,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.qr_code_rounded,
+                                  label: 'QR',
+                                  onTap: _showQr,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _OutlineBtn(
+                                  icon: Icons.share_rounded,
+                                  label: 'Invite',
+                                  onTap: _shareCode,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -350,7 +358,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     counter:
                         '${_members.length}/${AppConstants.maxRoomMembers}',
                   ),
-                  const HairLine(),
 
                   if (_loading)
                     Padding(
@@ -372,10 +379,9 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         member: member,
                         isYou: member.userId == widget.identity.id,
                         isHost: member.userId == widget.room.ownerId,
-                        showShareToggle: _isOwner &&
-                            member.userId != widget.identity.id,
-                        onShareToggle: (v) =>
-                            _toggleMemberShare(member, v),
+                        showShareToggle:
+                            _isOwner && member.userId != widget.identity.id,
+                        onShareToggle: (v) => _toggleMemberShare(member, v),
                         onLongPress: member.userId == widget.identity.id
                             ? null
                             : () => ContactAliasSheet.show(
@@ -384,17 +390,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                   code: member.shortCode,
                                 ),
                       ),
-                      const HairLine(indent: 56),
                     ],
-                    if (_isOwner && _members.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Use the switches to control who can share files '
-                          'in this room.',
-                          style: MiniText.small,
-                        ),
+                  if (_isOwner && _members.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Use the switches to control who can share files '
+                        'in this room.',
+                        style: MiniText.small,
                       ),
+                    ),
 
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -422,8 +427,11 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                     _iCanShare) ...[
                   MiniButton(
                     label: 'Share files to room',
-                    leading: const Icon(Icons.north_east_rounded,
-                        size: 16, color: MiniColors.paper),
+                    leading: Icon(
+                      Icons.north_east_rounded,
+                      size: 17,
+                      color: context.isDarkMini ? c.paper : Colors.white,
+                    ),
                     onPressed: _openRoomSend,
                   ),
                   const SizedBox(height: 10),
@@ -471,29 +479,31 @@ class _MemberRow extends StatelessWidget {
     final name = ContactAliases.aliasFor(member.userId) ?? member.displayName;
     return GestureDetector(
       onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: miniCard(context, radius: MiniRadius.tile),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                color: isHost ? c.accent.withValues(alpha: 0.10) : c.paperDeep,
+                color: isHost ? c.accent.withValues(alpha: 0.12) : c.sand,
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
                   name.characters.first.toUpperCase(),
                   style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
                     color: isHost ? c.accent : c.inkSoft,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,17 +512,19 @@ class _MemberRow extends StatelessWidget {
                     isYou ? '$name (you)' : name,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.outfit(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
                       color: c.ink,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     fmtCode(member.shortCode),
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11,
-                      letterSpacing: 1.5,
+                      fontSize: 11.5,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w500,
                       color: c.inkFaint,
                     ),
                   ),
@@ -521,16 +533,18 @@ class _MemberRow extends StatelessWidget {
             ),
             if (isHost)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: c.accent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
+                  color: c.accentSoft,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
                 child: Text(
                   'Host',
                   style: GoogleFonts.outfit(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                    height: 1,
+                    fontWeight: FontWeight.w600,
                     color: c.accent,
                   ),
                 ),
@@ -562,29 +576,29 @@ class _OutlineBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: c.paper,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.divider),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 15, color: c.ink),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: c.ink,
+    return Material(
+      color: c.sand,
+      borderRadius: BorderRadius.circular(MiniRadius.control),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(MiniRadius.control),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: c.ink),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

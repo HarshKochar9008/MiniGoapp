@@ -910,7 +910,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text('Send to'),
@@ -921,11 +921,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: c.paperDeep,
-                borderRadius: BorderRadius.circular(14),
-              ),
+              padding: const EdgeInsets.all(5),
+              decoration: miniCard(context, radius: MiniRadius.control),
               child: Row(
                 children: [
                   Expanded(
@@ -947,7 +944,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 22,
                         letterSpacing: 3,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         color: c.ink,
                       ),
                       decoration: InputDecoration(
@@ -1004,10 +1001,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               : MiniColors.blue600,
                           disabledBackgroundColor: _codeValidated
                               ? MiniColors.success
-                              : MiniColors.blue600.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                              : MiniColors.blue600.withValues(alpha: 0.45),
+                          minimumSize: const Size(0, 44),
+                          shape: const StadiumBorder(),
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                         ),
                         child: _validatingCode
@@ -1015,13 +1011,16 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: MiniColors.paper),
+                                  strokeWidth: 2.2,
+                                  strokeCap: StrokeCap.round,
+                                  color: Colors.white,
+                                ),
                               )
                             : Text(
                                 _codeValidated ? 'Verified ✓' : 'Validate',
                                 style: GoogleFonts.outfit(
-                                  color: MiniColors.paper,
-                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -1050,24 +1049,25 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       children: [
                         for (final r in _recentSuggestions)
                           Material(
-                            color: c.paperDeep,
-                            borderRadius: BorderRadius.circular(14),
+                            color: c.sand,
+                            borderRadius:
+                                BorderRadius.circular(MiniRadius.chip),
                             child: InkWell(
                               onTap: () => _applyRecentCode(r.code),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius:
+                                  BorderRadius.circular(MiniRadius.chip),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 9),
+                                    horizontal: 14, vertical: 10),
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       fmtCode(r.code),
                                       style: GoogleFonts.jetBrainsMono(
                                         fontSize: 13,
-                                        letterSpacing: 1.2,
-                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 1,
+                                        fontWeight: FontWeight.w600,
                                         color: c.ink,
                                       ),
                                     ),
@@ -1102,8 +1102,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_codeError!,
-                      style:
-                          MiniText.small.copyWith(color: MiniColors.danger)),
+                      style: MiniText.small.copyWith(color: MiniColors.danger)),
                   if (_staleRecentCode != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
@@ -1182,11 +1181,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   else
                     for (var i = 0; i < _selectedFiles.length; i++) ...[
                       Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: c.paperDeep.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: miniCard(context, radius: MiniRadius.tile),
                         child: MiniFileRow(
                           name: _selectedFiles[i].name,
                           size: _formatSize(_selectedFiles[i].size),
@@ -1271,20 +1267,27 @@ class _EmptyFilesMini extends StatelessWidget {
     return GestureDetector(
       onTap: onPick,
       child: Container(
-        height: 160,
-        decoration: BoxDecoration(
-          color: c.paperDeep,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: c.divider),
-        ),
+        height: 190,
+        decoration: miniCard(context),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_circle_outline_rounded,
-                  size: 36, color: c.inkFaint),
-              const SizedBox(height: 14),
-              Text('Tap to choose files', style: MiniText.bodySoft),
+              MiniIconPlate(
+                icon: Icons.add_rounded,
+                tint: c.accent,
+                size: 56,
+                iconSize: 28,
+                radius: 10,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Tap to choose files',
+                style: MiniText.body.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                ),
+              ),
               const SizedBox(height: 4),
               Text('Images, videos, documents — any type',
                   style: MiniText.small),
@@ -1305,16 +1308,23 @@ class _GhostAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 13,
-            color: color ?? c.inkSoft,
-            fontWeight: FontWeight.w500,
+    final tone = color ?? c.inkSoft;
+    return Material(
+      color: tone.withValues(alpha: context.isDarkMini ? 0.16 : 0.10),
+      borderRadius: BorderRadius.circular(MiniRadius.pill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          child: Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              height: 1.2,
+              color: tone,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -1416,9 +1426,8 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                 filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: c.paperDeep.withValues(alpha: 0.55),
+                    color: c.sand.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: c.divider),
                   ),
                   child: GestureDetector(
                     onHorizontalDragStart: (_) {
@@ -1459,9 +1468,10 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                           child: Text(
                             nearDone ? 'Release to send' : 'Swipe to send',
                             style: GoogleFonts.outfit(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: c.inkSoft,
+                              letterSpacing: -0.1,
+                              color: nearDone ? c.accent : c.inkSoft,
                             ),
                           ),
                         ),
@@ -1477,16 +1487,16 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                               boxShadow: [
                                 BoxShadow(
                                   color: MiniColors.blue600
-                                      .withValues(alpha: 0.22),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 3),
+                                      .withValues(alpha: 0.13),
+                                  blurRadius: 7,
+                                  offset: const Offset(0, 1.8),
                                 ),
                               ],
                             ),
                             child: const Icon(
                               Icons.north_east_rounded,
-                              size: 18,
-                              color: MiniColors.paper,
+                              size: 19,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -1561,15 +1571,15 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
             child: Transform.scale(
               scale: scaleVal,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+                padding: const EdgeInsets.fromLTRB(30, 34, 30, 30),
                 decoration: BoxDecoration(
-                  color: c.paper,
-                  borderRadius: BorderRadius.circular(24),
+                  color: c.paperDeep,
+                  borderRadius: BorderRadius.circular(MiniRadius.card),
                   boxShadow: [
                     BoxShadow(
-                      color: MiniColors.success.withValues(alpha: 0.18),
-                      blurRadius: 32,
-                      spreadRadius: 4,
+                      color: MiniColors.success.withValues(alpha: 0.12),
+                      blurRadius: 24,
+                      spreadRadius: 2.4,
                     ),
                   ],
                 ),
@@ -1583,21 +1593,24 @@ class _SendSuccessDialogState extends State<_SendSuccessDialog>
                         painter: _CheckmarkPainter(_check.value),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     Text(
                       'Sent',
                       style: GoogleFonts.outfit(
-                        fontSize: 26,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.8,
                         color: c.ink,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Text(
                       widget.fileCount == 1
                           ? '1 file delivered'
                           : '${widget.fileCount} files delivered',
                       style: GoogleFonts.outfit(
-                        fontSize: 13,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                         color: c.inkSoft,
                       ),
                     ),
@@ -1632,8 +1645,8 @@ class _CheckmarkPainter extends CustomPainter {
     canvas.drawCircle(center, r * 0.78, innerPaint);
 
     final strokePaint = Paint()
-      ..color = MiniColors.paper
-      ..strokeWidth = 4.5
+      ..color = Colors.white
+      ..strokeWidth = 5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;

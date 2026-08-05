@@ -125,7 +125,8 @@ class OfflineSyncCoordinator {
 
     final now = DateTime.now();
     if (_lastPendingUploadSnackAt != null &&
-        now.difference(_lastPendingUploadSnackAt!) < const Duration(seconds: 45)) {
+        now.difference(_lastPendingUploadSnackAt!) <
+            const Duration(seconds: 45)) {
       return;
     }
     _lastPendingUploadSnackAt = now;
