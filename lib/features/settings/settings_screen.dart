@@ -103,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: MiniColors.danger,
-              foregroundColor: MiniColors.paper,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reset this app'),
@@ -138,7 +138,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const HairLine(indent: 20),
 
             // ── Profile ────────────────────────────────────────────────
             Padding(
@@ -258,35 +257,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return InkWell(
       onTap: _checkingPush ? null : _refreshPushReadiness,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(MiniRadius.card),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: tint.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                color: tint.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(9),
               ),
               child: _checkingPush
                   ? Padding(
-                      padding: const EdgeInsets.all(9),
+                      padding: const EdgeInsets.all(11),
                       child: CircularProgressIndicator(
-                        strokeWidth: 1.6,
+                        strokeWidth: 2,
+                        strokeCap: StrokeCap.round,
                         color: c.inkFaint,
                       ),
                     )
                   : Icon(
                       ready
-                          ? Icons.notifications_active_outlined
-                          : Icons.notifications_paused_outlined,
-                      size: 18,
+                          ? Icons.notifications_active_rounded
+                          : Icons.notifications_paused_rounded,
+                      size: 19,
                       color: tint,
                     ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,8 +296,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         'Background delivery',
                         style: GoogleFonts.outfit(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w500,
+                          letterSpacing: -0.2,
                           color: c.ink,
                         ),
                       ),
@@ -350,62 +351,66 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Container(
-      decoration: BoxDecoration(
-        color: c.paperDeep,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      clipBehavior: Clip.antiAlias,
+      decoration: miniCard(context, strong: true),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+            padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
             child: Column(
               children: [
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 74,
+                  height: 74,
                   decoration: BoxDecoration(
-                    color: c.accent.withValues(alpha: 0.10),
+                    color: c.accent.withValues(alpha: 0.13),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: c.accent.withValues(alpha: 0.25),
-                    ),
                   ),
                   child: Center(
                     child: Text(
                       (nickname ?? shortCode).characters.first.toUpperCase(),
                       style: GoogleFonts.outfit(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w600,
                         color: c.accent,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
                   nickname ?? 'Add a nickname',
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
                     color: nickname != null ? c.ink : c.inkFaint,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  fmtCode(shortCode),
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 14,
-                    letterSpacing: 2,
-                    color: c.inkSoft,
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: c.sand,
+                    borderRadius: BorderRadius.circular(MiniRadius.pill),
+                  ),
+                  child: Text(
+                    fmtCode(shortCode),
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 13,
+                      letterSpacing: 1.6,
+                      fontWeight: FontWeight.w500,
+                      color: c.inkSoft,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          HairLine(indent: 0),
           Padding(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             child: Row(
               children: [
                 _ProfileAction(
@@ -450,23 +455,24 @@ class _ProfileAction extends StatelessWidget {
     final c = context.mini;
     return Expanded(
       child: Material(
-        color: c.paper,
-        borderRadius: BorderRadius.circular(12),
+        color: c.sand,
+        borderRadius: BorderRadius.circular(MiniRadius.control),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(MiniRadius.control),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: 13),
             child: Column(
               children: [
-                Icon(icon, size: 18, color: c.inkSoft),
-                const SizedBox(height: 5),
+                Icon(icon, size: 19, color: c.ink),
+                const SizedBox(height: 6),
                 Text(
                   label,
                   style: GoogleFonts.outfit(
-                    fontSize: 11.5,
+                    fontSize: 12,
+                    height: 1,
                     fontWeight: FontWeight.w500,
-                    color: c.inkSoft,
+                    color: c.ink,
                   ),
                 ),
               ],
@@ -498,10 +504,10 @@ class _ThemeModePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: c.paper,
-        borderRadius: BorderRadius.circular(14),
+        color: c.sand,
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
       ),
       child: Row(
         children: [
@@ -536,28 +542,34 @@ class _ThemeSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return Material(
-      color: selected ? c.paperDeep : Colors.transparent,
-      borderRadius: BorderRadius.circular(11),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16, color: selected ? c.ink : c.inkFaint),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 12.5,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                  color: selected ? c.ink : c.inkFaint,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
+        boxShadow: selected ? miniCardShadow(context) : const [],
+      ),
+      child: Material(
+        color: selected ? c.paperDeep : Colors.transparent,
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(MiniRadius.pill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: selected ? c.ink : c.inkFaint),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    color: selected ? c.ink : c.inkFaint,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -624,50 +636,62 @@ class _NicknameSheetState extends State<_NicknameSheet> {
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
-          color: c.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          color: c.paperDeep,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(MiniRadius.sheet),
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 36,
-                height: 4,
+                width: 40,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: c.divider,
-                  borderRadius: BorderRadius.circular(4),
+                  color: c.sandDeep,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
             Text('Nickname', style: MiniText.title.copyWith(color: c.ink)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               'Shown on your home screen. Leave empty to remove it.',
-              style: MiniText.small,
+              style: MiniText.bodySoft,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             TextField(
               controller: _controller,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: c.ink,
+              ),
               decoration: InputDecoration(
                 hintText: 'Your nickname',
-                hintStyle: GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+                hintStyle: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: c.inkFaint,
+                ),
                 filled: true,
-                fillColor: c.paperDeep,
+                fillColor: c.sand,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(MiniRadius.control),
                   borderSide: BorderSide.none,
                 ),
               ),
               onSubmitted: (_) => _save(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             MiniButton(label: 'Save', onPressed: _save),
           ],
         ),
@@ -688,13 +712,13 @@ class _GroupLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      padding: const EdgeInsets.fromLTRB(26, 26, 26, 10),
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.outfit(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
+          letterSpacing: 0.9,
           color: c.inkFaint,
         ),
       ),
@@ -708,19 +732,15 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mini;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        decoration: BoxDecoration(
-          color: c.paperDeep,
-          borderRadius: BorderRadius.circular(18),
-        ),
+        decoration: miniCard(context),
         child: Column(
           children: [
             for (var i = 0; i < children.length; i++) ...[
               children[i],
-              if (i < children.length - 1) const HairLine(indent: 60),
+              if (i < children.length - 1) const HairLine(indent: 66),
             ],
           ],
         ),
@@ -751,22 +771,20 @@ class _SettingsTile extends StatelessWidget {
     final c = context.mini;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(MiniRadius.card),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         child: Row(
           children: [
             if (icon != null) ...[
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: (iconTint ?? c.inkFaint).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 18, color: iconTint ?? c.inkFaint),
+              MiniIconPlate(
+                icon: icon!,
+                tint: iconTint ?? c.inkSoft,
+                size: 40,
+                iconSize: 19,
+                radius: 9,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 13),
             ],
             Expanded(
               child: Column(
@@ -775,13 +793,14 @@ class _SettingsTile extends StatelessWidget {
                   Text(
                     label,
                     style: GoogleFonts.outfit(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
+                      letterSpacing: -0.2,
                       color: labelColor ?? c.ink,
                     ),
                   ),
                   if (sub != null) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(sub!,
                         style: MiniText.small.copyWith(color: c.inkSoft)),
                   ],

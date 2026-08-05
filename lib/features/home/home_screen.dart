@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/analytics/analytics.dart';
 import '../../core/native/native_share.dart';
 import '../../Minigo/theme/mini_theme.dart';
-import '../../Minigo/widgets/mini_widgets.dart';
+import '../../Minigo/widgets/mini_code_reel.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import '../receive/received_tab_screen.dart';
@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Top bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 4),
               child: Row(
                 children: [
                   Expanded(
@@ -136,8 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('You are',
-                            style: MiniText.label.copyWith(color: c.inkSoft)),
-                        const SizedBox(height: 4),
+                            style: MiniText.label.copyWith(color: c.inkFaint)),
+                        const SizedBox(height: 5),
                         Text(
                           displayName,
                           maxLines: 1,
@@ -148,35 +148,39 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: _copyCode,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            fmtCode(code),
-                            style: MiniText.code.copyWith(
-                              fontSize: 19,
-                              color: headerCodeColor,
+                  Material(
+                    color: c.sand,
+                    borderRadius: BorderRadius.circular(MiniRadius.pill),
+                    child: InkWell(
+                      onTap: _copyCode,
+                      borderRadius: BorderRadius.circular(MiniRadius.pill),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 9),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              fmtCode(code),
+                              style: MiniText.code.copyWith(
+                                fontSize: 15,
+                                color: headerCodeColor,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            Icons.copy_rounded,
-                            size: 15,
-                            color: c.inkFaint,
-                          ),
-                        ],
+                            const SizedBox(width: 7),
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 15,
+                              color: c.inkSoft,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const HairLine(indent: 20),
 
             // Large code card
             Expanded(
@@ -188,88 +192,84 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Code card
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(28),
-                      decoration: BoxDecoration(
-                        color: c.sand,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: MiniColors.success.withValues(alpha: 0.22),
-                          width: 1,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: miniCard(context, strong: true),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 26, 24, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'YOUR CODE',
+                              style: MiniText.label.copyWith(
+                                color: c.inkFaint,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            MiniCodeReel(
+                              code: code,
+                              style: MiniText.codeLarge.copyWith(
+                                color: c.ink,
+                                letterSpacing: 4,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            // One flush strip, hairline-separated — the three
+                            // actions belong to the code above them, so they
+                            // read as part of the card rather than as tiles.
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ActionTile(
+                                    icon: Icons.qr_code_scanner_rounded,
+                                    label: 'Scan',
+                                    onTap: _scanAndSend,
+                                  ),
+                                ),
+                                _ActionDivider(color: c.dividerSoft),
+                                Expanded(
+                                  child: _ActionTile(
+                                    icon: Icons.qr_code_rounded,
+                                    label: 'QR',
+                                    onTap: _showQr,
+                                  ),
+                                ),
+                                _ActionDivider(color: c.dividerSoft),
+                                Expanded(
+                                  child: _ActionTile(
+                                    icon: Icons.share_rounded,
+                                    label: 'Share',
+                                    onTap: _shareCode,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'YOUR CODE',
-                            style: MiniText.label.copyWith(
-                              color: MiniColors.success,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            fmtCode(code),
-                            style: MiniText.codeLarge.copyWith(
-                              color: c.ink,
-                              letterSpacing: 4,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _OutlineBtn(
-                                  icon: Icons.qr_code_scanner_rounded,
-                                  label: 'Scan',
-                                  onTap: _scanAndSend,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _OutlineBtn(
-                                  icon: Icons.qr_code_rounded,
-                                  label: 'QR',
-                                  onTap: _showQr,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _OutlineBtn(
-                                  icon: Icons.share_rounded,
-                                  label: 'Share',
-                                  onTap: _shareCode,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
                     // Info card
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 14),
+                          horizontal: 18, vertical: 16),
                       decoration: BoxDecoration(
-                        color: c.accent.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: c.accent.withValues(alpha: 0.35)),
+                        color: c.accentSoft,
+                        borderRadius: BorderRadius.circular(MiniRadius.control),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline_rounded,
-                              size: 18, color: c.accent),
-                          const SizedBox(width: 10),
+                          Icon(Icons.info_rounded, size: 19, color: c.accent),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               'Share this code with others to send them files. ',
                               style: GoogleFonts.outfit(
-                                fontSize: 12,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w500,
                                 color: c.accent,
-                                height: 1.5,
+                                height: 1.4,
                               ),
                             ),
                           ),
@@ -284,14 +284,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _PillButton(
               icon: Icons.south_west_rounded,
               label: 'Received',
-              background: c.paper,
+              background: c.paperDeep,
               foreground: c.ink,
               border: c.divider,
               onTap: _openReceived,
@@ -301,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.north_east_rounded,
               label: 'Send',
               background: MiniColors.blue600,
-              foreground: MiniColors.paper,
+              foreground: Colors.white,
               onTap: _openSend,
             ),
           ],
@@ -331,33 +331,37 @@ class _PillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      shape: StadiumBorder(
-        side: border != null ? BorderSide(color: border!) : BorderSide.none,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
+        boxShadow: miniCardShadow(context, strong: border == null),
       ),
-      elevation: border != null ? 0 : 2,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const StadiumBorder(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 15),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.5,
-                  fontSize: 15,
-                  color: foreground,
+      child: Material(
+        color: background,
+        shape: StadiumBorder(
+          side: border != null ? BorderSide(color: border!) : BorderSide.none,
+        ),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 17),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: foreground),
+                const SizedBox(width: 9),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.1,
+                    fontSize: 15,
+                    color: foreground,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -365,39 +369,54 @@ class _PillButton extends StatelessWidget {
   }
 }
 
-class _OutlineBtn extends StatelessWidget {
+/// Hairline rule between two quick actions. Short and faint on purpose — it
+/// groups the actions instead of boxing each one off.
+class _ActionDivider extends StatelessWidget {
+  final Color color;
+  const _ActionDivider({required this.color});
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 26, color: color);
+}
+
+/// Stacked icon + label used for the code card's three quick actions. Drawn on
+/// the card itself — no fill, no icon plate, no tint.
+class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _OutlineBtn(
-      {required this.icon, required this.label, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: c.paper,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.divider),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 15, color: c.ink),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: c.ink,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(MiniRadius.control),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            children: [
+              Icon(icon, size: 20, color: c.inkSoft),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 12.5,
+                  height: 1,
+                  fontWeight: FontWeight.w500,
+                  color: c.inkSoft,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

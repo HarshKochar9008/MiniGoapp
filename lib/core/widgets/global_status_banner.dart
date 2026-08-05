@@ -127,16 +127,16 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+            padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
             child: Row(
               children: [
-                Icon(icon, size: 14, color: color),
-                const SizedBox(width: 8),
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Text(
                     text,
                     style: GoogleFonts.outfit(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       color: color,
                       fontWeight: FontWeight.w500,
                     ),
@@ -144,22 +144,33 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
                 ),
                 if (actionLabel != null && onTap != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.only(left: 8),
                     child: _retrying
                         ? SizedBox(
-                            width: 12,
-                            height: 12,
+                            width: 13,
+                            height: 13,
                             child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
+                              strokeWidth: 1.8,
+                              strokeCap: StrokeCap.round,
                               color: color,
                             ),
                           )
-                        : Text(
-                            actionLabel,
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                              color: color,
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.16),
+                              borderRadius:
+                                  BorderRadius.circular(MiniRadius.pill),
+                            ),
+                            child: Text(
+                              actionLabel,
+                              style: GoogleFonts.outfit(
+                                fontSize: 11.5,
+                                height: 1.2,
+                                fontWeight: FontWeight.w600,
+                                color: color,
+                              ),
                             ),
                           ),
                   ),

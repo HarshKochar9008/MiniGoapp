@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -109,10 +109,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
         const Duration(seconds: 45), (_) => _ensureRealtimeHealthy());
   }
 
-  Future<void> _ensureRealtimeHealthy(
-      {bool forceResubscribe = false}) async {
-    final staleFor =
-        DateTime.now().toUtc().difference(_lastRealtimeSignalAt);
+  Future<void> _ensureRealtimeHealthy({bool forceResubscribe = false}) async {
+    final staleFor = DateTime.now().toUtc().difference(_lastRealtimeSignalAt);
     final stale = staleFor > const Duration(minutes: 3);
     if (!forceResubscribe && !stale && _channel != null) return;
 
@@ -191,8 +189,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Incoming',
-                            style:
-                                MiniText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('Received',
                             style: MiniText.title.copyWith(color: c.ink)),
@@ -200,38 +197,47 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     ),
                   ),
                   if (_channel != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: MiniColors.success,
-                            shape: BoxShape.circle,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: MiniColors.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(MiniRadius.pill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: MiniColors.success,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Live',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            color: MiniColors.success,
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(width: 6),
+                          Text(
+                            'Live',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              height: 1,
+                              color: MiniColors.success,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: Icon(Icons.refresh_rounded,
-                        color: c.inkFaint, size: 20),
+                    icon:
+                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],
               ),
             ),
-            const HairLine(indent: 20),
+            const SizedBox(height: 4),
 
             // Content
             Expanded(
@@ -276,14 +282,13 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                     horizontal: 16, vertical: 12),
                                 itemCount: _transfers!.length,
                                 separatorBuilder: (_, __) =>
-                                    const HairLine(indent: 0),
+                                    const SizedBox(height: 10),
                                 itemBuilder: (context, index) {
                                   final t = _transfers![index];
                                   final senderCode = t['sender_code'] ??
                                       (t['sender'] as Map?)?['short_code'] ??
                                       '???';
-                                  final senderId =
-                                      t['sender_id'] as String?;
+                                  final senderId = t['sender_id'] as String?;
                                   final status =
                                       (t['status'] ?? 'pending') as String;
                                   final createdAt =
@@ -332,18 +337,18 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: c.paperDeep,
+                color: c.accent.withValues(alpha: 0.12),
               ),
-              child: Icon(Icons.south_west_rounded, color: c.inkFaint),
+              child: Icon(Icons.south_west_rounded, color: c.accent, size: 30),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             Text('Nothing here yet',
                 style: MiniText.title.copyWith(color: c.ink)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               'Files sent to you will appear here.\nShare your code so others can send you files.',
               textAlign: TextAlign.center,
@@ -365,7 +370,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                   const SizedBox(width: 6),
                   Text('Listening for incoming files',
                       style: GoogleFonts.outfit(
-                        fontSize: 11,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                         color: MiniColors.success,
                       )),
                 ],
@@ -434,138 +440,128 @@ class _ReceivedTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: LinearGradient(
-                  colors: status == 'completed'
-                      ? [
-                          c.accent.withValues(alpha: 0.35),
-                          c.accent.withValues(alpha: 0.10)
-                        ]
-                      : [c.sand, c.paperDeep],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Icon(
-                status == 'completed'
+    final plateTint = status == 'completed' ? MiniColors.success : c.accent;
+    return Container(
+      decoration: miniCard(context, radius: MiniRadius.tile),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            children: [
+              MiniIconPlate(
+                icon: status == 'completed'
                     ? Icons.download_done_rounded
                     : Icons.south_west_rounded,
-                size: 18,
-                color: c.ink.withValues(alpha: 0.55),
+                tint: plateTint,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text('From ',
-                          style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
-                      if (senderAlias != null) ...[
-                        Flexible(
-                          child: Text(
-                            senderAlias!,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('From ',
+                            style:
+                                MiniText.bodySoft.copyWith(color: c.inkSoft)),
+                        if (senderAlias != null) ...[
+                          Flexible(
+                            child: Text(
+                              senderAlias!,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
+                                color: c.ink,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(fmtCode(senderCode),
-                            style: MiniText.codeSmall
-                                .copyWith(color: c.inkFaint, fontSize: 11)),
-                      ] else
-                        Text(fmtCode(senderCode),
-                            style: MiniText.codeSmall.copyWith(color: c.ink)),
-                      if (onEditAlias != null) ...[
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: onEditAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.all(3),
-                            child: Icon(
-                              senderAlias != null
-                                  ? Icons.edit_outlined
-                                  : Icons.person_add_alt_outlined,
-                              size: 14,
-                              color: c.inkFaint,
+                          const SizedBox(width: 6),
+                          Text(fmtCode(senderCode),
+                              style: MiniText.codeSmall
+                                  .copyWith(color: c.inkFaint, fontSize: 11)),
+                        ] else
+                          Text(fmtCode(senderCode),
+                              style: MiniText.codeSmall.copyWith(color: c.ink)),
+                        if (onEditAlias != null) ...[
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: onEditAlias,
+                            child: Padding(
+                              padding: const EdgeInsets.all(3),
+                              child: Icon(
+                                senderAlias != null
+                                    ? Icons.edit_outlined
+                                    : Icons.person_add_alt_outlined,
+                                size: 14,
+                                color: c.inkFaint,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: _tint,
-                          shape: BoxShape.circle,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: _tint,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(_label,
-                          style: MiniText.small.copyWith(color: c.inkSoft)),
-                      const SizedBox(width: 8),
-                      Text(timeAgo,
-                          style: MiniText.small.copyWith(color: c.inkFaint)),
-                      if (roomName != null) ...[
+                        const SizedBox(width: 5),
+                        Text(_label,
+                            style: MiniText.small.copyWith(color: c.inkSoft)),
                         const SizedBox(width: 8),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: c.accent.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.groups_rounded,
-                                    size: 11, color: c.accent),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    roomName!,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color: c.accent,
+                        Text(timeAgo,
+                            style: MiniText.small.copyWith(color: c.inkFaint)),
+                        if (roomName != null) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: c.accentSoft,
+                                borderRadius:
+                                    BorderRadius.circular(MiniRadius.pill),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.groups_rounded,
+                                      size: 12, color: c.accent),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      roomName!,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: c.accent,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
-          ],
+              Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -208,11 +208,13 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final approved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: c.paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: c.paperDeep,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(MiniRadius.card),
+        ),
         title: Text(
           'Battery saver is on',
-          style: GoogleFonts.outfit(color: c.ink, fontSize: 18),
+          style: MiniText.title.copyWith(color: c.ink, fontSize: 20),
         ),
         content: Text(
           'This file is ${TransferService.formatFileSize(fileSize)}. '
@@ -276,8 +278,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final encNonce = file['enc_nonce'] as String?;
     final encAlgo = file['enc_algo'] as String?;
     final rawChunk = file['enc_chunk_size'];
-    final encChunkSize =
-        rawChunk is int ? rawChunk : int.tryParse('$rawChunk');
+    final encChunkSize = rawChunk is int ? rawChunk : int.tryParse('$rawChunk');
 
     if (!await ConnectionStatus.instance.refresh()) {
       if (mounted) {
@@ -468,8 +469,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.hourglass_empty_rounded,
-                  size: 40, color: c.inkFaint),
+              Icon(Icons.hourglass_empty_rounded, size: 40, color: c.inkFaint),
               const SizedBox(height: 16),
               Text(
                 waiting
@@ -569,59 +569,71 @@ class _ReceiveScreenState extends State<ReceiveScreen>
               padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(Icons.arrow_back_rounded,
-                        color: c.inkFaint, size: 22),
+                  Material(
+                    color: c.sand,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: () => Navigator.pop(context),
+                      customBorder: const CircleBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: Icon(Icons.arrow_back_rounded,
+                            color: c.ink, size: 20),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('From', style: MiniText.label),
-                        const SizedBox(height: 2),
+                        Text('From',
+                            style: MiniText.label.copyWith(color: c.inkFaint)),
+                        const SizedBox(height: 3),
                         Text(
                           fmtCode(widget.senderCode),
-                          style: MiniText.codeSmall.copyWith(color: c.ink),
+                          style: MiniText.code.copyWith(
+                            fontSize: 16,
+                            color: c.ink,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   if (_files != null && _files!.isNotEmpty && !allCompleted)
-                    GestureDetector(
-                      onTap: _downloadAll,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: c.accent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: c.accent.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.download_rounded,
-                                size: 14, color: c.accent),
-                            const SizedBox(width: 5),
-                            Text(
-                              'All',
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                color: c.accent,
-                                fontWeight: FontWeight.w500,
+                    Material(
+                      color: c.accentSoft,
+                      borderRadius: BorderRadius.circular(MiniRadius.pill),
+                      child: InkWell(
+                        onTap: _downloadAll,
+                        borderRadius: BorderRadius.circular(MiniRadius.pill),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 9),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.download_rounded,
+                                  size: 15, color: c.accent),
+                              const SizedBox(width: 6),
+                              Text(
+                                'All',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  height: 1.2,
+                                  color: c.accent,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                 ],
               ),
             ),
-            const HairLine(indent: 20),
+            const SizedBox(height: 6),
             _buildPowerSaveBanner(),
 
             // Content
@@ -712,28 +724,24 @@ class _FileDownloadTile extends StatelessWidget {
     final status = state?.status ?? _DownloadStatus.idle;
 
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: c.paperDeep,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c.dividerSoft),
-      ),
+      padding: const EdgeInsets.all(15),
+      decoration: miniCard(context, radius: MiniRadius.tile),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: _iconBg(status, c.accent),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Icon(_fileIcon(status),
-                    color: _iconColor(status, c.accent), size: 18),
+                    color: _iconColor(status, c.accent), size: 20),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -743,8 +751,9 @@ class _FileDownloadTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.outfit(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w500,
+                        letterSpacing: -0.2,
                         color: c.ink,
                       ),
                     ),
@@ -758,15 +767,14 @@ class _FileDownloadTile extends StatelessWidget {
             ],
           ),
           if (status == _DownloadStatus.downloading) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(MiniRadius.pill),
               child: LinearProgressIndicator(
                 value: state!.progress,
-                backgroundColor: c.divider,
-                valueColor:
-                    AlwaysStoppedAnimation(c.accent),
-                minHeight: 3,
+                backgroundColor: c.sand,
+                valueColor: AlwaysStoppedAnimation(c.accent),
+                minHeight: 6,
               ),
             ),
             const SizedBox(height: 4),
@@ -776,53 +784,63 @@ class _FileDownloadTile extends StatelessWidget {
             ),
           ],
           if (status == _DownloadStatus.verifying) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text('Verifying integrity…',
                 style: GoogleFonts.outfit(
-                    color: c.accent, fontSize: 11)),
+                    color: c.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
           ],
           if (status == _DownloadStatus.saving) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text('Saving to device…',
                 style: GoogleFonts.outfit(
-                    color: MiniColors.warn, fontSize: 11)),
+                    color: MiniColors.warn,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500)),
           ],
           if (status == _DownloadStatus.completed) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(
               children: [
                 if (state?.hashVerified == true) ...[
                   const Icon(Icons.verified_rounded,
-                      color: MiniColors.success, size: 12),
-                  const SizedBox(width: 4),
+                      color: MiniColors.success, size: 14),
+                  const SizedBox(width: 5),
                   Text('SHA-256 verified',
                       style: GoogleFonts.outfit(
-                          color: MiniColors.success, fontSize: 11)),
+                          color: MiniColors.success,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500)),
                 ] else ...[
-                  Icon(Icons.check_circle_outline,
-                      color: c.inkFaint, size: 12),
-                  const SizedBox(width: 4),
-                  Text('Saved', style: MiniText.small),
+                  Icon(Icons.check_circle_rounded, color: c.inkFaint, size: 14),
+                  const SizedBox(width: 5),
+                  Text('Saved',
+                      style:
+                          MiniText.small.copyWith(fontWeight: FontWeight.w500)),
                 ],
               ],
             ),
             if (state?.savedLocation != null) ...[
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 state!.savedLocation!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.jetBrainsMono(
-                    color: c.inkFaint, fontSize: 10),
+                style:
+                    GoogleFonts.jetBrainsMono(color: c.inkFaint, fontSize: 11),
               ),
             ],
           ],
           if (status == _DownloadStatus.failed && state?.error != null) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               state!.error!,
-              style:
-                  GoogleFonts.outfit(color: MiniColors.danger, fontSize: 11),
+              style: GoogleFonts.outfit(
+                color: MiniColors.danger,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ],
@@ -870,35 +888,35 @@ class _FileDownloadTile extends StatelessWidget {
         return GestureDetector(
           onTap: onDownload,
           child: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(Icons.download_rounded,
-                color: accent, size: 18),
+            child: Icon(Icons.download_rounded, color: accent, size: 19),
           ),
         );
       case _DownloadStatus.downloading:
         return GestureDetector(
           onTap: onCancel,
           child: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: MiniColors.danger.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: MiniColors.danger.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: const Icon(Icons.close_rounded,
-                color: MiniColors.danger, size: 18),
+                color: MiniColors.danger, size: 19),
           ),
         );
       case _DownloadStatus.verifying:
       case _DownloadStatus.saving:
         return SizedBox(
-          width: 20,
-          height: 20,
+          width: 22,
+          height: 22,
           child: CircularProgressIndicator(
-            strokeWidth: 2,
+            strokeWidth: 2.4,
+            strokeCap: StrokeCap.round,
             color: accent,
           ),
         );

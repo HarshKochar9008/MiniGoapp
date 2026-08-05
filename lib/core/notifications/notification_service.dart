@@ -75,8 +75,8 @@ class NotificationService {
         },
       );
 
-      final androidPlugin = _localNotifications
-          .resolvePlatformSpecificImplementation<
+      final androidPlugin =
+          _localNotifications.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
       await androidPlugin?.createNotificationChannel(
         IncomingTransferLocalNotifications.androidChannel,
@@ -90,7 +90,8 @@ class NotificationService {
         final body = message.notification?.body ??
             (data['body'] as String?) ??
             'A new transfer is available.';
-        final notificationId = IncomingTransferLocalNotifications.stableNotificationId(
+        final notificationId =
+            IncomingTransferLocalNotifications.stableNotificationId(
           data,
           messageId: message.messageId,
         );
@@ -178,7 +179,8 @@ class NotificationService {
       }
       if (kDebugMode) {
         if (NetworkErrors.isRetryableFailure(e)) {
-          final host = Uri.tryParse(AppConstants.supabaseUrl)?.host ?? 'Supabase';
+          final host =
+              Uri.tryParse(AppConstants.supabaseUrl)?.host ?? 'Supabase';
           debugPrint(
             'FCM: device token from Firebase is fine; saving it to your backend failed '
             'because $host could not be reached (JWT refresh / REST timed out). '

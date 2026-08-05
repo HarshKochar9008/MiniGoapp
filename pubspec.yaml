@@ -62,15 +62,24 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.3
 
+# Launcher icons are generated from the square plates in assets/icon/ — the
+# saucer artwork centred upright. Note when resizing the foreground: the
+# generated ic_launcher.xml wraps it in <inset android:inset="16%">, so the
+# drawable lands at 73.44 of the 108dp layer while the launcher masks the middle
+# 72dp. The visible viewport is therefore ~98% of the plate, not the 66.67%
+# safe zone the adaptive-icon docs describe; the saucer spans 78% of it.
+# Regenerate with: dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/logo.png"
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/logo.png"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/minigo_ufo.png
     - .env

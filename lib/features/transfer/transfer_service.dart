@@ -90,6 +90,7 @@ class PendingUploadJob {
   /// Recipient's X25519 public key at validation time; persisted so a resumed
   /// send stays end-to-end encrypted instead of silently uploading plaintext.
   final String? receiverPublicKey;
+
   /// Server `transfers.id` for this interrupted send; persisted so resume never
   /// creates a second row for the same pending job.
   final String? transferId;
@@ -379,7 +380,8 @@ class TransferService {
       final size = sizeRaw is int ? sizeRaw : int.tryParse('$sizeRaw') ?? 0;
       FileUploadStatus status;
       try {
-        status = FileUploadStatus.values.byName((m['status'] ?? 'pending').toString());
+        status = FileUploadStatus.values
+            .byName((m['status'] ?? 'pending').toString());
       } catch (_) {
         status = FileUploadStatus.pending;
       }
@@ -705,7 +707,8 @@ class TransferService {
 
   /// Eligible rows already in `transfer_files` for this transfer, keyed by
   /// `file_name` (sanitized), or `null` if this transfer must not be resumed.
-  static Future<Map<String, Map<String, dynamic>>?> _loadTransferResumeSnapshot({
+  static Future<Map<String, Map<String, dynamic>>?>
+      _loadTransferResumeSnapshot({
     required SupabaseClient client,
     required String transferId,
     required String senderId,
@@ -722,8 +725,10 @@ class TransferService {
     final st = (transfer['status'] ?? '').toString().toLowerCase();
     if (st == 'completed' || st == 'expired') return null;
 
-    final rows =
-        await client.from('transfer_files').select().eq('transfer_id', transferId);
+    final rows = await client
+        .from('transfer_files')
+        .select()
+        .eq('transfer_id', transferId);
     final out = <String, Map<String, dynamic>>{};
     for (final raw in rows) {
       final m = Map<String, dynamic>.from(raw);
@@ -756,9 +761,11 @@ class TransferService {
     String? receiverCode,
     String? roomId,
     String? roomName,
+
     /// Recipient's base64url X25519 public key. When present, every file is
     /// end-to-end encrypted before upload so the server only stores ciphertext.
     String? recipientPublicKey,
+
     /// Set only after the user has been told, in the UI, that this transfer
     /// will not be end-to-end encrypted. Without it a missing
     /// [recipientPublicKey] is a hard error rather than a quiet downgrade to a
@@ -820,9 +827,7 @@ class TransferService {
     );
 
     final pendingTid = existingPending?.transferId?.trim();
-    final orphanTid = (!matches &&
-            pendingTid != null &&
-            pendingTid.isNotEmpty)
+    final orphanTid = (!matches && pendingTid != null && pendingTid.isNotEmpty)
         ? pendingTid
         : null;
 
@@ -840,8 +845,9 @@ class TransferService {
     final createdAtBase = (matches && existingPending != null)
         ? existingPending.createdAt
         : DateTime.now().toUtc();
-    final earlyTid =
-        matches && pendingTid != null && pendingTid.isNotEmpty ? pendingTid : null;
+    final earlyTid = matches && pendingTid != null && pendingTid.isNotEmpty
+        ? pendingTid
+        : null;
 
     await _storePendingUploadJob(
       senderId: senderId,
@@ -931,7 +937,8 @@ class TransferService {
 
     onProgress(states);
 
-    final progressBroadcaster = _TransferProgressBroadcaster(client, transferId);
+    final progressBroadcaster =
+        _TransferProgressBroadcaster(client, transferId);
     void report(List<FileUploadProgress> s) {
       onProgress(s);
       progressBroadcaster.notify(s);
@@ -1204,6 +1211,7 @@ class TransferService {
     required List<PlatformFile> files,
     String? receiverCode,
     String? receiverPublicKey,
+
     /// When null, job is still "in flight" before a `transfers` row exists; used
     /// so a process kill still leaves enough state to offer resume/discards UI.
     String? transferId,
@@ -1530,7 +1538,8 @@ class TransferService {
 
     final result = await SupabaseConfig.client
         .from('transfers')
-        .select('*, sender:users!transfers_sender_id_fkey(short_code, deleted_at)')
+        .select(
+            '*, sender:users!transfers_sender_id_fkey(short_code, deleted_at)')
         .eq('receiver_id', userId)
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);
@@ -1562,7 +1571,8 @@ class TransferService {
 
     final result = await SupabaseConfig.client
         .from('transfers')
-        .select('*, receiver:users!transfers_receiver_id_fkey(short_code, deleted_at)')
+        .select(
+            '*, receiver:users!transfers_receiver_id_fkey(short_code, deleted_at)')
         .eq('sender_id', userId)
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);
@@ -1609,6 +1619,7 @@ class TransferService {
     String? encWrappedKey,
     String? encNonce,
     int? encChunkSize,
+
     /// `transfer_files.enc_algo`. Selects the chunk format; only v2 can detect
     /// a truncated ciphertext. Defaults to v1 because rows written before the
     /// v2 rollout have no tag recorded.
@@ -1874,8 +1885,8 @@ class TransferService {
     ) onTransferChange,
   }) {
     try {
-      final channel = SupabaseConfig.client
-          .channel('incoming-$userId-${++_channelSeq}');
+      final channel =
+          SupabaseConfig.client.channel('incoming-$userId-${++_channelSeq}');
 
       // Notify on new transfer creation
       channel.onPostgresChanges(
