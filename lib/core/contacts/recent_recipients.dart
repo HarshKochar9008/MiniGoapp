@@ -11,7 +11,8 @@ class RecentRecipient {
   final String? label;
   const RecentRecipient({required this.code, this.label});
 
-  Map<String, dynamic> toJson() => {'code': code, if (label != null) 'label': label};
+  Map<String, dynamic> toJson() =>
+      {'code': code, if (label != null) 'label': label};
 
   static RecentRecipient? fromJson(Object? json) {
     if (json is! Map) return null;
@@ -64,9 +65,7 @@ class RecentRecipients {
   /// an entry that exactly equals the full prefix (nothing to suggest then).
   static List<RecentRecipient> matching(String prefix) {
     final p = prefix.trim().toUpperCase();
-    return _cache
-        .where((r) => r.code.startsWith(p) && r.code != p)
-        .toList();
+    return _cache.where((r) => r.code.startsWith(p) && r.code != p).toList();
   }
 
   /// Records a successful send. Dedupes by code and moves it to the front.

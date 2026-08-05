@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -24,35 +24,37 @@ class QrCodeSheet extends StatelessWidget {
     final c = context.mini;
     return Container(
       decoration: BoxDecoration(
-        color: c.paper,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        color: c.paperDeep,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(MiniRadius.sheet),
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _SheetHandle(color: c.divider),
-          const SizedBox(height: 12),
+          _SheetHandle(color: c.sandDeep),
+          const SizedBox(height: 18),
           Text(
             'YOUR QR CODE',
             style: GoogleFonts.outfit(
               fontSize: 11,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 2,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.9,
               color: c.inkFaint,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(MiniRadius.card),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.07),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 17,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -66,16 +68,23 @@ class QrCodeSheet extends StatelessWidget {
               errorCorrectionLevel: QrErrorCorrectLevel.M,
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            fmtCode(code),
-            style: MiniText.codeSmall.copyWith(
-              color: c.ink,
-              fontSize: 18,
-              letterSpacing: 3,
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: c.sand,
+              borderRadius: BorderRadius.circular(MiniRadius.pill),
+            ),
+            child: Text(
+              fmtCode(code),
+              style: MiniText.code.copyWith(
+                color: c.ink,
+                fontSize: 18,
+                letterSpacing: 3,
+              ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             'Ask someone to scan this to send you files',
             style: MiniText.small.copyWith(color: c.inkSoft),
@@ -146,7 +155,8 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
       height: height,
       decoration: const BoxDecoration(
         color: Colors.black,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(MiniRadius.sheet)),
       ),
       child: Column(
         children: [
@@ -169,7 +179,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(MiniRadius.card),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -192,12 +202,11 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
                     // Viewfinder guide
                     IgnorePointer(
                       child: Container(
-                        width: 200,
-                        height: 200,
+                        width: 220,
+                        height: 220,
                         decoration: BoxDecoration(
-                          border:
-                              Border.all(color: Colors.white60, width: 2),
-                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white70, width: 3),
+                          borderRadius: BorderRadius.circular(MiniRadius.card),
                         ),
                       ),
                     ),
@@ -234,11 +243,11 @@ class _SheetHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 36,
-      height: 4,
+      width: 40,
+      height: 5,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
       ),
     );
   }

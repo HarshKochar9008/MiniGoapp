@@ -72,8 +72,8 @@ void main() {
     });
 
     test('strips pipe and wildcard characters', () {
-      expect(TransferService.sanitizeFileName('file|name*.txt'),
-          'file_name_.txt');
+      expect(
+          TransferService.sanitizeFileName('file|name*.txt'), 'file_name_.txt');
     });
   });
 

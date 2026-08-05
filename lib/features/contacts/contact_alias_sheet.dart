@@ -63,54 +63,65 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
-          color: c.paper,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          color: c.paperDeep,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(MiniRadius.sheet),
+          ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 26),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 36,
-                height: 4,
+                width: 40,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: c.divider,
-                  borderRadius: BorderRadius.circular(4),
+                  color: c.sandDeep,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
             Text('Name this person',
                 style: MiniText.title.copyWith(color: c.ink)),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               'Only you see this name — it stays on this device. '
               'Their code is ${fmtCode(widget.code)}. '
               'Leave empty to remove the name.',
-              style: MiniText.small.copyWith(color: c.inkSoft),
+              style: MiniText.bodySoft.copyWith(color: c.inkSoft),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             TextField(
               controller: _controller,
               autofocus: true,
               textCapitalization: TextCapitalization.words,
-              style: GoogleFonts.outfit(fontSize: 16, color: c.ink),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: c.ink,
+              ),
               decoration: InputDecoration(
                 hintText: 'e.g. Priya, Work laptop…',
-                hintStyle:
-                    GoogleFonts.outfit(fontSize: 16, color: c.inkFaint),
+                hintStyle: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: c.inkFaint,
+                ),
                 filled: true,
-                fillColor: c.paperDeep,
+                fillColor: c.sand,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(MiniRadius.control),
                   borderSide: BorderSide.none,
                 ),
               ),
               onSubmitted: (_) => _save(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             MiniButton(label: 'Save', onPressed: _save),
           ],
         ),

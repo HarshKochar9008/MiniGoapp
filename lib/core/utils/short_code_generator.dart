@@ -10,8 +10,8 @@ class ShortCodeGenerator {
   static String generate() {
     return List.generate(
       AppConstants.codeLength,
-      (_) => AppConstants.codeAlphabet[
-          _random.nextInt(AppConstants.codeAlphabet.length)],
+      (_) => AppConstants
+          .codeAlphabet[_random.nextInt(AppConstants.codeAlphabet.length)],
     ).join();
   }
 }

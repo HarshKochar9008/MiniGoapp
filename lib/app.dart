@@ -21,6 +21,8 @@ import 'core/offline/pending_backend_jobs.dart';
 import 'core/supabase_config.dart';
 import 'core/theme.dart';
 import 'core/widgets/global_status_banner.dart';
+import 'Minigo/widgets/mini_ufo.dart';
+import 'Minigo/widgets/mini_widgets.dart';
 import 'features/home/home_screen.dart' show HomeScreen, HomeAutoAction;
 import 'features/history/history_screen.dart';
 import 'features/rooms/rooms_screen.dart';
@@ -283,8 +285,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       final identity = await _initializeIdentityWithRetry();
       if (mounted) {
         ServiceHealth.instance.markHealthy();
-        Analytics.instance
-            .identify(identity.id, shortCode: identity.shortCode);
+        Analytics.instance.identify(identity.id, shortCode: identity.shortCode);
         Analytics.instance.logEvent(AnalyticsEvents.identityReady);
         NotificationService.setUserId(identity.id);
         await NotificationService.syncFcmToken(identity.id);
@@ -326,7 +327,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         setState(() {
           _error = 'Please close and reopen '
               'the app. If this keeps happening,'
-               ' contact support.';
+              ' contact support.';
           _loading = false;
         });
       }
@@ -404,22 +405,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('assets/logo.png', width: 72, height: 72),
-              const SizedBox(height: 28),
-              const SizedBox(
-                width: 20,
-                height: 20,
+              const MiniUfo(size: 170),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: MiniColors.blue600,
+                  strokeWidth: 2.6,
+                  strokeCap: StrokeCap.round,
+                  color: context.mini.accent,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 'Setting up…',
                 style: GoogleFonts.outfit(
                   color: context.mini.inkSoft,
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -433,27 +436,38 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         backgroundColor: context.mini.paper,
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(48),
+            padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.wifi_off_rounded,
-                    size: 48, color: context.mini.inkFaint),
-                const SizedBox(height: 24),
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: MiniColors.warn
+                        .withValues(alpha: context.isDarkMini ? 0.18 : 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.wifi_off_rounded,
+                      size: 32, color: MiniColors.warn),
+                ),
+                const SizedBox(height: 26),
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
                     color: context.mini.inkSoft,
-                    fontSize: 14,
-                    height: 1.5,
+                    fontSize: 15,
+                    height: 1.45,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
-                const SizedBox(height: 32),
-                _MiniActionButton(
+                const SizedBox(height: 30),
+                MiniButton(
                   label: 'Retry',
                   onPressed: _loadIdentity,
                 ),
+                const SizedBox(height: 8),
                 // const SizedBox(height: 10),
                 // _MiniGhostButton(
                 //   label: _runningDiagnostics
@@ -461,20 +475,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 //       : 'Run diagnostics',
                 //   onPressed: _runningDiagnostics ? null : _runDiagnostics,
                 // ),
-                _MiniGhostButton(
+                MiniButton(
                   label: 'Contact support',
+                  style: MiniBtnStyle.ghost,
                   onPressed: _contactSupport,
                 ),
                 if (_diagnosticsReport != null) ...[
                   const SizedBox(height: 16),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: context.mini.paperDeep,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.mini.divider),
-                    ),
+                    padding: const EdgeInsets.all(16),
+                    decoration: miniWell(context),
                     child: Text(
                       _diagnosticsReport!,
                       style: GoogleFonts.jetBrainsMono(
@@ -531,36 +542,49 @@ class _MiniBottomNav extends StatelessWidget {
   const _MiniBottomNav({required this.currentIndex, required this.onTap});
 
   static const _items = [
-    _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    _NavItem(icon: Icons.groups_outlined, activeIcon: Icons.groups_rounded, label: 'Rooms'),
-    _NavItem(icon: Icons.access_time_outlined, activeIcon: Icons.access_time_rounded, label: 'History'),
-    _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings_rounded, label: 'Settings'),
+    _NavItem(
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home_rounded,
+        label: 'Home'),
+    _NavItem(
+        icon: Icons.groups_outlined,
+        activeIcon: Icons.groups_rounded,
+        label: 'Rooms'),
+    _NavItem(
+        icon: Icons.access_time_outlined,
+        activeIcon: Icons.access_time_rounded,
+        label: 'History'),
+    _NavItem(
+        icon: Icons.settings_outlined,
+        activeIcon: Icons.settings_rounded,
+        label: 'Settings'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.mini.paper,
-        border: Border(
-          top: BorderSide(color: context.mini.dividerSoft),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          decoration: miniCard(
+            context,
+            radius: MiniRadius.pill,
+            strong: true,
+          ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(_items.length, (i) {
               final item = _items[i];
               final isActive = i == currentIndex;
-              return _MiniNavTile(
-                icon: item.icon,
-                activeIcon: item.activeIcon,
-                label: item.label,
-                isActive: isActive,
-                onTap: () => onTap(i),
+              return Expanded(
+                child: _MiniNavTile(
+                  icon: item.icon,
+                  activeIcon: item.activeIcon,
+                  label: item.label,
+                  isActive: isActive,
+                  onTap: () => onTap(i),
+                ),
               );
             }),
           ),
@@ -574,7 +598,8 @@ class _NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+  const _NavItem(
+      {required this.icon, required this.activeIcon, required this.label});
 }
 
 class _MiniNavTile extends StatelessWidget {
@@ -595,98 +620,34 @@ class _MiniNavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    final tone = isActive ? c.accent : c.inkFaint;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: isActive ? c.accentSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(MiniRadius.pill),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isActive ? activeIcon : icon,
-              size: 22,
-              color: isActive ? MiniColors.blue600 : context.mini.inkFaint,
-            ),
-            const SizedBox(height: 4),
+            Icon(isActive ? activeIcon : icon, size: 22, color: tone),
+            const SizedBox(height: 3),
             Text(
               label,
               style: GoogleFonts.outfit(
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.w300,
-                color: isActive ? MiniColors.blue600 : context.mini.inkFaint,
-                letterSpacing: 0.2,
+                fontSize: 10.5,
+                height: 1.1,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                color: tone,
+                letterSpacing: -0.1,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniActionButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  const _MiniActionButton({required this.label, this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: context.mini.ink,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Center(
-              child: Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: context.mini.paper,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniGhostButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  const _MiniGhostButton({required this.label, this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Center(
-              child: Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                  color: context.mini.inkSoft,
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );

@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Minigo/theme/mini_theme.dart';
 
-export '../Minigo/theme/mini_theme.dart' show MiniColors, MiniText, fmtCode, MiniThemeExtension, MiniContextX;
+export '../Minigo/theme/mini_theme.dart'
+    show
+        MiniColors,
+        MiniRadius,
+        MiniText,
+        fmtCode,
+        MiniThemeExtension,
+        MiniContextX,
+        miniCard,
+        miniCardShadow,
+        miniWell,
+        miniGlow;
 
 class ThemeController {
   static const _themeModeKey = 'theme_mode';

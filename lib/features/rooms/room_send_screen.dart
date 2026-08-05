@@ -59,8 +59,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   @override
   void initState() {
     super.initState();
-    _memberStates =
-        widget.recipients.map((m) => _MemberSendState(m)).toList();
+    _memberStates = widget.recipients.map((m) => _MemberSendState(m)).toList();
     _channel = RoomService.subscribeToRoom(
       roomId: widget.room.id,
       onMembersChanged: _refreshMyPermission,
@@ -108,9 +107,8 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
       }
 
       final existingNames = _selectedFiles.map((f) => f.name).toSet();
-      final newFiles = accessible
-          .where((f) => existingNames.add(f.name))
-          .toList();
+      final newFiles =
+          accessible.where((f) => existingNames.add(f.name)).toList();
       if (_selectedFiles.length + newFiles.length >
           AppConstants.maxFilesPerTransfer) {
         setState(() {
@@ -125,8 +123,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
       });
     } catch (_) {
       if (mounted) {
-        setState(
-            () => _error = 'Could not pick files. Check app permissions.');
+        setState(() => _error = 'Could not pick files. Check app permissions.');
       }
     }
   }
@@ -231,8 +228,9 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
         );
         if (!mounted) return;
         setState(() {
-          state.status =
-              result.success ? _MemberSendStatus.done : _MemberSendStatus.failed;
+          state.status = result.success
+              ? _MemberSendStatus.done
+              : _MemberSendStatus.failed;
           state.completedFiles = result.completedFiles;
           if (!result.success) {
             state.error = 'Some files failed';
@@ -315,8 +313,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   String _memberName(RoomMember m) =>
       ContactAliases.aliasFor(m.userId) ?? m.displayName;
 
-  int get _totalSize =>
-      _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
+  int get _totalSize => _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
 
   @override
   Widget build(BuildContext context) {
@@ -330,192 +327,204 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
         if (!didPop && _sending) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Sending in progress — please wait for it to finish.'),
+              content:
+                  Text('Sending in progress — please wait for it to finish.'),
             ),
           );
         }
       },
       child: Scaffold(
-      backgroundColor: c.paper,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _sending ? null : () => Navigator.pop(context),
+        backgroundColor: c.paper,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: _sending ? null : () => Navigator.pop(context),
+          ),
+          title: Text('Share to "${widget.room.name}"'),
         ),
-        title: Text('Share to "${widget.room.name}"'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Files
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Files', style: MiniText.label),
-                            if (_selectedFiles.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_selectedFiles.length} selected · '
-                                '${TransferService.formatFileSize(_totalSize)}',
-                                style: MiniText.small,
-                              ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Files
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Files', style: MiniText.label),
+                              if (_selectedFiles.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_selectedFiles.length} selected · '
+                                  '${TransferService.formatFileSize(_totalSize)}',
+                                  style: MiniText.small,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      if (!_sending && !_sent && _selectedFiles.isNotEmpty)
-                        GestureDetector(
-                          onTap: _pickFiles,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            child: Text(
-                              'Add more',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
-                                color: c.inkSoft,
-                                fontWeight: FontWeight.w500,
+                        if (!_sending && !_sent && _selectedFiles.isNotEmpty)
+                          Material(
+                            color: c.inkSoft.withValues(
+                                alpha: context.isDarkMini ? 0.16 : 0.10),
+                            borderRadius:
+                                BorderRadius.circular(MiniRadius.pill),
+                            child: InkWell(
+                              onTap: _pickFiles,
+                              borderRadius:
+                                  BorderRadius.circular(MiniRadius.pill),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 13, vertical: 7),
+                                child: Text(
+                                  'Add more',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12.5,
+                                    height: 1.2,
+                                    color: c.inkSoft,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
 
-                  if (_selectedFiles.isEmpty)
-                    GestureDetector(
-                      onTap: _pickFiles,
-                      child: Container(
-                        height: 130,
-                        decoration: BoxDecoration(
-                          color: c.paperDeep,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: c.divider),
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.add_circle_outline_rounded,
-                                  size: 32, color: c.inkFaint),
-                              const SizedBox(height: 10),
-                              Text('Tap to choose files',
-                                  style: MiniText.bodySoft),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    for (var i = 0; i < _selectedFiles.length; i++)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: c.paperDeep.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: MiniFileRow(
-                          name: _selectedFiles[i].name,
-                          size: TransferService.formatFileSize(
-                              _selectedFiles[i].size),
-                          mimeCategory: MiniFileRow.categoryFromFileName(
-                              _selectedFiles[i].name),
-                          trailing: _sending || _sent
-                              ? null
-                              : GestureDetector(
-                                  onTap: () => setState(() {
-                                    _selectedFiles =
-                                        List.from(_selectedFiles)
-                                          ..removeAt(i);
-                                  }),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Icon(Icons.close_rounded,
-                                        size: 16,
-                                        color: c.inkFaint),
+                    if (_selectedFiles.isEmpty)
+                      GestureDetector(
+                        onTap: _pickFiles,
+                        child: Container(
+                          height: 160,
+                          decoration: miniCard(context),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                MiniIconPlate(
+                                  icon: Icons.add_rounded,
+                                  tint: c.accent,
+                                  size: 52,
+                                  iconSize: 26,
+                                  radius: 10,
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  'Tap to choose files',
+                                  style: MiniText.body.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: c.ink,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      for (var i = 0; i < _selectedFiles.length; i++)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration:
+                              miniCard(context, radius: MiniRadius.tile),
+                          child: MiniFileRow(
+                            name: _selectedFiles[i].name,
+                            size: TransferService.formatFileSize(
+                                _selectedFiles[i].size),
+                            mimeCategory: MiniFileRow.categoryFromFileName(
+                                _selectedFiles[i].name),
+                            trailing: _sending || _sent
+                                ? null
+                                : GestureDetector(
+                                    onTap: () => setState(() {
+                                      _selectedFiles = List.from(_selectedFiles)
+                                        ..removeAt(i);
+                                    }),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(Icons.close_rounded,
+                                          size: 16, color: c.inkFaint),
+                                    ),
+                                  ),
+                          ),
+                        ),
+
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sending to ${_memberStates.length} member(s)',
+                      style: MiniText.label,
+                    ),
+                    const SizedBox(height: 8),
+
+                    for (final s in _memberStates)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _MemberProgressRow(
+                          name: _memberName(s.member),
+                          code: s.member.shortCode,
+                          status: s.status,
+                          completedFiles: s.completedFiles,
+                          totalFiles: _selectedFiles.length,
+                          error: s.error,
                         ),
                       ),
 
-                  const SizedBox(height: 16),
-                  Text(
-                    'Sending to ${_memberStates.length} member(s)',
-                    style: MiniText.label,
-                  ),
-                  const SizedBox(height: 8),
-
-                  for (final s in _memberStates)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _MemberProgressRow(
-                        name: _memberName(s.member),
-                        code: s.member.shortCode,
-                        status: s.status,
-                        completedFiles: s.completedFiles,
-                        totalFiles: _selectedFiles.length,
-                        error: s.error,
+                    if (!_canShare && !_sent) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: Icons.block_rounded,
+                        text: 'The host has paused sharing for you '
+                            'in this room.',
+                        tint: MiniColors.warn,
                       ),
-                    ),
+                    ],
 
-                  if (!_canShare && !_sent) ...[
-                    const SizedBox(height: 8),
-                    StatusBanner(
-                      icon: Icons.block_rounded,
-                      text: 'The host has paused sharing for you '
-                          'in this room.',
-                      tint: MiniColors.warn,
-                    ),
-                  ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: Icons.error_outline_rounded,
+                        text: _error!,
+                        tint: MiniColors.danger,
+                      ),
+                    ],
 
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    StatusBanner(
-                      icon: Icons.error_outline_rounded,
-                      text: _error!,
-                      tint: MiniColors.danger,
-                    ),
+                    if (_sending) ...[
+                      const SizedBox(height: 8),
+                      Text('Keep the app open while uploading.',
+                          style: MiniText.small),
+                    ],
                   ],
-
-                  if (_sending) ...[
-                    const SizedBox(height: 8),
-                    Text('Keep the app open while uploading.',
-                        style: MiniText.small),
-                  ],
-                ],
+                ),
               ),
             ),
-          ),
-
-          Container(
-            color: c.paper,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: _sent
-                ? MiniButton(
-                    label: 'Done',
-                    onPressed: () => Navigator.pop(context),
-                  )
-                : MiniButton(
-                    label: _sending
-                        ? 'Sending…'
-                        : 'Send to ${_memberStates.length} member(s)',
-                    loading: _sending,
-                    onPressed: _selectedFiles.isEmpty || _sending || !_canShare
-                        ? null
-                        : _send,
-                  ),
-          ),
-        ],
-      ),
+            Container(
+              color: c.paper,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: _sent
+                  ? MiniButton(
+                      label: 'Done',
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : MiniButton(
+                      label: _sending
+                          ? 'Sending…'
+                          : 'Send to ${_memberStates.length} member(s)',
+                      loading: _sending,
+                      onPressed:
+                          _selectedFiles.isEmpty || _sending || !_canShare
+                              ? null
+                              : _send,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -565,15 +574,13 @@ class _MemberProgressRow extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: c.paperDeep.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
+      decoration: miniCard(context, radius: MiniRadius.tile),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: tint),
-          const SizedBox(width: 10),
+          MiniIconPlate(
+              icon: icon, tint: tint, size: 36, iconSize: 18, radius: 8),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,26 +589,33 @@ class _MemberProgressRow extends StatelessWidget {
                   name,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.outfit(
-                    fontSize: 14,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
                     color: c.ink,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
                 Text(
                   fmtCode(code),
                   style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10,
-                    letterSpacing: 1.5,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w500,
                     color: c.inkFaint,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             detail,
-            style: GoogleFonts.outfit(fontSize: 12, color: tint),
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: tint,
+            ),
           ),
         ],
       ),

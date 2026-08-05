@@ -86,9 +86,7 @@ class SupabaseConfig {
 
     // Refresh if token expires within 60 seconds
     if (expiryDate.difference(now).inSeconds < 60) {
-      await client.auth
-          .refreshSession()
-          .timeout(const Duration(seconds: 18));
+      await client.auth.refreshSession().timeout(const Duration(seconds: 18));
     }
   }
 }
