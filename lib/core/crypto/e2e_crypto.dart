@@ -65,7 +65,8 @@ class E2ECrypto {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
-  static String _privKeyStorageKey(String authUid) => 'e2e_x25519_priv_$authUid';
+  static String _privKeyStorageKey(String authUid) =>
+      'e2e_x25519_priv_$authUid';
 
   // ── Identity key pair ─────────────────────────────────────────────────────
 
@@ -129,7 +130,8 @@ class E2ECrypto {
     final wrapKey = await _deriveWrapKey(shared);
 
     final nonce = _aes.newNonce();
-    final box = await _aes.encrypt(contentKey, secretKey: wrapKey, nonce: nonce);
+    final box =
+        await _aes.encrypt(contentKey, secretKey: wrapKey, nonce: nonce);
 
     final blob = <int>[
       ...ephemeralPub.bytes,

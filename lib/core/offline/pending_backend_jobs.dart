@@ -80,8 +80,9 @@ class PendingBackendJobs {
       await refreshPendingCount();
       return;
     }
-    final capped =
-        jobs.length > _maxPushJobs ? jobs.sublist(jobs.length - _maxPushJobs) : jobs;
+    final capped = jobs.length > _maxPushJobs
+        ? jobs.sublist(jobs.length - _maxPushJobs)
+        : jobs;
     await prefs.setString(_pushQueueKey, jsonEncode(capped));
     await refreshPendingCount();
   }

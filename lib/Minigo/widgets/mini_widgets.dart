@@ -1,9 +1,90 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
 import '../theme/mini_theme.dart';
 
-/// Code chip — formatted "A4X · 9K2" with subtle border.
+/// Raised panel — the primary grouping surface. Content sits on white (light)
+/// or lifted charcoal (dark) above the recessed page background.
+class MiniCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets padding;
+  final EdgeInsets? margin;
+  final double radius;
+  final Color? color;
+  final bool strong;
+  final VoidCallback? onTap;
+
+  const MiniCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.margin,
+    this.radius = MiniRadius.card,
+    this.color,
+    this.strong = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Container(
+      margin: margin,
+      decoration: miniCard(
+        context,
+        radius: radius,
+        color: color,
+        strong: strong,
+      ),
+      child: onTap == null
+          ? Padding(padding: padding, child: child)
+          : Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(radius),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(radius),
+                child: Padding(padding: padding, child: child),
+              ),
+            ),
+    );
+    return body;
+  }
+}
+
+/// Rounded tinted plate behind an icon — the app's main iconography frame.
+class MiniIconPlate extends StatelessWidget {
+  final IconData icon;
+  final Color tint;
+  final double size;
+  final double iconSize;
+  final double radius;
+
+  const MiniIconPlate({
+    super.key,
+    required this.icon,
+    required this.tint,
+    this.size = 44,
+    this.iconSize = 21,
+    this.radius = 9,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: context.isDarkMini ? 0.20 : 0.13),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Icon(icon, color: tint, size: iconSize),
+    );
+  }
+}
+
+/// Code chip — formatted "A4X · 9K2" on a recessed fill.
 class CodeChip extends StatelessWidget {
   final String code;
   final double fontSize;
@@ -13,7 +94,7 @@ class CodeChip extends StatelessWidget {
     super.key,
     required this.code,
     this.fontSize = 14,
-    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
     this.color,
   });
 
@@ -23,23 +104,23 @@ class CodeChip extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: c.paper,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: c.divider),
+        color: c.sand,
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
       ),
       child: Text(
         fmtCode(code),
         style: GoogleFonts.jetBrainsMono(
           fontSize: fontSize,
+          fontWeight: FontWeight.w500,
           color: color ?? c.ink,
-          letterSpacing: fontSize > 18 ? 2 : 1,
+          letterSpacing: fontSize > 18 ? 2 : 0.8,
         ),
       ),
     );
   }
 }
 
-/// Reusable button — primary (ink) / secondary (paper) / ghost / danger.
+/// Reusable button — primary (ink) / secondary (raised) / ghost / danger.
 enum MiniBtnStyle { primary, secondary, ghost, danger }
 
 class MiniButton extends StatelessWidget {
@@ -65,65 +146,74 @@ class MiniButton extends StatelessWidget {
     final disabled = onPressed == null && !loading;
     Color bg, fg;
     Color border = Colors.transparent;
+    List<BoxShadow> shadow = const [];
     switch (style) {
       case MiniBtnStyle.primary:
         bg = c.ink;
-        fg = c.paper;
+        fg = context.isDarkMini ? c.paper : Colors.white;
+        shadow = miniCardShadow(context);
       case MiniBtnStyle.secondary:
-        bg = c.paper;
+        bg = c.paperDeep;
         fg = c.ink;
         border = c.divider;
+        shadow = miniCardShadow(context);
       case MiniBtnStyle.ghost:
         bg = Colors.transparent;
         fg = c.inkSoft;
       case MiniBtnStyle.danger:
-        bg = c.paper;
+        bg = MiniColors.danger.withValues(alpha: 0.12);
         fg = MiniColors.danger;
-        border = const Color(0x33B44A4A);
     }
     return Opacity(
-      opacity: disabled ? 0.6 : 1,
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: loading ? null : onPressed,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: fullWidth ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (loading) ...[
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: fg.withValues(alpha: 0.7),
+      opacity: disabled ? 0.45 : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(MiniRadius.pill),
+          boxShadow: disabled ? const [] : shadow,
+        ),
+        child: Material(
+          color: bg,
+          borderRadius: BorderRadius.circular(MiniRadius.pill),
+          child: InkWell(
+            onTap: loading ? null : onPressed,
+            borderRadius: BorderRadius.circular(MiniRadius.pill),
+            child: Container(
+              width: fullWidth ? double.infinity : null,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 17),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(MiniRadius.pill),
+                border: Border.all(color: border),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (loading) ...[
+                    SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        strokeCap: StrokeCap.round,
+                        color: fg.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else if (leading != null) ...[
+                    leading!,
+                    const SizedBox(width: 9),
+                  ],
+                  Text(
+                    label,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
+                      letterSpacing: -0.1,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                ] else if (leading != null) ...[
-                  leading!,
-                  const SizedBox(width: 8),
                 ],
-                Text(
-                  label,
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: disabled ? fg.withValues(alpha: 0.4) : fg,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -157,7 +247,9 @@ class MiniFileRow extends StatelessWidget {
     if (mime.contains('zip') || mime.contains('tar') || mime.contains('rar')) {
       return 'Archive';
     }
-    if (mime.contains('document') || mime.contains('word') || mime.contains('text/')) {
+    if (mime.contains('document') ||
+        mime.contains('word') ||
+        mime.contains('text/')) {
       return 'Document';
     }
     return 'File';
@@ -166,48 +258,24 @@ class MiniFileRow extends StatelessWidget {
   IconData get _icon {
     switch (mimeCategory) {
       case 'Image':
-        return Icons.image_outlined;
+        return Icons.image_rounded;
       case 'Video':
-        return Icons.play_circle_outline;
+        return Icons.play_circle_fill_rounded;
       case 'Audio':
-        return Icons.graphic_eq;
+        return Icons.graphic_eq_rounded;
       case 'PDF':
       case 'Document':
-        return Icons.description_outlined;
+        return Icons.description_rounded;
       case 'Archive':
-        return Icons.folder_zip_outlined;
+        return Icons.folder_zip_rounded;
       default:
-        return Icons.insert_drive_file_outlined;
+        return Icons.insert_drive_file_rounded;
     }
   }
 
-  List<Color> _tone(BuildContext context) {
-    final c = context.mini;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    // Light mode: original pastels. Dark mode: same hue as a subtle tint
-    // blended over the dark surface so the tile doesn't glow.
-    List<Color> pair(Color a, Color b) => dark
-        ? [
-            Color.alphaBlend(a.withValues(alpha: 0.16), c.paperDeep),
-            c.paperDeep,
-          ]
-        : [a, b];
-    switch (mimeCategory) {
-      case 'Image':
-        return pair(MiniColors.blue200, MiniColors.blue50);
-      case 'Video':
-        return pair(const Color(0xFFF2DFDF), c.paperDeep);
-      case 'Audio':
-        return pair(const Color(0xFFE0EFE6), c.paperDeep);
-      case 'PDF':
-      case 'Document':
-        return pair(const Color(0xFFE6DFF2), c.paperDeep);
-      case 'Archive':
-        return pair(const Color(0xFFDCE8F6), c.paperDeep);
-      default:
-        return [c.sand, c.paperDeep];
-    }
-  }
+  /// File kind is carried by the glyph alone — a colour per type would put five
+  /// extra hues in every list for no information the icon doesn't already give.
+  Color tintFor(BuildContext context) => context.mini.inkSoft;
 
   @override
   Widget build(BuildContext context) {
@@ -216,20 +284,8 @@ class MiniFileRow extends StatelessWidget {
       padding: padding,
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              gradient: LinearGradient(
-                colors: _tone(context),
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Icon(_icon, color: c.ink.withValues(alpha: 0.55), size: 22),
-          ),
-          const SizedBox(width: 12),
+          MiniIconPlate(icon: _icon, tint: tintFor(context)),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,9 +293,10 @@ class MiniFileRow extends StatelessWidget {
                 Text(
                   name,
                   style: GoogleFonts.outfit(
-                    fontSize: 14,
+                    fontSize: 15,
                     color: c.ink,
                     fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -255,7 +312,7 @@ class MiniFileRow extends StatelessWidget {
   }
 }
 
-/// Circular progress arc — quiet ring with serif percentage.
+/// Thick single-colour ring with a large centered figure.
 class ProgressArc extends StatelessWidget {
   final double progress;
   final double size;
@@ -273,21 +330,20 @@ class ProgressArc extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     final pct = (progress * 100).round();
+    final head = color ?? c.accent;
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          SizedBox(
-            width: size,
-            height: size,
-            child: CircularProgressIndicator(
-              value: progress,
-              strokeWidth: 5,
-              strokeCap: StrokeCap.round,
-              backgroundColor: c.paperDeep,
-              valueColor: AlwaysStoppedAnimation(color ?? c.accent),
+          CustomPaint(
+            size: Size.square(size),
+            painter: _GaugePainter(
+              progress: progress.clamp(0.0, 1.0),
+              track: c.sand,
+              color: head,
+              stroke: size * 0.075,
             ),
           ),
           Column(
@@ -296,14 +352,15 @@ class ProgressArc extends StatelessWidget {
               Text(
                 '$pct%',
                 style: GoogleFonts.outfit(
-                  fontSize: size * 0.28,
+                  fontSize: size * 0.27,
                   height: 1,
+                  fontWeight: FontWeight.w600,
                   color: c.ink,
-                  letterSpacing: -1,
+                  letterSpacing: -1.6,
                 ),
               ),
               if (label != null) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(label!, style: MiniText.small.copyWith(color: c.inkSoft)),
               ],
             ],
@@ -314,7 +371,50 @@ class ProgressArc extends StatelessWidget {
   }
 }
 
-/// Section header with serif title + optional small counter.
+class _GaugePainter extends CustomPainter {
+  final double progress;
+  final Color track;
+  final Color color;
+  final double stroke;
+
+  _GaugePainter({
+    required this.progress,
+    required this.track,
+    required this.color,
+    required this.stroke,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final inner = rect.deflate(stroke / 2);
+    const start = -math.pi / 2;
+
+    final trackPaint = Paint()
+      ..color = track
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(inner, start, math.pi * 2, false, trackPaint);
+
+    if (progress <= 0) return;
+    final valuePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(inner, start, math.pi * 2 * progress, false, valuePaint);
+  }
+
+  @override
+  bool shouldRepaint(_GaugePainter old) =>
+      old.progress != progress ||
+      old.track != track ||
+      old.color != color ||
+      old.stroke != stroke;
+}
+
+/// Section header with bold title + optional counter.
 class SectionHeader extends StatelessWidget {
   final String title;
   final String? counter;
@@ -324,19 +424,29 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
         children: [
-          Text(title,
-              style: GoogleFonts.outfit(
-                fontSize: 18,
-                color: c.ink,
-              )),
+          Text(title, style: MiniText.heading.copyWith(color: c.ink)),
           if (counter != null) ...[
-            const SizedBox(width: 8),
-            Text(counter!, style: MiniText.label.copyWith(color: c.inkSoft)),
+            const SizedBox(width: 9),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: c.sand,
+                borderRadius: BorderRadius.circular(MiniRadius.pill),
+              ),
+              child: Text(
+                counter!,
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                  color: c.inkSoft,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -372,31 +482,34 @@ class StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: tint.withValues(alpha: 0.08),
-          border: Border.all(color: tint.withValues(alpha: 0.18)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: tint),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: tint,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Material(
+        color: tint.withValues(alpha: context.isDarkMini ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(MiniRadius.control),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(MiniRadius.control),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: tint),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                      color: tint,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -446,7 +559,7 @@ class _MiniSkeletonState extends State<MiniSkeleton>
       builder: (context, _) {
         final t = _ctrl.value;
         return ClipRRect(
-          borderRadius: widget.borderRadius ?? BorderRadius.circular(8),
+          borderRadius: widget.borderRadius ?? BorderRadius.circular(5),
           child: SizedBox(
             width: widget.width,
             height: widget.height,
@@ -456,9 +569,9 @@ class _MiniSkeletonState extends State<MiniSkeleton>
                   begin: Alignment(-1 + 2 * t, 0),
                   end: Alignment(0 + 2 * t, 0),
                   colors: [
-                    c.paperDeep,
-                    c.sand.withValues(alpha: 0.55),
-                    c.paperDeep,
+                    c.sand,
+                    c.sandDeep.withValues(alpha: 0.6),
+                    c.sand,
                   ],
                 ),
               ),
@@ -483,28 +596,29 @@ class TransferTileSkeleton extends StatelessWidget {
           MiniSkeleton(
             width: 44,
             height: 44,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(9),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                MiniSkeleton(width: 140, height: 12),
-                SizedBox(height: 8),
-                MiniSkeleton(width: 80, height: 10),
+                MiniSkeleton(width: 150, height: 13),
+                SizedBox(height: 9),
+                MiniSkeleton(width: 84, height: 11),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          const MiniSkeleton(width: 38, height: 10),
+          const MiniSkeleton(width: 40, height: 11),
         ],
       ),
     );
   }
 }
 
-/// Pill-style tab selector.
+/// Segmented-control segment. Sits inside a `sand` track; the active segment
+/// is a raised pill.
 class MiniTabPill extends StatelessWidget {
   final String label;
   final bool active;
@@ -520,29 +634,23 @@ class MiniTabPill extends StatelessWidget {
     final c = context.mini;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(MiniRadius.pill),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: active ? c.paper : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: active
-              ? const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  )
-                ]
-              : null,
+          color: active ? c.paperDeep : Colors.transparent,
+          borderRadius: BorderRadius.circular(MiniRadius.pill),
+          boxShadow: active ? miniCardShadow(context) : null,
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: GoogleFonts.outfit(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w500,
+            letterSpacing: -0.1,
             color: active ? c.ink : c.inkSoft,
           ),
         ),

@@ -105,7 +105,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
     try {
       final incoming = await TransferService.getIncomingTransfers(
-          widget.identity.id, page: 0);
+          widget.identity.id,
+          page: 0);
       final sent =
           await TransferService.getSentTransfers(widget.identity.id, page: 0);
       final transfers = _mergeAndSort(incoming, sent);
@@ -132,17 +133,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final nextPage = _currentPage + 1;
     try {
       final moreIncoming = await TransferService.getIncomingTransfers(
-          widget.identity.id, page: nextPage);
+          widget.identity.id,
+          page: nextPage);
       final moreSent = await TransferService.getSentTransfers(
-          widget.identity.id, page: nextPage);
+          widget.identity.id,
+          page: nextPage);
       final more = _mergeAndSort(moreIncoming, moreSent);
       if (mounted) {
         setState(() {
           _transfers = _mergeSorted(_transfers ?? [], more);
           _currentPage = nextPage;
-          _hasMore =
-              moreIncoming.length >= AppConstants.transfersPageSize ||
-                  moreSent.length >= AppConstants.transfersPageSize;
+          _hasMore = moreIncoming.length >= AppConstants.transfersPageSize ||
+              moreSent.length >= AppConstants.transfersPageSize;
         });
       }
     } catch (_) {}
@@ -171,10 +173,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           }),
     ];
     all.sort((a, b) {
-      final aDate =
-          DateTime.tryParse((a['created_at'] ?? '').toString());
-      final bDate =
-          DateTime.tryParse((b['created_at'] ?? '').toString());
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString());
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString());
       if (aDate == null && bDate == null) return 0;
       if (aDate == null) return 1;
       if (bDate == null) return -1;
@@ -194,10 +194,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
     final merged = byId.values.toList();
     merged.sort((a, b) {
-      final aDate =
-          DateTime.tryParse((a['created_at'] ?? '').toString());
-      final bDate =
-          DateTime.tryParse((b['created_at'] ?? '').toString());
+      final aDate = DateTime.tryParse((a['created_at'] ?? '').toString());
+      final bDate = DateTime.tryParse((b['created_at'] ?? '').toString());
       if (aDate == null && bDate == null) return 0;
       if (aDate == null) return 1;
       if (bDate == null) return -1;
@@ -258,8 +256,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Transfers',
-                            style:
-                                MiniText.label.copyWith(color: c.inkSoft)),
+                            style: MiniText.label.copyWith(color: c.inkSoft)),
                         const SizedBox(height: 4),
                         Text('History',
                             style: MiniText.title.copyWith(color: c.ink)),
@@ -267,14 +264,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.refresh_rounded,
-                        color: c.inkFaint, size: 20),
+                    icon:
+                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],
               ),
             ),
-            const HairLine(indent: 20),
 
             // Direct / Rooms tabs
             Padding(
@@ -285,16 +281,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     icon: Icons.swap_horiz_rounded,
                     label: 'Direct',
                     active: _source == _HistorySource.direct,
-                    onTap: () => setState(
-                        () => _source = _HistorySource.direct),
+                    onTap: () =>
+                        setState(() => _source = _HistorySource.direct),
                   ),
                   const SizedBox(width: 22),
                   _SourceTab(
                     icon: Icons.groups_outlined,
                     label: 'Rooms',
                     active: _source == _HistorySource.rooms,
-                    onTap: () =>
-                        setState(() => _source = _HistorySource.rooms),
+                    onTap: () => setState(() => _source = _HistorySource.rooms),
                   ),
                 ],
               ),
@@ -302,13 +297,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
             // Filter pills
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: c.paperDeep,
-                  borderRadius: BorderRadius.circular(12),
+                  color: c.sand,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
                 child: Row(
                   children: [
@@ -336,11 +330,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ? ListView.builder(
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: 6,
-                      itemBuilder: (_, __) => Column(
-                        children: const [
-                          TransferTileSkeleton(),
-                          HairLine(indent: 72),
-                        ],
+                      itemBuilder: (_, __) => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 2),
+                        child: TransferTileSkeleton(),
                       ),
                     )
                   : _error != null
@@ -356,14 +348,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         .copyWith(color: c.inkSoft)),
                                 const SizedBox(height: 20),
                                 MiniButton(
-                                    label: 'Retry',
-                                    onPressed: _loadTransfers),
+                                    label: 'Retry', onPressed: _loadTransfers),
                               ],
                             ),
                           ),
                         )
-                      : _transfers == null ||
-                              _applyFilter(_transfers!).isEmpty
+                      : _transfers == null || _applyFilter(_transfers!).isEmpty
                           // The current tab may be empty only because its
                           // transfers sit on pages not fetched yet — keep
                           // paging before declaring it empty.
@@ -383,8 +373,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               onRefresh: _loadTransfers,
                               color: c.accent,
                               child: Builder(builder: (context) {
-                                final visible =
-                                    _applyFilter(_transfers!);
+                                final visible = _applyFilter(_transfers!);
                                 return ListView.builder(
                                   itemCount:
                                       visible.length + (_hasMore ? 1 : 0),
@@ -394,21 +383,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       return const TransferTileSkeleton();
                                     }
                                     final t = visible[index];
-                                    final dir = (t['_direction'] ??
-                                            'received')
+                                    final dir = (t['_direction'] ?? 'received')
                                         .toString();
-                                    final code = (t['_counterpartyCode'] ??
-                                            '???')
-                                        .toString();
+                                    final code =
+                                        (t['_counterpartyCode'] ?? '???')
+                                            .toString();
                                     final counterpartyId =
                                         t['_counterpartyId'] as String?;
-                                    final roomLabel =
-                                        t['room_name'] as String? ??
-                                            (t['room_id'] != null
-                                                ? 'room'
-                                                : null);
-                                    final status = (t['status'] ?? 'pending')
-                                        .toString();
+                                    final roomLabel = t['room_name']
+                                            as String? ??
+                                        (t['room_id'] != null ? 'room' : null);
+                                    final status =
+                                        (t['status'] ?? 'pending').toString();
                                     final createdAt =
                                         (t['created_at'] ?? '').toString();
                                     final isExpired = status == 'expired';
@@ -418,44 +404,48 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         status == 'failed' ||
                                         status == 'partial';
 
-                                    final tile = Column(
-                                      children: [
-                                        _HistoryTile(
-                                          direction: dir,
-                                          counterpartyCode: code,
-                                          counterpartyAlias:
-                                              ContactAliases.aliasFor(
-                                                  counterpartyId),
-                                          status: status,
-                                          timeAgo: _timeAgo(createdAt),
-                                          isExpired: isExpired,
-                                          roomLabel: roomLabel,
-                                          onEditAlias: counterpartyId == null
-                                              ? null
-                                              : () => ContactAliasSheet.show(
-                                                    context,
-                                                    userId: counterpartyId,
-                                                    code: code,
-                                                  ),
-                                        ),
-                                        const HairLine(indent: 72),
-                                      ],
+                                    final tile = Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          16, 5, 16, 5),
+                                      child: _HistoryTile(
+                                        direction: dir,
+                                        counterpartyCode: code,
+                                        counterpartyAlias:
+                                            ContactAliases.aliasFor(
+                                                counterpartyId),
+                                        status: status,
+                                        timeAgo: _timeAgo(createdAt),
+                                        isExpired: isExpired,
+                                        roomLabel: roomLabel,
+                                        onEditAlias: counterpartyId == null
+                                            ? null
+                                            : () => ContactAliasSheet.show(
+                                                  context,
+                                                  userId: counterpartyId,
+                                                  code: code,
+                                                ),
+                                      ),
                                     );
                                     if (!canDismiss || id.isEmpty) {
                                       return tile;
                                     }
                                     return Dismissible(
                                       key: ValueKey('history-$id'),
-                                      direction:
-                                          DismissDirection.endToStart,
+                                      direction: DismissDirection.endToStart,
                                       background: Container(
                                         alignment: Alignment.centerRight,
-                                        padding: const EdgeInsets.only(
-                                            right: 24),
-                                        color: MiniColors.danger
-                                            .withValues(alpha: 0.10),
+                                        margin: const EdgeInsets.fromLTRB(
+                                            16, 5, 16, 5),
+                                        padding:
+                                            const EdgeInsets.only(right: 24),
+                                        decoration: BoxDecoration(
+                                          color: MiniColors.danger
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(
+                                              MiniRadius.tile),
+                                        ),
                                         child: const Icon(
-                                          Icons.delete_outline_rounded,
+                                          Icons.delete_rounded,
                                           color: MiniColors.danger,
                                           size: 22,
                                         ),
@@ -503,11 +493,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(inRooms ? Icons.groups_outlined : Icons.inbox_outlined,
-              size: 48, color: c.inkFaint),
-          const SizedBox(height: 18),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: c.accent.withValues(alpha: 0.12),
+            ),
+            child: Icon(inRooms ? Icons.groups_rounded : Icons.inbox_rounded,
+                size: 30, color: c.accent),
+          ),
+          const SizedBox(height: 20),
           Text(title, style: MiniText.title.copyWith(color: c.ink)),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(subtitle,
               textAlign: TextAlign.center,
               style: MiniText.bodySoft.copyWith(color: c.inkSoft)),
@@ -535,13 +533,13 @@ class _SourceTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    final color = active ? c.ink : c.inkFaint;
+    final color = active ? c.accent : c.inkFaint;
     return InkWell(
       onTap: () {
         HapticFeedback.selectionClick();
         onTap();
       },
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(MiniRadius.pill),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,26 +549,29 @@ class _SourceTab extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
+                Icon(icon, size: 17, color: color),
+                const SizedBox(width: 7),
                 Text(
                   label,
                   style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                    fontSize: 15,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: -0.2,
                     color: color,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 3),
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            height: 2,
-            width: active ? 40 : 0,
+            curve: Curves.easeOut,
+            height: 3,
+            width: active ? 44 : 0,
             decoration: BoxDecoration(
               color: c.accent,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(MiniRadius.pill),
             ),
           ),
         ],
@@ -625,33 +626,18 @@ class _HistoryTile extends StatelessWidget {
     final isOut = direction == 'sent';
     return Opacity(
       opacity: isExpired ? 0.45 : 1.0,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      child: Container(
+        decoration: miniCard(context, radius: MiniRadius.tile),
+        padding: const EdgeInsets.fromLTRB(14, 13, 16, 13),
         child: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: LinearGradient(
-                  colors: isOut
-                      ? [
-                          c.accent.withValues(alpha: 0.35),
-                          c.accent.withValues(alpha: 0.10)
-                        ]
-                      : [c.sand, c.paperDeep],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Icon(
-                isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
-                size: 16,
-                color: c.ink.withValues(alpha: 0.55),
-              ),
+            MiniIconPlate(
+              icon: isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
+              tint: isOut ? c.accent : MiniColors.success,
+              size: 40,
+              iconSize: 19,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,8 +654,9 @@ class _HistoryTile extends StatelessWidget {
                               counterpartyAlias!,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.outfit(
-                                fontSize: 14,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w500,
+                                letterSpacing: -0.2,
                                 color: c.ink,
                               ),
                             ),
@@ -688,8 +675,8 @@ class _HistoryTile extends StatelessWidget {
                               {'source': 'history'});
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                  'Copied ${fmtCode(counterpartyCode)}'),
+                              content:
+                                  Text('Copied ${fmtCode(counterpartyCode)}'),
                               duration: const Duration(seconds: 2),
                             ),
                           );

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../Minigo/theme/mini_theme.dart';
@@ -30,14 +30,17 @@ class TransferUploadProgressList extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(header, style: MiniText.small),
-              const SizedBox(height: 8),
+              Text(
+                header,
+                style: MiniText.small.copyWith(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 10),
               ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(MiniRadius.pill),
                 child: LinearProgressIndicator(
                   value: states.isNotEmpty ? completed / states.length : 0,
-                  minHeight: 3,
-                  backgroundColor: c.divider,
+                  minHeight: 7,
+                  backgroundColor: c.sand,
                   valueColor: AlwaysStoppedAnimation(c.accent),
                 ),
               ),
@@ -61,33 +64,34 @@ class TransferFileProgressTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: c.paperDeep,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c.dividerSoft),
-      ),
+      padding: const EdgeInsets.all(15),
+      decoration: miniCard(context, radius: MiniRadius.tile),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               _statusIcon(c),
-              const SizedBox(width: 10),
+              const SizedBox(width: 11),
               Expanded(
                 child: Text(
                   state.fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.outfit(
-                      fontSize: 13, color: c.ink),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.2,
+                    color: c.ink,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 _statusLabel(),
                 style: GoogleFonts.outfit(
                   color: _statusColor(c),
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -95,14 +99,14 @@ class TransferFileProgressTile extends StatelessWidget {
           ),
           if (state.status == FileUploadStatus.hashing ||
               state.status == FileUploadStatus.uploading) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(MiniRadius.pill),
               child: LinearProgressIndicator(
                 value: state.progress,
-                backgroundColor: c.divider,
+                backgroundColor: c.sand,
                 valueColor: AlwaysStoppedAnimation(_statusColor(c)),
-                minHeight: 3,
+                minHeight: 6,
               ),
             ),
             const SizedBox(height: 4),
@@ -116,22 +120,25 @@ class TransferFileProgressTile extends StatelessWidget {
           ],
           if (state.status == FileUploadStatus.completed &&
               state.sha256 != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               'SHA-256: ${state.sha256!.substring(0, 16)}…',
               style: GoogleFonts.jetBrainsMono(
                 color: c.inkFaint,
-                fontSize: 10,
+                fontSize: 11,
               ),
             ),
           ],
           if (state.status == FileUploadStatus.failed &&
               state.error != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               state.error!,
               style: GoogleFonts.outfit(
-                  color: MiniColors.danger, fontSize: 11),
+                color: MiniColors.danger,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ],
@@ -142,8 +149,7 @@ class TransferFileProgressTile extends StatelessWidget {
   Widget _statusIcon(MiniThemeExtension c) {
     switch (state.status) {
       case FileUploadStatus.pending:
-        return Icon(Icons.schedule_rounded,
-            color: c.inkFaint, size: 18);
+        return Icon(Icons.schedule_rounded, color: c.inkFaint, size: 18);
       case FileUploadStatus.hashing:
         return SizedBox(
           width: 18,
@@ -154,8 +160,7 @@ class TransferFileProgressTile extends StatelessWidget {
           ),
         );
       case FileUploadStatus.uploading:
-        return Icon(Icons.cloud_upload_outlined,
-            color: c.accent, size: 18);
+        return Icon(Icons.cloud_upload_outlined, color: c.accent, size: 18);
       case FileUploadStatus.completed:
         return const Icon(Icons.check_circle_rounded,
             color: MiniColors.success, size: 18);

@@ -159,8 +159,8 @@ class IdentityService {
           if (!NetworkErrors.isRetryableFailure(e)) rethrow;
         }
         final rows = await SupabaseConfig.client
-            .rpc('lookup_user_by_code', params: {'p_code': normalized})
-            .timeout(const Duration(seconds: 22));
+            .rpc('lookup_user_by_code', params: {'p_code': normalized}).timeout(
+                const Duration(seconds: 22));
         if (rows is List && rows.isNotEmpty) {
           return Map<String, dynamic>.from(rows.first as Map);
         }
@@ -206,7 +206,8 @@ class IdentityService {
         .signInAnonymously()
         .timeout(const Duration(seconds: 25));
     final user = authResponse.user;
-    final session = authResponse.session ?? SupabaseConfig.client.auth.currentSession;
+    final session =
+        authResponse.session ?? SupabaseConfig.client.auth.currentSession;
     if (user == null) {
       // Dev hint stays in the console only: anonymous auth must be enabled
       // in the backend dashboard (Auth → Settings).
@@ -234,10 +235,9 @@ class IdentityService {
   /// the server-side stale-identity cleanup if this call is lost.
   static Future<void> _retirePreviousIdentity(String oldAuthUid) async {
     try {
-      await SupabaseConfig.client
-          .rpc('retire_previous_identity',
-              params: {'p_old_auth_uid': oldAuthUid})
-          .timeout(const Duration(seconds: 10));
+      await SupabaseConfig.client.rpc('retire_previous_identity', params: {
+        'p_old_auth_uid': oldAuthUid
+      }).timeout(const Duration(seconds: 10));
     } catch (e) {
       if (kDebugMode) debugPrint('retire_previous_identity failed: $e');
     }
@@ -255,7 +255,8 @@ class IdentityService {
     );
   }
 
-  static Future<Map<String, dynamic>?> _findUserByAuthUid(String authUid) async {
+  static Future<Map<String, dynamic>?> _findUserByAuthUid(
+      String authUid) async {
     await SupabaseConfig.ensureValidSession();
     return await SupabaseConfig.client
         .from('users')
@@ -337,7 +338,7 @@ class IdentityService {
       shortCode: current.shortCode,
       nickname: nickname,
     );
-    
+
     // Update local cache and prefs first
     _setCached(updated);
     await _persistIdentity(
@@ -345,7 +346,7 @@ class IdentityService {
       identity: updated,
       authUid: prefs.getString(AppConstants.prefAuthUid)!,
     );
-    
+
     // Also update database if possible
     try {
       await SupabaseConfig.ensureValidSession();

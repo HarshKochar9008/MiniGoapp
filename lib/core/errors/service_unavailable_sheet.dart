@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../Minigo/theme/mini_theme.dart';
+import '../../Minigo/widgets/mini_widgets.dart';
 import '../constants.dart';
 import 'service_health.dart';
 
@@ -16,7 +17,8 @@ class ServiceUnavailableSheet extends StatefulWidget {
   static bool _visible = false;
 
   /// Shows the sheet, guaranteeing only one instance at a time.
-  static Future<void> show(BuildContext context, {VoidCallback? onRetry}) async {
+  static Future<void> show(BuildContext context,
+      {VoidCallback? onRetry}) async {
     if (_visible) return;
     _visible = true;
     try {
@@ -93,8 +95,10 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
     final c = context.mini;
     return Container(
       decoration: BoxDecoration(
-        color: c.paper,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        color: c.paperDeep,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(MiniRadius.sheet),
+        ),
       ),
       padding: EdgeInsets.only(
         left: 24,
@@ -109,36 +113,32 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 36,
-                height: 4,
+                width: 40,
+                height: 5,
                 decoration: BoxDecoration(
-                  color: c.divider,
-                  borderRadius: BorderRadius.circular(2),
+                  color: c.sandDeep,
+                  borderRadius: BorderRadius.circular(MiniRadius.pill),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 30),
               Container(
-                width: 72,
-                height: 72,
+                width: 76,
+                height: 76,
                 decoration: BoxDecoration(
-                  color: c.paperDeep,
+                  color: MiniColors.warn.withValues(alpha: 0.13),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.cloud_off_rounded,
-                  size: 32,
+                  size: 33,
                   color: MiniColors.warn,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
               Text(
                 'Service temporarily unavailable',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                ),
+                style: MiniText.title.copyWith(color: c.ink, fontSize: 20),
               ),
               const SizedBox(height: 10),
               Text(
@@ -148,70 +148,43 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
                 'Please try again in a few minutes.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
-                  fontSize: 14,
+                  fontSize: 14.5,
                   height: 1.5,
                   color: c.inkSoft,
                 ),
               ),
               if (_stillDown) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'Still unavailable — thanks for your patience.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: MiniColors.warn,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 16),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: MiniColors.warn.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(MiniRadius.pill),
+                  ),
+                  child: Text(
+                    'Still unavailable — thanks for your patience.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      height: 1.2,
+                      color: MiniColors.warn,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
               const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: Material(
-                  color: c.ink,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InkWell(
-                    onTap: _retrying ? null : _retry,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Center(
-                        child: _retrying
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: c.paper,
-                                ),
-                              )
-                            : Text(
-                                'Try again',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 14,
-                                  color: c.paper,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
+              MiniButton(
+                label: _retrying ? 'Trying…' : 'Try again',
+                loading: _retrying,
+                onPressed: _retrying ? null : _retry,
               ),
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _contactSupport,
-                  child: Text(
-                    'Contact support',
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w300,
-                      color: c.inkSoft,
-                    ),
-                  ),
-                ),
+              MiniButton(
+                label: 'Contact support',
+                style: MiniBtnStyle.ghost,
+                onPressed: _contactSupport,
               ),
               TextButton(
                 onPressed: _runningDiagnostics ? null : _runDiagnostics,
@@ -220,8 +193,8 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
                       ? 'Running diagnostics…'
                       : 'Run diagnostics',
                   style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w300,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
                     color: c.inkFaint,
                   ),
                 ),
@@ -230,12 +203,8 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: c.paperDeep,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: c.divider),
-                  ),
+                  padding: const EdgeInsets.all(16),
+                  decoration: miniWell(context),
                   child: Text(
                     _diagnosticsReport!,
                     style: GoogleFonts.jetBrainsMono(
