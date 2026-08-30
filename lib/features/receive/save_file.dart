@@ -2,7 +2,9 @@
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:gal/gal.dart';
+import 'package:mime/mime.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -83,24 +85,14 @@ Future<void> _ensureGalleryPermission() async {
   }
 }
 
+const _saveChannel = MethodChannel('minigo/native_save');
+
 Future<String> _saveNonMedia(File file, String fileName) async {
   if (defaultTargetPlatform == TargetPlatform.android) {
-    final downloads = Directory('/storage/emulated/0/Download');
-    if (await downloads.exists()) {
-      final savePath = _uniquePath(downloads.path, fileName);
-      await file.copy(savePath);
-      return savePath;
-    }
-
-    final extDir = await getExternalStorageDirectory();
-    if (extDir != null) {
-      final savePath = _uniquePath(extDir.path, fileName);
-      await file.copy(savePath);
-      return savePath;
-    }
+    return _saveToAndroidDownloads(file, fileName);
   }
 
-  // iOS or fallback
+  // iOS: Documents is the directory the Files app exposes for this app.
   final docsDir = await getApplicationDocumentsDirectory();
   final saveDir = Directory('${docsDir.path}/MiniGo');
   if (!await saveDir.exists()) {
@@ -109,6 +101,38 @@ Future<String> _saveNonMedia(File file, String fileName) async {
   final savePath = _uniquePath(saveDir.path, fileName);
   await file.copy(savePath);
   return savePath;
+}
+
+/// Hands the file to the platform, which writes it through MediaStore.
+///
+/// Writing `/storage/emulated/0/Download` from Dart cannot work on API 29+ —
+/// the manifest caps `WRITE_EXTERNAL_STORAGE` at 29 — and the directory still
+/// reports as existing there, so the copy used to fail with EACCES after a
+/// full download and decrypt. Only the legacy branch below API 29 needs a
+/// permission, which is why `permission_denied` is retried once.
+Future<String> _saveToAndroidDownloads(File file, String fileName) async {
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try {
+      final location =
+          await _saveChannel.invokeMethod<String>('saveToDownloads', {
+        'sourcePath': file.path,
+        'fileName': fileName,
+        'mimeType': lookupMimeType(fileName),
+      });
+      return location ?? 'Downloads';
+    } on PlatformException catch (e) {
+      if (e.code == 'permission_denied' && attempt == 0) {
+        if (await Permission.storage.request().isGranted) continue;
+        throw PermissionDeniedException(
+          'Storage access denied. Please enable it in Settings → App Permissions.',
+        );
+      }
+      throw SaveFileException(
+        'Could not save to Downloads: ${e.message ?? e.code}',
+      );
+    }
+  }
+  throw SaveFileException('Could not save to Downloads');
 }
 
 /// Generates a unique file path to avoid overwriting existing files.
