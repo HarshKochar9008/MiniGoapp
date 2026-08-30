@@ -1,6 +1,7 @@
 package com.Zen.app
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -26,6 +27,11 @@ class MainActivity : FlutterActivity() {
     private val widgetChannel = "minigo/widget"
     private val shareIntentChannel = "minigo/share_intent"
     private val saveChannel = "minigo/native_save"
+
+    // Album received media lands in. Images and videos share Pictures/ because
+    // that is where the gal plugin used to put both, and a second bucket would
+    // split the album in half in the gallery.
+    private val album = "MiniGo"
 
     // Last widget action from the intent that launched (or re-launched) this activity
     private var pendingWidgetAction: String? = null
@@ -112,10 +118,11 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, saveChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "saveToDownloads" -> {
+                    "saveToMediaStore" -> {
                         val sourcePath = call.argument<String>("sourcePath")
                         val fileName = call.argument<String>("fileName")
                         val mimeType = call.argument<String>("mimeType")
+                        val kind = call.argument<String>("kind") ?: "download"
                         if (sourcePath.isNullOrBlank() || fileName.isNullOrBlank()) {
                             result.error("invalid_args", "Missing sourcePath or fileName", null)
                             return@setMethodCallHandler
@@ -125,7 +132,7 @@ class MainActivity : FlutterActivity() {
                             var saved: String? = null
                             var failure: Exception? = null
                             try {
-                                saved = saveToDownloads(sourcePath, fileName, mimeType)
+                                saved = saveToMediaStore(sourcePath, fileName, mimeType, kind)
                             } catch (e: Exception) {
                                 failure = e
                             }
@@ -145,6 +152,25 @@ class MainActivity : FlutterActivity() {
                                 }
                             }
                         }.start()
+                    }
+                    // Show a saved file in whatever app the phone views it with.
+                    "openFile" -> {
+                        val uri = call.argument<String>("target")
+                        if (uri.isNullOrBlank()) {
+                            result.error("invalid_args", "Missing target", null)
+                            return@setMethodCallHandler
+                        }
+                        val target = Uri.parse(uri)
+                        val view = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(target, contentResolver.getType(target) ?: "*/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        try {
+                            startActivity(view)
+                            result.success(null)
+                        } catch (_: ActivityNotFoundException) {
+                            result.error("no_viewer", "No app on this phone opens this file", null)
+                        }
                     }
                     else -> result.notImplemented()
                 }
@@ -234,31 +260,49 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /// Copies [sourcePath] into the public Downloads collection and returns a
-    /// label for the UI.
+    /// Copies [sourcePath] into a public collection — Downloads, or the MiniGo
+    /// album for media — and returns the `content://` row it created, which is
+    /// the only handle `openFile` can view. The legacy branch has no MediaStore
+    /// row, so it returns the file path and Flutter offers no Open there.
     ///
     /// `WRITE_EXTERNAL_STORAGE` is capped at API 29 in the manifest, so writing
     /// to `/storage/emulated/0/Download` by path fails on anything newer.
     /// MediaStore is the supported route there and needs no permission for our
     /// own entries; below API 29 the legacy public directory is the only one.
-    private fun saveToDownloads(sourcePath: String, fileName: String, mimeType: String?): String {
+    private fun saveToMediaStore(
+        sourcePath: String,
+        fileName: String,
+        mimeType: String?,
+        kind: String,
+    ): String {
         val source = File(sourcePath)
         if (!source.exists()) throw IOException("The downloaded file is no longer available")
+        val isMedia = kind == "image" || kind == "video"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                if (!mimeType.isNullOrBlank()) put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                if (!mimeType.isNullOrBlank()) put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                if (isMedia) {
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_PICTURES}/$album",
+                    )
+                }
                 // Stays hidden from other apps until the bytes are all written.
-                put(MediaStore.Downloads.IS_PENDING, 1)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val collection = when (kind) {
+                "image" -> MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                "video" -> MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                else -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            }
             val uri = contentResolver.insert(collection, values)
-                ?: throw IOException("Downloads is not writable on this device")
+                ?: throw IOException("This device would not accept the file")
             try {
                 contentResolver.openOutputStream(uri)?.use { output ->
                     FileInputStream(source).use { input -> input.copyTo(output) }
-                } ?: throw IOException("Could not open Downloads for writing")
+                } ?: throw IOException("Could not open the destination for writing")
             } catch (e: Exception) {
                 // Never leave a half-written pending row behind.
                 try {
@@ -268,19 +312,23 @@ class MainActivity : FlutterActivity() {
                 throw e
             }
             values.clear()
-            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
             contentResolver.update(uri, values, null, null)
-            return "Downloads"
+            return uri.toString()
         }
 
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            throw SecurityException("Storage permission is required to save to Downloads")
+            throw SecurityException("Storage permission is required to save the file")
         }
-        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val dir = if (isMedia) {
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), album)
+        } else {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        }
         if (!dir.exists() && !dir.mkdirs()) {
-            throw IOException("Could not open the Downloads folder")
+            throw IOException("Could not open the destination folder")
         }
         val target = uniqueFile(dir, fileName)
         FileInputStream(source).use { input ->
@@ -288,7 +336,7 @@ class MainActivity : FlutterActivity() {
         }
         // Pre-Q there is no MediaStore row yet, so file managers need a nudge.
         MediaScannerConnection.scanFile(this, arrayOf(target.absolutePath), null, null)
-        return "Downloads"
+        return target.absolutePath
     }
 
     /// Suffixes `_(1)`, `_(2)`, … until the name is free. Only needed on the
