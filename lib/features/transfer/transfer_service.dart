@@ -1187,21 +1187,34 @@ class TransferService {
         );
       }
 
+      // Every file has a reported outcome and the caller still holds the
+      // selection, so a partial run is retried from the UI, not from here.
+      await clearPendingUploadJob();
+
       return TransferResult(
         success: allDone,
         completedFiles: completedCount,
         totalFiles: files.length,
         fileStates: states,
       );
+    } on TransferCancelledException {
+      try {
+        await progressBroadcaster.flushFinal(states);
+      } catch (_) {}
+      await _safeUpdateTransferStatus(client, transferId, 'failed');
+      // Stopping was deliberate; resuming it on next launch would just nag.
+      await clearPendingUploadJob();
+      rethrow;
     } catch (e) {
       try {
         await progressBroadcaster.flushFinal(states);
       } catch (_) {}
       await _safeUpdateTransferStatus(client, transferId, 'failed');
+      // The job deliberately survives here. An upload that died mid-flight —
+      // connection dropped, session expired, process about to go — is the one
+      // case the resume prompt in send_screen exists for, and clearing it in a
+      // `finally` meant that prompt only ever appeared after a force-kill.
       rethrow;
-    } finally {
-      // If app is force-killed, this won't run and pending job remains for recovery.
-      await clearPendingUploadJob();
     }
   }
 
