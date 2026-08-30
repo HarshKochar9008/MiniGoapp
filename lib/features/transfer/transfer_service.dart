@@ -1593,6 +1593,42 @@ class TransferService {
     return List<Map<String, dynamic>>.from(result);
   }
 
+  // ── Recent transfers, both directions (home screen summary) ────────────
+
+  /// Newest transfers in either direction with their file rows attached under
+  /// `_files`, for a one-line summary. Two queries instead of an embedded
+  /// select so it does not depend on a FK being exposed to PostgREST.
+  static Future<List<Map<String, dynamic>>> getRecentTransfers(
+    String userId, {
+    int limit = 3,
+  }) async {
+    await SupabaseConfig.ensureValidSession();
+    final transfers = List<Map<String, dynamic>>.from(
+      await SupabaseConfig.client
+          .from('transfers')
+          .select('id, sender_id, created_at, status')
+          .or('sender_id.eq.$userId,receiver_id.eq.$userId')
+          .order('created_at', ascending: false)
+          .limit(limit),
+    );
+    if (transfers.isEmpty) return transfers;
+
+    final files = List<Map<String, dynamic>>.from(
+      await SupabaseConfig.client
+          .from('transfer_files')
+          .select('transfer_id, file_name, file_size')
+          .inFilter('transfer_id', transfers.map((t) => t['id']).toList()),
+    );
+
+    return transfers
+        .map((t) => {
+              ...t,
+              '_files':
+                  files.where((f) => f['transfer_id'] == t['id']).toList(),
+            })
+        .toList();
+  }
+
   static Future<List<Map<String, dynamic>>> getTransferFiles(
     String transferId,
   ) async {

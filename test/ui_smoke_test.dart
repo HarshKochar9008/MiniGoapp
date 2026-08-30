@@ -5,6 +5,7 @@ import 'package:minigo/Minigo/theme/mini_theme.dart';
 import 'package:minigo/Minigo/widgets/mini_code_reel.dart';
 import 'package:minigo/Minigo/widgets/mini_ufo.dart';
 import 'package:minigo/Minigo/widgets/mini_widgets.dart';
+import 'package:minigo/features/home/home_screen.dart';
 
 /// Layout smoke tests for the shared design system: every reusable surface has
 /// to build without overflow or paint errors in both themes, on a small screen.
@@ -230,6 +231,59 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('O'), findsOneWidget);
       expect(find.text('1'), findsOneWidget);
+    });
+  });
+
+  group('home recent list', () {
+    Widget recent(List<Map<String, dynamic>> transfers) => host(
+          buildMiniTheme(),
+          RecentSection(transfers: transfers, userId: 'me', onSeeAll: () {}),
+        );
+
+    testWidgets('summarises direction, file count and total size',
+        (tester) async {
+      await tester.pumpWidget(recent([
+        {
+          'id': 't1',
+          'sender_id': 'me',
+          'created_at':
+              DateTime.now().toUtc().subtract(const Duration(minutes: 12))
+                  .toIso8601String(),
+          '_files': [
+            {'file_name': 'Q3-deck-final.pdf', 'file_size': 8000000},
+            {'file_name': 'notes.txt', 'file_size': 400000},
+          ],
+        },
+        {
+          'id': 't2',
+          'sender_id': 'someone-else',
+          'created_at': DateTime.now().toUtc().subtract(const Duration(days: 1))
+              .toIso8601String(),
+          '_files': [
+            {'file_name': 'shoot-raws.zip', 'file_size': 240 * 1024 * 1024},
+          ],
+        },
+      ]));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Q3-deck-final.pdf'), findsOneWidget);
+      expect(find.text('Sent · 2 files · 8.0 MB'), findsOneWidget);
+      expect(find.text('Received · 1 file · 240.0 MB'), findsOneWidget);
+      expect(find.text('12m'), findsOneWidget);
+      expect(find.text('Yest'), findsOneWidget);
+    });
+
+    testWidgets('a transfer with no file rows still renders', (tester) async {
+      await tester.pumpWidget(recent([
+        {
+          'id': 't3',
+          'sender_id': 'me',
+          'created_at': DateTime.now().toUtc().toIso8601String(),
+        },
+      ]));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Sent'), findsOneWidget);
     });
   });
 }
