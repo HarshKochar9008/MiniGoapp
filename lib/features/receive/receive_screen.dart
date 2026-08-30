@@ -369,7 +369,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           setState(() => _dlStates[fileId] = const _FileDownloadState(
                 status: _DownloadStatus.failed,
                 error: 'Integrity check failed — file may be corrupted',
-                hashVerified: false,
               ));
         }
         return;
@@ -383,11 +382,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         setState(() => _dlStates[fileId] = _FileDownloadState(
               status: _DownloadStatus.saving,
               progress: 1.0,
-              hashVerified: hashVerified,
             ));
       }
 
-      final location = await saveFileToDevice(downloadedFile, fileName);
+      final saved = await saveFileToDevice(downloadedFile, fileName);
 
       await _markDownloaded(fileId);
 
@@ -400,8 +398,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         setState(() => _dlStates[fileId] = _FileDownloadState(
               status: _DownloadStatus.completed,
               progress: 1.0,
-              hashVerified: hashVerified,
-              savedLocation: location,
+              savedLocation: saved.label,
+              openTarget: saved.open,
             ));
 
         // Say "not verified" out loud. Previously this just dropped the
@@ -411,11 +409,18 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             : isEncrypted
                 ? ''
                 : '  (integrity not verified)';
+        final openTarget = saved.open;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Saved to $location$suffix'),
+            content: Text('Saved to ${saved.label}$suffix'),
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
+            action: openTarget == null
+                ? null
+                : SnackBarAction(
+                    label: 'Open',
+                    onPressed: () => _openSaved(openTarget),
+                  ),
           ),
         );
       }
@@ -512,12 +517,33 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                 state: dlState,
                 onDownload: () => _downloadFile(file),
                 onCancel: () => _cancelDownload(fileId),
+                onOpen: dlState?.openTarget == null
+                    ? null
+                    : () => _openSaved(dlState!.openTarget!),
               ),
             );
           }),
         ],
       ],
     );
+  }
+
+  /// Hands a finished download to the phone's viewer — the gallery for media,
+  /// the system chooser for everything else.
+  Future<void> _openSaved(String target) async {
+    try {
+      await openSavedFile(target);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is PlatformException
+              ? e.message ?? 'Could not open this file'
+              : 'Could not open this file'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _downloadAll() async {
@@ -691,15 +717,17 @@ class _FileDownloadState {
   final _DownloadStatus status;
   final double progress;
   final String? savedLocation;
-  final bool? hashVerified;
   final String? error;
+
+  /// Handle for [openSavedFile], or null where nothing can open the file.
+  final String? openTarget;
 
   const _FileDownloadState({
     this.status = _DownloadStatus.idle,
     this.progress = 0,
     this.savedLocation,
-    this.hashVerified,
     this.error,
+    this.openTarget,
   });
 }
 
@@ -709,6 +737,7 @@ class _FileDownloadTile extends StatelessWidget {
   final _FileDownloadState? state;
   final VoidCallback onDownload;
   final VoidCallback onCancel;
+  final VoidCallback? onOpen;
 
   const _FileDownloadTile({
     required this.fileName,
@@ -716,6 +745,7 @@ class _FileDownloadTile extends StatelessWidget {
     required this.state,
     required this.onDownload,
     required this.onCancel,
+    this.onOpen,
   });
 
   @override
@@ -803,22 +833,11 @@ class _FileDownloadTile extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                if (state?.hashVerified == true) ...[
-                  const Icon(Icons.verified_rounded,
-                      color: MiniColors.success, size: 14),
-                  const SizedBox(width: 5),
-                  Text('SHA-256 verified',
-                      style: GoogleFonts.outfit(
-                          color: MiniColors.success,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500)),
-                ] else ...[
-                  Icon(Icons.check_circle_rounded, color: c.inkFaint, size: 14),
-                  const SizedBox(width: 5),
-                  Text('Saved',
-                      style:
-                          MiniText.small.copyWith(fontWeight: FontWeight.w500)),
-                ],
+                Icon(Icons.check_circle_rounded, color: c.inkFaint, size: 14),
+                const SizedBox(width: 5),
+                Text('Saved',
+                    style:
+                        MiniText.small.copyWith(fontWeight: FontWeight.w500)),
               ],
             ),
             if (state?.savedLocation != null) ...[
@@ -921,8 +940,26 @@ class _FileDownloadTile extends StatelessWidget {
           ),
         );
       case _DownloadStatus.completed:
-        return const Icon(Icons.check_rounded,
-            color: MiniColors.success, size: 20);
+        final open = onOpen;
+        if (open == null) {
+          return const Icon(Icons.check_rounded,
+              color: MiniColors.success, size: 20);
+        }
+        return GestureDetector(
+          onTap: open,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: MiniColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Text('Open',
+                style: GoogleFonts.outfit(
+                    color: MiniColors.success,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+        );
     }
   }
 }

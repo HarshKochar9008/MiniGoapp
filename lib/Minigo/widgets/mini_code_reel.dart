@@ -26,6 +26,11 @@ class MiniCodeReel extends StatefulWidget {
   final String separator;
   final int groupSize;
 
+  /// Dead time before the first reel moves. The reveal is worth nothing while
+  /// the screen is still animating in on a cold open, so the reels sit still
+  /// until the card has settled.
+  final Duration delay;
+
   /// How long the first reel spins. Each later reel runs [stagger] longer, so
   /// the last lands `stagger * (length - 1)` after the first.
   final Duration spin;
@@ -45,6 +50,7 @@ class MiniCodeReel extends StatefulWidget {
     this.alphabet = AppConstants.codeAlphabet,
     this.separator = ' · ',
     this.groupSize = 3,
+    this.delay = const Duration(milliseconds: 550),
     this.spin = const Duration(milliseconds: 900),
     this.stagger = const Duration(milliseconds: 130),
     this.cycles = 3,
@@ -101,7 +107,8 @@ class _MiniCodeReelState extends State<MiniCodeReel>
   @override
   void didUpdateWidget(MiniCodeReel old) {
     super.didUpdateWidget(old);
-    final relaid = old.spin != widget.spin ||
+    final relaid = old.delay != widget.delay ||
+        old.spin != widget.spin ||
         old.stagger != widget.stagger ||
         old.cycles != widget.cycles ||
         old.alphabet != widget.alphabet ||
@@ -126,9 +133,10 @@ class _MiniCodeReelState extends State<MiniCodeReel>
   /// Lay the reels out along one controller so they share a clock.
   void _configure() {
     final n = widget.code.length;
+    final delayMs = widget.delay.inMilliseconds.clamp(0, 60000);
     final spinMs = widget.spin.inMilliseconds;
     final staggerMs = widget.stagger.inMilliseconds;
-    final totalMs = spinMs + staggerMs * (n > 1 ? n - 1 : 0);
+    final totalMs = delayMs + spinMs + staggerMs * (n > 1 ? n - 1 : 0);
 
     _ctrl.duration = Duration(milliseconds: totalMs);
 
@@ -139,17 +147,21 @@ class _MiniCodeReelState extends State<MiniCodeReel>
       return;
     }
 
+    // The delay is the head of the same clock, so nothing needs a timer of
+    // its own to fire — and cancelling a roll cancels the wait with it.
+    final begin = (delayMs / totalMs).clamp(0.0, 0.998);
     _ends = [
       for (var i = 0; i < n; i++)
-        // An Interval divides by (end - begin), so the first reel must own a
+        // An Interval divides by (end - begin), so every reel must own a
         // non-zero slice even when `spin` rounds to nothing.
-        ((spinMs + staggerMs * i) / totalMs).clamp(0.001, 1.0),
+        ((delayMs + spinMs + staggerMs * i) / totalMs)
+            .clamp(begin + 0.001, 1.0),
     ];
     _reels = [
       for (final end in _ends)
         CurvedAnimation(
           parent: _ctrl,
-          curve: Interval(0, end, curve: _brake),
+          curve: Interval(begin, end, curve: _brake),
         ),
     ];
     _landed = List<bool>.filled(n, false);
