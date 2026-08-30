@@ -181,6 +181,25 @@ void main() {
       expect(find.text(' · '), findsOneWidget);
     });
 
+    // Every Text on screen, so a frozen reel can be compared frame to frame.
+    List<String> glyphs(WidgetTester tester) => tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data ?? '')
+        .toList();
+
+    testWidgets('holds still through the delay before it rolls',
+        (tester) async {
+      await tester.pumpWidget(reel('A4X9K2'));
+      final atRest = glyphs(tester);
+
+      // Inside the default 550ms delay: the reels have not moved yet.
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(glyphs(tester), atRest);
+
+      await tester.pumpAndSettle();
+      expect(glyphs(tester), isNot(atRest));
+    });
+
     testWidgets('lands immediately when reduce-motion is on', (tester) async {
       await tester.pumpWidget(reel('B7MZ35', reduceMotion: true));
       // Settled on the first frame — nothing spins at all.
