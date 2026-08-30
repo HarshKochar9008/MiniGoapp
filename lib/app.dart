@@ -508,6 +508,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         identity: _identity!,
         autoAction: _widgetAction,
         onActionConsumed: () => setState(() => _widgetAction = null),
+        onSeeAll: () => setState(() => _currentIndex = 2),
       ),
       RoomsScreen(identity: _identity!),
       HistoryScreen(identity: _identity!),
