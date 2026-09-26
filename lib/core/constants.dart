@@ -32,6 +32,7 @@ class AppConstants {
     if (fromDefine.isNotEmpty) return _cleanEnvValue(fromDefine);
     return _cleanEnvValue(dotenv.env['SUPABASE_ANON_KEY'] ?? '');
   }
+  //q ??? 
 
   /// When true, file bytes are stored on Cloudflare R2 via presigned URLs
   /// minted by the r2-sign-upload / r2-sign-download edge functions
