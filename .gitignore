@@ -41,6 +41,7 @@ migrate_working_dir/
 .dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
+temp_auto_push.bat
 .pub/
 /build/
 /coverage/
@@ -85,3 +86,4 @@ android/app/*firebase-adminsdk*.json
 .flutter-plugins-dependencies
 *.iml
 .gitignore
+branch_structure.json
