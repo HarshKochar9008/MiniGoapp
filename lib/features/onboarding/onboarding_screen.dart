@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/supabase_config.dart';
 import '../../features/identity/identity_service.dart';
 import '../../Minigo/theme/mini_theme.dart';
@@ -22,7 +23,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _step = 0;
   String? _nickname;
   String? _shortCode;
-  final _nicknameController = TextEditingController();
+  // Seeded so a walkthrough replay from Settings shows the current nickname
+  // instead of an empty field that invites retyping over it.
+  final _nicknameController = TextEditingController(
+    text: IdentityService.identityNotifier.value?.nickname,
+  );
 
   Future<void> _finish() async {
     final trimmedNick = _nickname?.trim();
@@ -55,7 +60,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           controller: _nicknameController,
         );
       case 2:
-        return _OnbPermissions(onNext: _next);
+        return _OnbPermissions(
+          onAllow: () async {
+            // Asks for notifications and sets up push in one go.
+            await NotificationService.initialize();
+            if (mounted) _next();
+          },
+          onSkip: _next,
+        );
       case 3:
         return _OnbGenerate(
           onReady: (code) {
@@ -260,7 +272,7 @@ class _OnbWelcome extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'No accounts. No phone numbers. Just a six-character code that lives only on your device.',
+                'No accounts. No phone numbers. Just a six-character code.',
                 textAlign: TextAlign.center,
                 style: MiniText.bodySoft,
               ),
@@ -425,15 +437,16 @@ class _OnbCodeState extends State<_OnbCode> {
 // Step 3 – Permissions
 // ---------------------------------------------------------------------------
 class _OnbPermissions extends StatelessWidget {
-  final VoidCallback onNext;
-  const _OnbPermissions({required this.onNext});
+  final VoidCallback onAllow;
+  final VoidCallback onSkip;
+  const _OnbPermissions({required this.onAllow, required this.onSkip});
 
   @override
   Widget build(BuildContext context) {
     final items = const [
       ['Notifications', 'so files arrive when you\'re away'],
-      ['Files & photos', 'to pick what to send or save what you receive'],
-      ['Camera', 'for scanning QR codes'],
+      ['Files & photos', 'asked the first time you send or save'],
+      ['Camera', 'asked the first time you scan a QR code'],
     ];
     final c = context.mini;
     return Scaffold(
@@ -488,11 +501,11 @@ class _OnbPermissions extends StatelessWidget {
               const Spacer(),
               const Center(child: _PageDots(index: 2)),
               const SizedBox(height: 16),
-              MiniButton(label: 'Continue', onPressed: onNext),
+              MiniButton(label: 'Allow notifications', onPressed: onAllow),
               const SizedBox(height: 8),
               MiniButton(
                 label: 'Skip for now',
-                onPressed: onNext,
+                onPressed: onSkip,
                 style: MiniBtnStyle.ghost,
               ),
             ],

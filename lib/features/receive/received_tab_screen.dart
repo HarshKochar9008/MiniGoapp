@@ -119,11 +119,15 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     if (old != null) {
       await TransferService.unsubscribe(old);
     }
-    if (!mounted) return;
+    // A resume and a timer tick can overlap here; the later one must not
+    // replace — and so leak — the channel the earlier one just opened.
+    if (!mounted || _channel != null) return;
     _subscribeToRealtime();
   }
 
   Future<void> _loadTransfers() async {
+    // Realtime events can still land after dispose.
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;

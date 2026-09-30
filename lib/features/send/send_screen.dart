@@ -55,6 +55,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   bool _codeValidated = false;
   bool _sending = false;
   String? _error;
+
+  /// Neutral notice (e.g. a resumed upload) — not an error, so not red.
+  String? _info;
   String? _codeError;
 
   /// Set when validation fails because a code saved in recent recipients no
@@ -211,7 +214,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     setState(() {
       _selectedFiles = existing;
       _codeError = null;
-      _error = 'Resumed interrupted upload. Tap Send to continue.';
+      _info = 'Resumed interrupted upload. Tap Send to continue.';
       if (pending.receiverCode != null && pending.receiverCode!.isNotEmpty) {
         _codeController.text = pending.receiverCode!;
       }
@@ -666,6 +669,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       _sending = true;
       _uploadStates = null;
       _error = null;
+      _info = null;
       _uploadCancellationToken = TransferCancellationToken();
     });
 
@@ -1208,6 +1212,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       icon: Icons.error_outline_rounded,
                       text: _error!,
                       tint: MiniColors.danger,
+                    ),
+                  ] else if (_info != null) ...[
+                    const SizedBox(height: 8),
+                    StatusBanner(
+                      icon: Icons.info_outline_rounded,
+                      text: _info!,
+                      tint: MiniColors.blue600,
                     ),
                   ],
 

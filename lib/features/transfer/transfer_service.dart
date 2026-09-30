@@ -1785,6 +1785,9 @@ class TransferService {
         } catch (e) {
           await sink?.close();
           sink = null;
+          // Wrong key or tampered ciphertext fails identically every time —
+          // retrying only re-downloads the whole file to fail again.
+          if (e is E2EDecryptException) rethrow;
           lastError = e.toString().replaceAll('Exception: ', '');
 
           // Object not on R2 (uploaded before the cutover) — use Supabase

@@ -109,7 +109,7 @@ class AboutScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Simple. Fast. Peer-to-peer.',
+                      'Simple. Fast. Private.',
                       style: MiniText.small.copyWith(color: c.inkFaint),
                     ),
                   ],
@@ -120,9 +120,10 @@ class AboutScreen extends StatelessWidget {
             SectionHeader(title: 'What is MiniGo?'),
             _AboutCard(
               child: Text(
-                'MiniGo lets you transfer files directly to another person '
-                'using a short 6-character code — no accounts, no cloud storage, '
-                'no email required. Files are sent peer-to-peer via an encrypted relay.',
+                'MiniGo lets you send files to another person using a short '
+                '6-character code — no accounts, no email, no phone number. Files '
+                'are end-to-end encrypted whenever the recipient supports it, held '
+                'in temporary cloud storage until picked up, and deleted after 24 hours.',
                 style: GoogleFonts.outfit(
                   fontSize: 14.5,
                   height: 1.55,

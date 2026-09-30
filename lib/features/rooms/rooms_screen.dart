@@ -737,7 +737,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
   }
 
   Future<void> _scanQr() async {
-    final code = await QrScannerSheet.show(context);
+    final code = await QrScannerSheet.show(context, title: "Scan the room's QR code");
     if (code == null || !mounted) return;
     _codeController.text = code;
     await _join();

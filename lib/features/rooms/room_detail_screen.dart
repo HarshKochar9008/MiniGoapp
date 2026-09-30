@@ -119,7 +119,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   void _showQr() {
     HapticFeedback.selectionClick();
-    QrCodeSheet.show(context, widget.room.code);
+    QrCodeSheet.show(context, widget.room.code, forRoom: true);
   }
 
   void _openRoomSend() {
@@ -163,9 +163,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     }
   }
 
+  /// Members with a can_share write in flight — a second tap waits it out, so
+  /// an older request's rollback can never undo a newer toggle.
+  final _sharePending = <String>{};
+
   Future<void> _toggleMemberShare(RoomMember member, bool value) async {
     final idx = _members.indexWhere((m) => m.userId == member.userId);
-    if (idx == -1) return;
+    if (idx == -1 || !_sharePending.add(member.userId)) return;
     HapticFeedback.selectionClick();
     setState(() => _members[idx] = member.withCanShare(value));
     try {
@@ -176,10 +180,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       );
     } catch (_) {
       if (!mounted) return;
-      setState(() => _members[idx] = member.withCanShare(!value));
+      // Look up again: a realtime reload may have replaced the list meanwhile.
+      final now = _members.indexWhere((m) => m.userId == member.userId);
+      if (now != -1) {
+        setState(() => _members[now] = _members[now].withCanShare(!value));
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not update permission')),
       );
+    } finally {
+      _sharePending.remove(member.userId);
     }
   }
 

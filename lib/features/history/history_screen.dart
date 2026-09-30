@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
 
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
@@ -39,22 +40,54 @@ class _HistoryScreenState extends State<HistoryScreen> {
   late final VoidCallback _onConnectionChanged;
   final Set<String> _hiddenIds = <String>{};
 
+  /// `_loadMore` runs from build, so without these every rebuild (realtime
+  /// event, alias change) fired another pair of requests — endlessly offline.
+  bool _loadingMore = false;
+  bool _loadMoreFailed = false;
+
+  String get _hiddenKey => 'history_hidden_${widget.identity.id}';
+
   @override
   void initState() {
     super.initState();
     ConnectionStatus.instance.ensureStarted();
     _onConnectionChanged = () {
-      if (!ConnectionStatus.instance.online.value) return;
-      if (_error != null && mounted) {
+      if (!ConnectionStatus.instance.online.value || !mounted) return;
+      if (_error != null) {
         _loadTransfers();
+      } else if (_loadMoreFailed) {
+        setState(() => _loadMoreFailed = false);
       }
     };
     ConnectionStatus.instance.online.addListener(_onConnectionChanged);
     ContactAliases.ensureLoaded();
     ContactAliases.revision.addListener(_onAliasesChanged);
+    _loadHidden();
     _loadTransfers();
     _subscribeToRealtime();
   }
+
+  Future<void> _loadHidden() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_hiddenKey);
+    if (saved != null && mounted) setState(() => _hiddenIds.addAll(saved));
+  }
+
+  Future<void> _hide(String id) async {
+    setState(() => _hiddenIds.add(id));
+    // ponytail: capped oldest-first; rows expire server-side long before 500.
+    while (_hiddenIds.length > 500) {
+      _hiddenIds.remove(_hiddenIds.first);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_hiddenKey, _hiddenIds.toList());
+  }
+
+  /// Shown instead of the paging skeleton once a page fetch has failed.
+  Widget _loadMoreRetry() => TextButton(
+        onPressed: () => setState(() => _loadMoreFailed = false),
+        child: const Text("Couldn't load more. Tap to retry."),
+      );
 
   void _onAliasesChanged() {
     if (mounted) setState(() {});
@@ -98,10 +131,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadTransfers() async {
+    // Realtime events can still land after dispose.
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
       _currentPage = 0;
+      _loadMoreFailed = false;
     });
     try {
       final incoming = await TransferService.getIncomingTransfers(
@@ -129,7 +165,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _loadMore() async {
-    if (!_hasMore) return;
+    if (!_hasMore || _loadingMore || _loadMoreFailed) return;
+    _loadingMore = true;
     final nextPage = _currentPage + 1;
     try {
       final moreIncoming = await TransferService.getIncomingTransfers(
@@ -147,7 +184,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               moreSent.length >= AppConstants.transfersPageSize;
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _loadMoreFailed = true);
+    } finally {
+      _loadingMore = false;
+    }
   }
 
   List<Map<String, dynamic>> _mergeAndSort(
@@ -358,7 +399,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           // transfers sit on pages not fetched yet — keep
                           // paging before declaring it empty.
                           ? (_transfers != null && _hasMore
-                              ? Builder(builder: (context) {
+                              ? _loadMoreFailed
+                                  ? Center(child: _loadMoreRetry())
+                                  : Builder(builder: (context) {
                                   _loadMore();
                                   return ListView.builder(
                                     physics:
@@ -379,6 +422,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       visible.length + (_hasMore ? 1 : 0),
                                   itemBuilder: (context, index) {
                                     if (index == visible.length) {
+                                      if (_loadMoreFailed) {
+                                        return _loadMoreRetry();
+                                      }
                                       _loadMore();
                                       return const TransferTileSkeleton();
                                     }
@@ -452,9 +498,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       ),
                                       onDismissed: (_) {
                                         HapticFeedback.mediumImpact();
-                                        setState(() {
-                                          _hiddenIds.add(id);
-                                        });
+                                        _hide(id);
                                       },
                                       child: tile,
                                     );

@@ -7,16 +7,19 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/constants.dart';
 import '../../Minigo/theme/mini_theme.dart';
 
-/// Bottom sheet that displays the user's own code as a scannable QR image.
+/// Bottom sheet that displays the user's own code — or, with [forRoom], a
+/// room's join code — as a scannable QR image.
 class QrCodeSheet extends StatelessWidget {
   final String code;
-  const QrCodeSheet({super.key, required this.code});
+  final bool forRoom;
+  const QrCodeSheet({super.key, required this.code, this.forRoom = false});
 
-  static Future<void> show(BuildContext context, String code) =>
+  static Future<void> show(BuildContext context, String code,
+          {bool forRoom = false}) =>
       showModalBottomSheet<void>(
         context: context,
         backgroundColor: Colors.transparent,
-        builder: (_) => QrCodeSheet(code: code),
+        builder: (_) => QrCodeSheet(code: code, forRoom: forRoom),
       );
 
   @override
@@ -36,7 +39,7 @@ class QrCodeSheet extends StatelessWidget {
           _SheetHandle(color: c.sandDeep),
           const SizedBox(height: 18),
           Text(
-            'YOUR QR CODE',
+            forRoom ? 'ROOM QR CODE' : 'YOUR QR CODE',
             style: GoogleFonts.outfit(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -61,7 +64,11 @@ class QrCodeSheet extends StatelessWidget {
             child: QrImageView(
               // An https link (not the bare code) so every camera app offers
               // to open it; the page redirects into MiniGo's send screen.
-              data: AppConstants.qrPayloadForCode(code),
+              // A room code must not become a "send to this user" link, so
+              // it stays bare — the in-app scanner reads that directly.
+              data: forRoom
+                  ? AppConstants.normalizeShortCode(code)
+                  : AppConstants.qrPayloadForCode(code),
               version: QrVersions.auto,
               size: 220,
               backgroundColor: Colors.white,
@@ -86,7 +93,9 @@ class QrCodeSheet extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Ask someone to scan this to send you files',
+            forRoom
+                ? 'Scan this in MiniGo → Rooms → Join to join the room'
+                : 'Ask someone to scan this to send you files',
             style: MiniText.small.copyWith(color: c.inkSoft),
           ),
         ],
@@ -98,14 +107,16 @@ class QrCodeSheet extends StatelessWidget {
 /// Camera scanner sheet — pops with the scanned code when a valid 6-character
 /// recipient code is detected. Returns null if dismissed without scanning.
 class QrScannerSheet extends StatefulWidget {
-  const QrScannerSheet({super.key});
+  final String title;
+  const QrScannerSheet({super.key, this.title = "Scan recipient's QR code"});
 
-  static Future<String?> show(BuildContext context) =>
+  static Future<String?> show(BuildContext context,
+          {String title = "Scan recipient's QR code"}) =>
       showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => const QrScannerSheet(),
+        builder: (_) => QrScannerSheet(title: title),
       );
 
   @override
@@ -167,7 +178,7 @@ class _QrScannerSheetState extends State<QrScannerSheet> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              "Scan recipient's QR code",
+              widget.title,
               style: GoogleFonts.outfit(
                 color: Colors.white70,
                 fontSize: 14,

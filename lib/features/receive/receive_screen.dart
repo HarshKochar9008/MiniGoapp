@@ -163,6 +163,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   }
 
   Future<void> _loadFiles() async {
+    // Realtime events can still land after dispose.
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _loadError = null;
@@ -323,6 +325,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       }
       return;
     }
+    if (!mounted) return;
 
     final cancellationToken = TransferCancellationToken();
     _downloadTokens[fileId] = cancellationToken;

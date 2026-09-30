@@ -19,7 +19,6 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   static bool _available = false;
   static String? _userId;
-  static bool _initializing = false;
   static Future<void>? _initializeFuture;
 
   static void setUserId(String? id) => _userId = id;
@@ -27,10 +26,8 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_available) return;
     if (_initializeFuture != null) return _initializeFuture!;
-    _initializing = true;
     _initializeFuture = _initializeInternal();
     await _initializeFuture;
-    _initializing = false;
     _initializeFuture = null;
   }
 
@@ -145,6 +142,10 @@ class NotificationService {
         final payload = launchDetails!.notificationResponse?.payload;
         PendingIncomingTransfer.applyPayload(payload);
       }
+      // The launch tap only resolves here, well after runApp — the permission
+      // prompts above can hold it for seconds — so the shell's own
+      // post-frame checks have usually run already and found nothing.
+      handleLaunchAndPendingNavigation();
 
       _available = true;
     } catch (e) {
@@ -155,12 +156,10 @@ class NotificationService {
     }
   }
 
+  /// Does not call [initialize]: that (and its permission prompt) belongs to
+  /// app start or the onboarding permissions step, so "Skip for now" holds
+  /// until the next launch. The FCM token is available either way.
   static Future<void> syncFcmToken(String userId) async {
-    // Ensure initialization is started, but do not fail token sync if local
-    // notification setup had issues. FCM token can still be available.
-    if (!_available && !_initializing) {
-      await initialize();
-    }
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) return;
@@ -198,5 +197,7 @@ class NotificationService {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       PendingIncomingTransfer.tryNavigateToReceive();
     });
+    // An idle app draws no next frame, and the callback above would wait for one.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 }

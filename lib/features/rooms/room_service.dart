@@ -125,17 +125,18 @@ class RoomService {
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       final code = ShortCodeGenerator.generate();
       try {
-        final row = await SupabaseConfig.client
-            .from('rooms')
-            .insert({
-              'code': code,
-              'name': name,
-              'owner_id': ownerId,
-              'lifetime_minutes': lifetimeMinutes,
-            })
-            .select('id, code, name, owner_id, expires_at')
-            .single();
-        final room = Room(
+        // One call, one transaction: the room and the owner's membership
+        // commit together, so a dropped request can't leave a memberless
+        // room nobody can see (20260930000001_create_room_atomic.sql).
+        final row = Map<String, dynamic>.from(
+          await SupabaseConfig.client.rpc('create_room', params: {
+            'p_code': code,
+            'p_name': name,
+            'p_owner_id': ownerId,
+            'p_lifetime_minutes': lifetimeMinutes,
+          }) as Map,
+        );
+        return Room(
           id: row['id'] as String,
           code: row['code'] as String,
           name: row['name'] as String,
@@ -143,14 +144,6 @@ class RoomService {
           expiresAt: Room.parseExpiry(row['expires_at']),
           memberCount: 1,
         );
-        final me = IdentityService.identityNotifier.value;
-        await SupabaseConfig.client.from('room_members').insert({
-          'room_id': room.id,
-          'user_id': ownerId,
-          if (me?.shortCode != null) 'short_code': me!.shortCode,
-          if (me?.nickname != null) 'nickname': me!.nickname,
-        });
-        return room;
       } on PostgrestException catch (e) {
         // Unique violation on code → regenerate and retry
         if (e.code == '23505' && attempt < maxAttempts - 1) continue;
@@ -371,10 +364,16 @@ class RoomService {
     required bool canShare,
   }) async {
     await _ensureSession();
-    await SupabaseConfig.client
+    final rows = await SupabaseConfig.client
         .from('room_members')
         .update({'can_share': canShare})
         .eq('room_id', roomId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('user_id');
+    // RLS turns a disallowed update into "0 rows", not an error — without
+    // this the switch shows a change the server never made.
+    if (rows.isEmpty) {
+      throw StateError('setMemberCanShare: no row updated');
+    }
   }
 }

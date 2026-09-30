@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/analytics/analytics.dart';
@@ -57,7 +58,12 @@ void main() async {
 
 Future<void> _initializeServices() async {
   try {
-    await NotificationService.initialize();
+    // First run: the onboarding permissions step asks, with context, instead
+    // of an OS prompt landing on top of the welcome screen.
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('onboarding_complete') ?? false) {
+      await NotificationService.initialize();
+    }
     SupabaseConfig.startAuthListener();
   } catch (e) {
     if (kDebugMode) debugPrint('Background service initialization failed: $e');

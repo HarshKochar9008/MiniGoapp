@@ -189,13 +189,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   iconTint: c.accent,
                   label: 'App walkthrough',
                   sub: 'Replay the onboarding walkthrough',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => OnboardingScreen(
-                        onComplete: () => Navigator.of(context).pop(),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => OnboardingScreen(
+                          onComplete: () => Navigator.of(context).pop(),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                    // The walkthrough's nickname step may have changed it.
+                    final nick = IdentityService.identityNotifier.value?.nickname;
+                    if (mounted && nick != _nickname) {
+                      setState(() => _nickname = nick);
+                    }
+                  },
                 ),
                 _SettingsTile(
                   icon: Icons.shield_outlined,
