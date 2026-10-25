@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/app_reset.dart';
 import '../../core/theme.dart';
@@ -8,7 +9,6 @@ import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../qr/qr_widgets.dart';
-import '../transfer/transfer_service.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
 
@@ -22,8 +22,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   ThemeMode _themeMode = ThemeController.themeMode.value;
-  bool _checkingPush = false;
-  PushReadinessResult? _pushReadiness;
   String? _nickname;
 
   static const _appVersion = 'MiniGo 1.1.0';
@@ -32,7 +30,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _nickname = widget.identity.nickname;
-    _refreshPushReadiness();
   }
 
   Future<void> _editNickname() async {
@@ -71,16 +68,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await ThemeController.setThemeMode(mode);
   }
 
-  Future<void> _refreshPushReadiness() async {
-    setState(() => _checkingPush = true);
-    final result = await TransferService.verifyClosedAppDeliveryReadiness(
-      receiverId: widget.identity.id,
-    );
-    if (!mounted) return;
-    setState(() {
-      _pushReadiness = result;
-      _checkingPush = false;
-    });
+  Future<void> _openNotificationSettings() async {
+    final opened = await openAppSettings();
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open app settings')),
+      );
+    }
   }
 
   Future<void> _confirmFullLocalReset() async {
@@ -168,7 +162,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // ── Notifications ──────────────────────────────────────────
             const _GroupLabel('Notifications'),
             _SettingsGroup(
-              children: [_buildDeliveryTile(c)],
+              children: [
+                _SettingsTile(
+                  icon: Icons.notifications_outlined,
+                  iconTint: c.accent,
+                  label: 'App notifications',
+                  sub: 'Turn transfer alerts on or off in device settings',
+                  onTap: _openNotificationSettings,
+                ),
+              ],
             ),
 
             // ── About ──────────────────────────────────────────────────
@@ -198,7 +200,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     );
                     // The walkthrough's nickname step may have changed it.
-                    final nick = IdentityService.identityNotifier.value?.nickname;
+                    final nick =
+                        IdentityService.identityNotifier.value?.nickname;
                     if (mounted && nick != _nickname) {
                       setState(() => _nickname = nick);
                     }
@@ -239,95 +242,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: MiniText.small.copyWith(color: c.inkFaint),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Background-delivery health as a quiet, self-explaining tile: a status
-  /// dot instead of a loud banner, tap anywhere to re-check.
-  Widget _buildDeliveryTile(MiniThemeExtension c) {
-    final readiness = _pushReadiness;
-    final ready = readiness?.ready == true;
-    final tint = _checkingPush
-        ? c.inkFaint
-        : ready
-            ? MiniColors.success
-            : MiniColors.warn;
-    final status = _checkingPush
-        ? 'Checking…'
-        : ready
-            ? 'Ready — transfers can alert you when the app is closed.'
-            : (readiness?.reason ??
-                'Push pipeline is not fully configured yet.');
-
-    return InkWell(
-      onTap: _checkingPush ? null : _refreshPushReadiness,
-      borderRadius: BorderRadius.circular(MiniRadius.card),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: tint.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: _checkingPush
-                  ? Padding(
-                      padding: const EdgeInsets.all(11),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        strokeCap: StrokeCap.round,
-                        color: c.inkFaint,
-                      ),
-                    )
-                  : Icon(
-                      ready
-                          ? Icons.notifications_active_rounded
-                          : Icons.notifications_paused_rounded,
-                      size: 19,
-                      color: tint,
-                    ),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Background delivery',
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.2,
-                          color: c.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: tint,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(status,
-                      style: MiniText.small.copyWith(color: c.inkSoft)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.refresh_rounded, size: 18, color: c.inkFaint),
           ],
         ),
       ),
