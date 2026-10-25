@@ -233,11 +233,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 20),
-                                MiniCodeReel(
-                                  code: code,
-                                  style: MiniText.codeLarge.copyWith(
-                                    color: c.ink,
-                                    letterSpacing: 4,
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: MiniCodeReel(
+                                      code: code,
+                                      style: MiniText.codeLarge.copyWith(
+                                        color: c.ink,
+                                        letterSpacing: 4,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
