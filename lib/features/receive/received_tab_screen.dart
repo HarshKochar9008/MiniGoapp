@@ -12,6 +12,7 @@ import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
 import 'receive_screen.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class ReceivedTabScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -183,7 +184,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: IconButton(
-                        icon: Icon(Icons.arrow_back_rounded,
+                        icon: Icon(MiniIcons.back,
                             color: c.ink, size: 22),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -235,7 +236,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                   const SizedBox(width: 4),
                   IconButton(
                     icon:
-                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
+                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],
@@ -347,7 +348,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                 shape: BoxShape.circle,
                 color: c.accent.withValues(alpha: 0.12),
               ),
-              child: Icon(Icons.south_west_rounded, color: c.accent, size: 30),
+              child: Icon(MiniIcons.receive, color: c.accent, size: 30),
             ),
             const SizedBox(height: 20),
             Text('Nothing here yet',
@@ -456,8 +457,8 @@ class _ReceivedTile extends StatelessWidget {
             children: [
               MiniIconPlate(
                 icon: status == 'completed'
-                    ? Icons.download_done_rounded
-                    : Icons.south_west_rounded,
+                    ? MiniIcons.downloaded
+                    : MiniIcons.receive,
                 tint: plateTint,
               ),
               const SizedBox(width: 14),
@@ -498,8 +499,8 @@ class _ReceivedTile extends StatelessWidget {
                               padding: const EdgeInsets.all(3),
                               child: Icon(
                                 senderAlias != null
-                                    ? Icons.edit_outlined
-                                    : Icons.person_add_alt_outlined,
+                                    ? MiniIcons.edit
+                                    : MiniIcons.addPerson,
                                 size: 14,
                                 color: c.inkFaint,
                               ),
@@ -539,7 +540,7 @@ class _ReceivedTile extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.groups_rounded,
+                                  Icon(MiniIcons.rooms,
                                       size: 12, color: c.accent),
                                   const SizedBox(width: 4),
                                   Flexible(
@@ -563,7 +564,7 @@ class _ReceivedTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
+              Icon(MiniIcons.chevronRight, color: c.inkFaint, size: 20),
             ],
           ),
         ),

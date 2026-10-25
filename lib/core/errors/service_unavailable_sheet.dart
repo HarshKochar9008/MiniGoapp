@@ -6,6 +6,7 @@ import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../constants.dart';
 import 'service_health.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 /// Full "our service is down" bottom sheet — shown when the device is online
 /// but the backend is unreachable, so the user knows the problem is on our
@@ -129,7 +130,7 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.cloud_off_rounded,
+                  MiniIcons.cloudOff,
                   size: 33,
                   color: MiniColors.warn,
                 ),

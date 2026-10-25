@@ -13,6 +13,7 @@ import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import 'room_detail_screen.dart';
 import 'room_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class RoomsScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -134,7 +135,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                   ),
                   IconButton(
                     icon:
-                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
+                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadRooms,
                   ),
                 ],
@@ -148,7 +149,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                 children: [
                   Expanded(
                     child: _RoomAction(
-                      icon: Icons.add_rounded,
+                      icon: MiniIcons.add,
                       title: 'Create room',
                       subtitle: 'Start a new room',
                       primary: true,
@@ -158,7 +159,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _RoomAction(
-                      icon: Icons.login_rounded,
+                      icon: MiniIcons.login,
                       title: 'Join room',
                       subtitle: 'Enter a room code',
                       onTap: _joinRoom,
@@ -189,7 +190,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                       ? Padding(
                           padding: const EdgeInsets.all(20),
                           child: StatusBanner(
-                            icon: Icons.wifi_off_rounded,
+                            icon: MiniIcons.offline,
                             text: _error!,
                             tint: MiniColors.danger,
                             onTap: _loadRooms,
@@ -508,7 +509,7 @@ class _EmptyRooms extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: c.accent.withValues(alpha: 0.12),
               ),
-              child: Icon(Icons.groups_rounded, size: 30, color: c.accent),
+              child: Icon(MiniIcons.rooms, size: 30, color: c.accent),
             ),
             const SizedBox(height: 20),
             Text('No rooms yet', style: MiniText.title.copyWith(color: c.ink)),
@@ -837,7 +838,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           ),
           suffixIcon: IconButton(
             icon:
-                Icon(Icons.qr_code_scanner_rounded, size: 20, color: c.inkSoft),
+                Icon(MiniIcons.scanQr, size: 20, color: c.inkSoft),
             tooltip: 'Scan room QR',
             onPressed: _joining ? null : _scanQr,
           ),

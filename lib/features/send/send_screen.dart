@@ -24,6 +24,7 @@ import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class SendScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -495,7 +496,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_rounded,
+          const Icon(MiniIcons.success,
               size: 16, color: MiniColors.success),
           const SizedBox(width: 6),
           Expanded(
@@ -512,8 +513,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               children: [
                 Icon(
                   alias != null
-                      ? Icons.edit_outlined
-                      : Icons.person_add_alt_outlined,
+                      ? MiniIcons.edit
+                      : MiniIcons.addPerson,
                   size: 15,
                   color: c.accent,
                 ),
@@ -914,7 +915,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(MiniIcons.close),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text('Send to'),
@@ -982,7 +983,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       height: 44,
                       child: IconButton(
                         icon: const Icon(
-                          Icons.qr_code_scanner_rounded,
+                          MiniIcons.scanQr,
                           size: 20,
                         ),
                         color: c.inkSoft,
@@ -1125,7 +1126,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           // as plaintext. Say so before the send, not after.
           if (_codeValidated && !_recipientIsEncryptable)
             StatusBanner(
-              icon: Icons.lock_open_rounded,
+              icon: MiniIcons.unlock,
               text: 'This recipient has no encryption key yet — files will '
                   'not be end-to-end encrypted.',
               tint: MiniColors.warn,
@@ -1134,7 +1135,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
           // Power save banner
           if (_powerSaveMode)
             StatusBanner(
-              icon: Icons.battery_saver_rounded,
+              icon: MiniIcons.batterySaver,
               text:
                   'Battery saver is on. Large uploads may be slower or pause.',
               tint: MiniColors.warn,
@@ -1198,7 +1199,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                   onTap: () => _removeFile(i),
                                   child: Padding(
                                     padding: const EdgeInsets.all(12),
-                                    child: Icon(Icons.close_rounded,
+                                    child: Icon(MiniIcons.close,
                                         size: 16, color: c.inkFaint),
                                   ),
                                 ),
@@ -1209,14 +1210,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     StatusBanner(
-                      icon: Icons.error_outline_rounded,
+                      icon: MiniIcons.error,
                       text: _error!,
                       tint: MiniColors.danger,
                     ),
                   ] else if (_info != null) ...[
                     const SizedBox(height: 8),
                     StatusBanner(
-                      icon: Icons.info_outline_rounded,
+                      icon: MiniIcons.info,
                       text: _info!,
                       tint: MiniColors.blue600,
                     ),
@@ -1247,7 +1248,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         onPressed: null,
                         leading: GestureDetector(
                           onTap: _cancelUpload,
-                          child: Icon(Icons.close_rounded,
+                          child: Icon(MiniIcons.close,
                               size: 16, color: c.inkFaint),
                         ),
                       )
@@ -1285,7 +1286,7 @@ class _EmptyFilesMini extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               MiniIconPlate(
-                icon: Icons.add_rounded,
+                icon: MiniIcons.add,
                 tint: c.accent,
                 size: 56,
                 iconSize: 28,
@@ -1505,7 +1506,7 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
                               ],
                             ),
                             child: const Icon(
-                              Icons.north_east_rounded,
+                              MiniIcons.send,
                               size: 19,
                               color: Colors.white,
                             ),

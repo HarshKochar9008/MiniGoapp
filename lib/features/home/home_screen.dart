@@ -12,6 +12,7 @@ import '../receive/received_tab_screen.dart';
 import '../send/send_screen.dart';
 import '../transfer/transfer_service.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 enum HomeAutoAction { showQr, openSend }
 
@@ -192,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(width: 7),
                             Icon(
-                              Icons.copy_rounded,
+                              MiniIcons.copy,
                               size: 15,
                               color: c.inkSoft,
                             ),
@@ -259,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 Expanded(
                                   child: _ActionTile(
-                                    icon: Icons.crop_free_rounded,
+                                    icon: MiniIcons.scanFrame,
                                     label: 'Scan',
                                     onTap: _scanAndSend,
                                   ),
@@ -267,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _ActionDivider(color: c.divider),
                                 Expanded(
                                   child: _ActionTile(
-                                    icon: Icons.qr_code_2_rounded,
+                                    icon: MiniIcons.qr,
                                     label: 'QR',
                                     onTap: _showQr,
                                   ),
@@ -275,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _ActionDivider(color: c.divider),
                                 Expanded(
                                   child: _ActionTile(
-                                    icon: Icons.ios_share_rounded,
+                                    icon: MiniIcons.shareSheet,
                                     label: 'Share',
                                     onTap: _shareCode,
                                   ),
@@ -295,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded,
+                          Icon(MiniIcons.info,
                               size: 15, color: c.inkFaint),
                           const SizedBox(width: 8),
                           Expanded(
@@ -334,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _PillButton(
-              icon: Icons.south_west_rounded,
+              icon: MiniIcons.receive,
               label: 'Received',
               background: c.paperDeep,
               foreground: c.ink,
@@ -343,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 10),
             _PillButton(
-              icon: Icons.north_east_rounded,
+              icon: MiniIcons.send,
               label: 'Send',
               background: MiniColors.blue600,
               foreground: Colors.white,

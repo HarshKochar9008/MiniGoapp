@@ -8,6 +8,7 @@ import '../network/network_errors.dart';
 import '../theme.dart';
 import 'service_health.dart';
 import 'service_unavailable_sheet.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 /// Single entry point for presenting caught errors to the user.
 ///
@@ -111,7 +112,7 @@ class AppErrorHandler {
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.error_outline_rounded, size: 18, color: iconColor),
+              Icon(MiniIcons.error, size: 18, color: iconColor),
               const SizedBox(width: 10),
               Expanded(child: Text(message)),
             ],

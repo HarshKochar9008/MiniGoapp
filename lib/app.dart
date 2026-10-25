@@ -30,6 +30,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/identity/identity_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/send/send_screen.dart';
+import 'Minigo/theme/mini_icons.dart';
 
 class MiniGoApp extends StatelessWidget {
   const MiniGoApp({super.key});
@@ -448,7 +449,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         .withValues(alpha: context.isDarkMini ? 0.18 : 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.wifi_off_rounded,
+                  child: const Icon(MiniIcons.offline,
                       size: 32, color: MiniColors.warn),
                 ),
                 const SizedBox(height: 26),
@@ -544,20 +545,20 @@ class _MiniBottomNav extends StatelessWidget {
 
   static const _items = [
     _NavItem(
-        icon: Icons.home_outlined,
-        activeIcon: Icons.home_rounded,
+        icon: MiniIcons.home,
+        activeIcon: MiniIcons.homeActive,
         label: 'Home'),
     _NavItem(
-        icon: Icons.groups_outlined,
-        activeIcon: Icons.groups_rounded,
+        icon: MiniIcons.rooms,
+        activeIcon: MiniIcons.roomsActive,
         label: 'Rooms'),
     _NavItem(
-        icon: Icons.access_time_outlined,
-        activeIcon: Icons.access_time_rounded,
+        icon: MiniIcons.history,
+        activeIcon: MiniIcons.historyActive,
         label: 'History'),
     _NavItem(
-        icon: Icons.settings_outlined,
-        activeIcon: Icons.settings_rounded,
+        icon: MiniIcons.settings,
+        activeIcon: MiniIcons.settingsActive,
         label: 'Settings'),
   ];
 

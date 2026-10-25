@@ -6,6 +6,7 @@ import '../errors/service_health.dart';
 import '../network/connection_status.dart';
 import '../offline/offline_sync_coordinator.dart';
 import '../offline/pending_backend_jobs.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 /// Global status banner that surfaces:
 ///   * Offline state (with retry queue summary, if any).
@@ -99,7 +100,7 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
 
     if (isOffline) {
       color = MiniColors.warn;
-      icon = Icons.cloud_off_rounded;
+      icon = MiniIcons.cloudOff;
       text = pending > 0
           ? 'Offline — $pending pending, will retry when back'
           : 'You are offline';
@@ -107,13 +108,13 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
       onTap = null;
     } else if (serviceDown) {
       color = MiniColors.danger;
-      icon = Icons.report_gmailerrorred_rounded;
+      icon = MiniIcons.report;
       text = 'Service issues — some features may not work right now';
       actionLabel = 'Check again';
       onTap = _checkServiceAgain;
     } else {
       color = MiniColors.blue600;
-      icon = Icons.sync_rounded;
+      icon = MiniIcons.sync;
       text = 'Syncing $pending pending…';
       actionLabel = 'Retry now';
       onTap = pending > 0 ? _retryNow : null;

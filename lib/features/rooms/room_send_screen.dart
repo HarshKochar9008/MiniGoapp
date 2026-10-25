@@ -12,6 +12,7 @@ import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
 import 'room_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 enum _MemberSendStatus { waiting, sending, done, failed }
 
@@ -337,7 +338,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
         backgroundColor: c.paper,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: const Icon(MiniIcons.close),
             onPressed: _sending ? null : () => Navigator.pop(context),
           ),
           title: Text('Share to "${widget.room.name}"'),
@@ -409,7 +410,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 MiniIconPlate(
-                                  icon: Icons.add_rounded,
+                                  icon: MiniIcons.add,
                                   tint: c.accent,
                                   size: 52,
                                   iconSize: 26,
@@ -449,7 +450,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                                     }),
                                     child: Padding(
                                       padding: const EdgeInsets.all(12),
-                                      child: Icon(Icons.close_rounded,
+                                      child: Icon(MiniIcons.close,
                                           size: 16, color: c.inkFaint),
                                     ),
                                   ),
@@ -479,7 +480,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                     if (!_canShare && !_sent) ...[
                       const SizedBox(height: 8),
                       StatusBanner(
-                        icon: Icons.block_rounded,
+                        icon: MiniIcons.blocked,
                         text: 'The host has paused sharing for you '
                             'in this room.',
                         tint: MiniColors.warn,
@@ -489,7 +490,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                     if (_error != null) ...[
                       const SizedBox(height: 8),
                       StatusBanner(
-                        icon: Icons.error_outline_rounded,
+                        icon: MiniIcons.error,
                         text: _error!,
                         tint: MiniColors.danger,
                       ),
@@ -552,22 +553,22 @@ class _MemberProgressRow extends StatelessWidget {
     final c = context.mini;
     final (icon, tint, detail) = switch (status) {
       _MemberSendStatus.waiting => (
-          Icons.schedule_rounded,
+          MiniIcons.history,
           c.inkFaint,
           'Waiting',
         ),
       _MemberSendStatus.sending => (
-          Icons.north_east_rounded,
+          MiniIcons.send,
           c.accent,
           'Sending $completedFiles / $totalFiles',
         ),
       _MemberSendStatus.done => (
-          Icons.check_circle_rounded,
+          MiniIcons.success,
           MiniColors.success,
           'Delivered',
         ),
       _MemberSendStatus.failed => (
-          Icons.error_rounded,
+          MiniIcons.error,
           MiniColors.danger,
           error ?? 'Failed',
         ),

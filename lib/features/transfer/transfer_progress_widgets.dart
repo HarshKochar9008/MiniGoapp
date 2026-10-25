@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../Minigo/theme/mini_theme.dart';
 import 'transfer_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class TransferUploadProgressList extends StatelessWidget {
   final List<FileUploadProgress> states;
@@ -149,7 +150,7 @@ class TransferFileProgressTile extends StatelessWidget {
   Widget _statusIcon(MiniThemeExtension c) {
     switch (state.status) {
       case FileUploadStatus.pending:
-        return Icon(Icons.schedule_rounded, color: c.inkFaint, size: 18);
+        return Icon(MiniIcons.history, color: c.inkFaint, size: 18);
       case FileUploadStatus.hashing:
         return SizedBox(
           width: 18,
@@ -160,12 +161,12 @@ class TransferFileProgressTile extends StatelessWidget {
           ),
         );
       case FileUploadStatus.uploading:
-        return Icon(Icons.cloud_upload_outlined, color: c.accent, size: 18);
+        return Icon(MiniIcons.upload, color: c.accent, size: 18);
       case FileUploadStatus.completed:
-        return const Icon(Icons.check_circle_rounded,
+        return const Icon(MiniIcons.success,
             color: MiniColors.success, size: 18);
       case FileUploadStatus.failed:
-        return const Icon(Icons.error_rounded,
+        return const Icon(MiniIcons.error,
             color: MiniColors.danger, size: 18);
     }
   }

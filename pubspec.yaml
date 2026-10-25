@@ -50,11 +50,11 @@ dependencies:
 
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.2.0
-  cupertino_icons: ^1.0.6
   tus_client_dart: ^2.5.0
   cross_file: ^0.3.4
   battery_plus: ^7.0.0
   google_fonts: ^8.1.0
+  lucide_icons_flutter: 3.1.24
 
 dev_dependencies:
   flutter_test:

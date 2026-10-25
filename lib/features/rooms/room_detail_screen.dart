@@ -16,6 +16,7 @@ import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import 'room_send_screen.dart';
 import 'room_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class RoomDetailScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -261,13 +262,13 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       backgroundColor: c.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(MiniIcons.back),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(widget.room.name),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
+            icon: Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
             onPressed: _loadMembers,
           ),
         ],
@@ -314,7 +315,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.timer_rounded,
+                                Icon(MiniIcons.timer,
                                     size: 14, color: _expiryTint),
                                 const SizedBox(width: 5),
                                 Text(
@@ -334,7 +335,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                             children: [
                               Expanded(
                                 child: _OutlineBtn(
-                                  icon: Icons.copy_rounded,
+                                  icon: MiniIcons.copy,
                                   label: 'Copy',
                                   onTap: _copyCode,
                                 ),
@@ -342,7 +343,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _OutlineBtn(
-                                  icon: Icons.qr_code_rounded,
+                                  icon: MiniIcons.qr,
                                   label: 'QR',
                                   onTap: _showQr,
                                 ),
@@ -350,7 +351,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _OutlineBtn(
-                                  icon: Icons.share_rounded,
+                                  icon: MiniIcons.share,
                                   label: 'Invite',
                                   onTap: _shareCode,
                                 ),
@@ -414,7 +415,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     StatusBanner(
-                      icon: Icons.error_outline_rounded,
+                      icon: MiniIcons.error,
                       text: _error!,
                       tint: MiniColors.danger,
                       onTap: _loadMembers,
@@ -438,7 +439,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                   MiniButton(
                     label: 'Share files to room',
                     leading: Icon(
-                      Icons.north_east_rounded,
+                      MiniIcons.send,
                       size: 17,
                       color: context.isDarkMini ? c.paper : Colors.white,
                     ),

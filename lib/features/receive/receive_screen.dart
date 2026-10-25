@@ -17,6 +17,7 @@ import '../../Minigo/widgets/mini_widgets.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
 import 'save_file.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class ReceiveScreen extends StatefulWidget {
   final String transferId;
@@ -264,7 +265,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   Widget _buildPowerSaveBanner() {
     if (!_powerSaveMode) return const SizedBox.shrink();
     return StatusBanner(
-      icon: Icons.battery_saver_rounded,
+      icon: MiniIcons.batterySaver,
       text: 'Battery saver is on. Large downloads may be slower or pause.',
       tint: MiniColors.warn,
     );
@@ -477,7 +478,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.hourglass_empty_rounded, size: 40, color: c.inkFaint),
+              Icon(MiniIcons.pending, size: 40, color: c.inkFaint),
               const SizedBox(height: 16),
               Text(
                 waiting
@@ -606,7 +607,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(9),
-                        child: Icon(Icons.arrow_back_rounded,
+                        child: Icon(MiniIcons.back,
                             color: c.ink, size: 20),
                       ),
                     ),
@@ -642,7 +643,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.download_rounded,
+                              Icon(MiniIcons.download,
                                   size: 15, color: c.accent),
                               const SizedBox(width: 6),
                               Text(
@@ -836,7 +837,7 @@ class _FileDownloadTile extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.check_circle_rounded, color: c.inkFaint, size: 14),
+                Icon(MiniIcons.success, color: c.inkFaint, size: 14),
                 const SizedBox(width: 5),
                 Text('Saved',
                     style:
@@ -873,11 +874,11 @@ class _FileDownloadTile extends StatelessWidget {
   IconData _fileIcon(_DownloadStatus status) {
     switch (status) {
       case _DownloadStatus.completed:
-        return Icons.check_circle_rounded;
+        return MiniIcons.success;
       case _DownloadStatus.failed:
-        return Icons.error_rounded;
+        return MiniIcons.error;
       default:
-        return Icons.insert_drive_file_rounded;
+        return MiniIcons.file;
     }
   }
 
@@ -915,7 +916,7 @@ class _FileDownloadTile extends StatelessWidget {
               color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(Icons.download_rounded, color: accent, size: 19),
+            child: Icon(MiniIcons.download, color: accent, size: 19),
           ),
         );
       case _DownloadStatus.downloading:
@@ -927,7 +928,7 @@ class _FileDownloadTile extends StatelessWidget {
               color: MiniColors.danger.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: const Icon(Icons.close_rounded,
+            child: const Icon(MiniIcons.close,
                 color: MiniColors.danger, size: 19),
           ),
         );
@@ -945,7 +946,7 @@ class _FileDownloadTile extends StatelessWidget {
       case _DownloadStatus.completed:
         final open = onOpen;
         if (open == null) {
-          return const Icon(Icons.check_rounded,
+          return const Icon(MiniIcons.check,
               color: MiniColors.success, size: 20);
         }
         return GestureDetector(

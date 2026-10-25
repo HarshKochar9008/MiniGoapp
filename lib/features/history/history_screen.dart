@@ -14,6 +14,7 @@ import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 enum _HistoryFilter { all, received, sent }
 
@@ -306,7 +307,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   IconButton(
                     icon:
-                        Icon(Icons.refresh_rounded, color: c.inkSoft, size: 21),
+                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],
@@ -319,7 +320,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: Row(
                 children: [
                   _SourceTab(
-                    icon: Icons.swap_horiz_rounded,
+                    icon: MiniIcons.transfer,
                     label: 'Direct',
                     active: _source == _HistorySource.direct,
                     onTap: () =>
@@ -327,7 +328,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                   const SizedBox(width: 22),
                   _SourceTab(
-                    icon: Icons.groups_outlined,
+                    icon: MiniIcons.rooms,
                     label: 'Rooms',
                     active: _source == _HistorySource.rooms,
                     onTap: () => setState(() => _source = _HistorySource.rooms),
@@ -491,7 +492,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                               MiniRadius.tile),
                                         ),
                                         child: const Icon(
-                                          Icons.delete_rounded,
+                                          MiniIcons.delete,
                                           color: MiniColors.danger,
                                           size: 22,
                                         ),
@@ -544,7 +545,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               shape: BoxShape.circle,
               color: c.accent.withValues(alpha: 0.12),
             ),
-            child: Icon(inRooms ? Icons.groups_rounded : Icons.inbox_rounded,
+            child: Icon(inRooms ? MiniIcons.rooms : MiniIcons.inbox,
                 size: 30, color: c.accent),
           ),
           const SizedBox(height: 20),
@@ -676,7 +677,7 @@ class _HistoryTile extends StatelessWidget {
         child: Row(
           children: [
             MiniIconPlate(
-              icon: isOut ? Icons.north_east_rounded : Icons.south_west_rounded,
+              icon: isOut ? MiniIcons.send : MiniIcons.receive,
               tint: isOut ? c.accent : MiniColors.success,
               size: 40,
               iconSize: 19,
@@ -735,7 +736,7 @@ class _HistoryTile extends StatelessWidget {
                                     : MiniText.codeSmall
                                         .copyWith(color: c.ink)),
                             const SizedBox(width: 4),
-                            Icon(Icons.copy_rounded,
+                            Icon(MiniIcons.copy,
                                 size: 11, color: c.inkFaint),
                           ],
                         ),

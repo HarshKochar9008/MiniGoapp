@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -28,7 +29,7 @@ class AboutScreen extends StatelessWidget {
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(9),
-                        child: Icon(Icons.arrow_back_rounded,
+                        child: Icon(MiniIcons.back,
                             color: c.ink, size: 20),
                       ),
                     ),
@@ -75,7 +76,7 @@ class AboutScreen extends StatelessWidget {
                         ],
                       ),
                       child: const Icon(
-                        Icons.north_east_rounded,
+                        MiniIcons.send,
                         size: 34,
                         color: Colors.white,
                       ),

@@ -11,22 +11,22 @@ import '../theme/mini_theme.dart';
 ///  * **Arrival** — the saucer warps in from the lower left while warp streaks
 ///    rush past it and a shockwave ring expands from the landing point.
 ///  * **Hover** — it settles into a slow sine bob with a matching tilt, a
-///    breathing glow underneath, and sparks orbiting on two axes.
+///    breathing glow underneath.
 ///
 /// Honours the platform "reduce motion" setting: when animations are disabled
 /// the saucer is drawn in its resting pose with the glow, no movement.
 class MiniUfo extends StatefulWidget {
   /// Width of the saucer artwork. The widget lays out as a square of
-  /// `size * 1.25` so the glow and orbiting sparks have room.
+  /// `size * 1.25` so the glow has room.
   final double size;
 
   /// Play the warp-in before settling into the hover loop.
   final bool arrive;
 
-  /// Keep bobbing/orbiting after arrival. Set false for a static hero.
+  /// Keep bobbing after arrival. Set false for a static hero.
   final bool hover;
 
-  /// Accent used for the glow, streaks and sparks. Defaults to the theme
+  /// Accent used for the glow and streaks. Defaults to the theme
   /// accent so the animation reads correctly in light and dark mode.
   final Color? tint;
 
@@ -141,7 +141,7 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
     return SizedBox(
       width: box,
       height: box,
-      // One rebuild per frame drives every layer, so the bob, glow and sparks
+      // One rebuild per frame drives every layer, so the bob and glow
       // stay locked to the same phase.
       child: AnimatedBuilder(
         animation: Listenable.merge([_arrival, _hover]),
@@ -220,16 +220,6 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
                     tint: tint,
                   ),
                 ),
-
-              // Orbiting sparks.
-              CustomPaint(
-                size: Size.square(box),
-                painter: _SparkPainter(
-                  phase: t,
-                  fade: flight,
-                  tint: tint,
-                ),
-              ),
 
               // The saucer itself.
               Transform.translate(
@@ -331,54 +321,4 @@ class _ShockwavePainter extends CustomPainter {
   @override
   bool shouldRepaint(_ShockwavePainter old) =>
       old.progress != progress || old.tint != tint;
-}
-
-/// Small sparks orbiting the saucer on two tilted rings.
-class _SparkPainter extends CustomPainter {
-  final double phase;
-  final double fade;
-  final Color tint;
-
-  const _SparkPainter({
-    required this.phase,
-    required this.fade,
-    required this.tint,
-  });
-
-  // radiusFactor, flattening, angular offset, direction
-  static const _orbits = [
-    (0.44, 0.34, 0.0, 1.0),
-    (0.36, 0.52, 2.1, -1.0),
-    (0.48, 0.26, 4.0, 1.0),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (fade <= 0) return;
-    final center = size.center(Offset.zero);
-    for (var i = 0; i < _orbits.length; i++) {
-      final (rf, flat, offset, dir) = _orbits[i];
-      final a = (phase * 2 * math.pi * dir) + offset;
-      final pos = center +
-          Offset(
-            math.cos(a) * size.width * rf,
-            math.sin(a) * size.width * rf * flat,
-          );
-      // Sparks on the far side of the orbit read dimmer.
-      final depth = (math.sin(a) + 1) / 2;
-      final alpha = (0.22 + 0.55 * depth) * fade;
-      final r = size.width * (0.010 + 0.006 * depth);
-
-      canvas.drawCircle(
-        pos,
-        r * 2.6,
-        Paint()..color = tint.withValues(alpha: alpha * 0.22),
-      );
-      canvas.drawCircle(pos, r, Paint()..color = tint.withValues(alpha: alpha));
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SparkPainter old) =>
-      old.phase != phase || old.fade != fade || old.tint != tint;
 }

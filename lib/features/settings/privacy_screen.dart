@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
@@ -28,7 +29,7 @@ class PrivacyScreen extends StatelessWidget {
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(9),
-                        child: Icon(Icons.arrow_back_rounded,
+                        child: Icon(MiniIcons.back,
                             color: c.ink, size: 20),
                       ),
                     ),
@@ -69,7 +70,7 @@ class PrivacyScreen extends StatelessWidget {
                       color: MiniColors.success.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(9),
                     ),
-                    child: const Icon(Icons.lock_rounded,
+                    child: const Icon(MiniIcons.lock,
                         size: 21, color: MiniColors.success),
                   ),
                   const SizedBox(width: 14),
@@ -93,7 +94,7 @@ class PrivacyScreen extends StatelessWidget {
             _PolicyCard(
               children: [
                 _PolicySection(
-                  icon: Icons.fingerprint_rounded,
+                  icon: MiniIcons.biometric,
                   title: 'Anonymous device identity',
                   body:
                       'When you first open MiniGo, a random 6-character code and anonymous '
@@ -102,7 +103,7 @@ class PrivacyScreen extends StatelessWidget {
                   c: c,
                 ),
                 _PolicySection(
-                  icon: Icons.upload_file_rounded,
+                  icon: MiniIcons.pickFile,
                   title: 'Temporary file storage',
                   body:
                       'Files you send are uploaded to our secure cloud storage for delivery only. '
@@ -111,7 +112,7 @@ class PrivacyScreen extends StatelessWidget {
                   c: c,
                 ),
                 _PolicySection(
-                  icon: Icons.notifications_rounded,
+                  icon: MiniIcons.notifications,
                   title: 'Push notification token',
                   body:
                       'If you enable push notifications, a Firebase Cloud Messaging (FCM) '
@@ -142,7 +143,7 @@ class PrivacyScreen extends StatelessWidget {
             _PolicyCard(
               children: [
                 _PolicySection(
-                  icon: Icons.https_rounded,
+                  icon: MiniIcons.encrypted,
                   title: 'Encrypted in transit',
                   body:
                       'All communication between the app and our servers uses HTTPS/TLS. '
@@ -150,7 +151,7 @@ class PrivacyScreen extends StatelessWidget {
                   c: c,
                 ),
                 _PolicySection(
-                  icon: Icons.timer_rounded,
+                  icon: MiniIcons.timer,
                   title: 'Short-lived transfers',
                   body:
                       'Transfers expire after 24 hours. After expiry, files are removed '
@@ -158,7 +159,7 @@ class PrivacyScreen extends StatelessWidget {
                   c: c,
                 ),
                 _PolicySection(
-                  icon: Icons.code_rounded,
+                  icon: MiniIcons.code,
                   title: 'Code-based sharing',
                   body:
                       'Files can only be received by the person who knows your code. '

@@ -11,6 +11,7 @@ import '../onboarding/onboarding_screen.dart';
 import '../qr/qr_widgets.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
+import '../../Minigo/theme/mini_icons.dart';
 
 class SettingsScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -80,30 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _confirmFullLocalReset() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reset all local data?'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'This device will forget your short code, onboarding, theme, and '
-            'pending uploads, and sign out of your account here.\n\n'
-            'Network issues are not fixed by a reset.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: MiniColors.danger,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reset this app'),
-          ),
-        ],
-      ),
+      builder: (_) => const _ResetAppDialog(),
     );
     if (ok != true || !mounted) return;
     await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
@@ -164,7 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsGroup(
               children: [
                 _SettingsTile(
-                  icon: Icons.notifications_outlined,
+                  icon: MiniIcons.notifications,
                   iconTint: c.accent,
                   label: 'App notifications',
                   sub: 'Turn transfer alerts on or off in device settings',
@@ -178,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsGroup(
               children: [
                 _SettingsTile(
-                  icon: Icons.info_outline_rounded,
+                  icon: MiniIcons.info,
                   iconTint: c.accent,
                   label: 'About MiniGo',
                   sub: 'Version, how it works, and legal',
@@ -187,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 _SettingsTile(
-                  icon: Icons.play_circle_outline_rounded,
+                  icon: MiniIcons.play,
                   iconTint: c.accent,
                   label: 'App walkthrough',
                   sub: 'Replay the onboarding walkthrough',
@@ -208,7 +186,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 _SettingsTile(
-                  icon: Icons.shield_outlined,
+                  icon: MiniIcons.shield,
                   iconTint: MiniColors.success,
                   label: 'Privacy & Security',
                   sub: 'Encryption, data collection & your rights',
@@ -224,7 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _SettingsGroup(
               children: [
                 _SettingsTile(
-                  icon: Icons.restart_alt_rounded,
+                  icon: MiniIcons.restart,
                   iconTint: MiniColors.danger,
                   label: 'Reset local data and sign out',
                   sub: 'Removes local code, settings, and pending transfers.',
@@ -335,19 +313,19 @@ class _ProfileCard extends StatelessWidget {
             child: Row(
               children: [
                 _ProfileAction(
-                  icon: Icons.edit_outlined,
+                  icon: MiniIcons.edit,
                   label: 'Edit name',
                   onTap: onEditName,
                 ),
                 const SizedBox(width: 8),
                 _ProfileAction(
-                  icon: Icons.copy_rounded,
+                  icon: MiniIcons.copy,
                   label: 'Copy code',
                   onTap: onCopyCode,
                 ),
                 const SizedBox(width: 8),
                 _ProfileAction(
-                  icon: Icons.qr_code_rounded,
+                  icon: MiniIcons.qr,
                   label: 'My QR',
                   onTap: onShowQr,
                 ),
@@ -416,9 +394,9 @@ class _ThemeModePicker extends StatelessWidget {
   const _ThemeModePicker({required this.selected, required this.onChanged});
 
   static const _options = [
-    (ThemeMode.light, Icons.light_mode_outlined, 'Light'),
-    (ThemeMode.dark, Icons.dark_mode_outlined, 'Dark'),
-    (ThemeMode.system, Icons.brightness_auto_outlined, 'System'),
+    (ThemeMode.light, MiniIcons.lightMode, 'Light'),
+    (ThemeMode.dark, MiniIcons.darkMode, 'Dark'),
+    (ThemeMode.system, MiniIcons.systemMode, 'System'),
   ];
 
   @override
@@ -729,9 +707,153 @@ class _SettingsTile extends StatelessWidget {
               ),
             ),
             if (onTap != null)
-              Icon(Icons.chevron_right_rounded, color: c.inkFaint, size: 20),
+              Icon(MiniIcons.chevronRight, color: c.inkFaint, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Confirmation for the full local reset: what gets wiped (files, photos,
+/// pending uploads) floats above the bin, then a destructive pill action.
+class _ResetAppDialog extends StatelessWidget {
+  const _ResetAppDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _ResetIllustration(),
+              const SizedBox(height: 18),
+              Text(
+                'Reset app data?',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                  color: c.ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your saved code, settings, and pending uploads will be '
+                'removed on this device, and you’ll be signed out.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  height: 1.45,
+                  color: c.inkSoft,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: MiniButton(
+                      label: 'Cancel',
+                      style: MiniBtnStyle.secondary,
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Material(
+                      color: MiniColors.danger,
+                      borderRadius: BorderRadius.circular(MiniRadius.pill),
+                      child: InkWell(
+                        onTap: () => Navigator.pop(context, true),
+                        borderRadius: BorderRadius.circular(MiniRadius.pill),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 17),
+                          child: Text(
+                            'Reset app',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResetIllustration extends StatelessWidget {
+  const _ResetIllustration();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    final binTint = MiniColors.danger.withValues(alpha: 0.75);
+
+    Widget tile(IconData icon, Color tint, double angle) => Transform.rotate(
+          angle: angle,
+          child: MiniIconPlate(
+            icon: icon,
+            tint: tint,
+            size: 54,
+            iconSize: 24,
+            radius: 12,
+          ),
+        );
+
+    Widget dash(double angle) => Transform.rotate(
+          angle: angle,
+          child: Container(
+            width: 13,
+            height: 2.5,
+            decoration: BoxDecoration(
+              color: binTint,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        );
+
+    return SizedBox(
+      width: 190,
+      height: 132,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+              left: 8, top: 22, child: tile(MiniIcons.file, c.accent, -0.22)),
+          Positioned(top: 0, child: tile(MiniIcons.image, c.accent, 0)),
+          Positioned(
+            right: 8,
+            top: 22,
+            child: tile(MiniIcons.upload, MiniColors.danger, 0.22),
+          ),
+          Positioned(
+            bottom: 0,
+            child: Icon(MiniIcons.delete, size: 66, color: binTint),
+          ),
+          // Motion ticks either side of the bin.
+          Positioned(left: 42, bottom: 30, child: dash(0.35)),
+          Positioned(left: 40, bottom: 18, child: dash(-0.2)),
+          Positioned(right: 42, bottom: 30, child: dash(-0.35)),
+          Positioned(right: 40, bottom: 18, child: dash(0.2)),
+        ],
       ),
     );
   }

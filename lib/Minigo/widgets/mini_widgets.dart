@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
 import '../theme/mini_theme.dart';
+import '../theme/mini_icons.dart';
 
 /// Raised panel — the primary grouping surface. Content sits on white (light)
 /// or lifted charcoal (dark) above the recessed page background.
@@ -258,18 +259,18 @@ class MiniFileRow extends StatelessWidget {
   IconData get _icon {
     switch (mimeCategory) {
       case 'Image':
-        return Icons.image_rounded;
+        return MiniIcons.image;
       case 'Video':
-        return Icons.play_circle_fill_rounded;
+        return MiniIcons.video;
       case 'Audio':
-        return Icons.graphic_eq_rounded;
+        return MiniIcons.audio;
       case 'PDF':
       case 'Document':
-        return Icons.description_rounded;
+        return MiniIcons.document;
       case 'Archive':
-        return Icons.folder_zip_rounded;
+        return MiniIcons.archive;
       default:
-        return Icons.insert_drive_file_rounded;
+        return MiniIcons.file;
     }
   }
 
