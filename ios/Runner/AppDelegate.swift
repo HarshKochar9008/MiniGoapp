@@ -3,7 +3,7 @@ import QuickLook
 import UIKit
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let channelName = "minigo/native_share"
   private let saveChannelName = "minigo/native_save"
 
@@ -15,12 +15,20 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    if let controller = window?.rootViewController as? FlutterViewController {
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Under the UIScene lifecycle there's no root view controller at launch, so
+  /// channels are wired up here, once the engine exists.
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "MiniGoNativeChannels") {
       let channel = FlutterMethodChannel(
         name: channelName,
-        binaryMessenger: controller.binaryMessenger
+        binaryMessenger: registrar.messenger()
       )
-      channel.setMethodCallHandler { [weak controller] call, result in
+      channel.setMethodCallHandler { [weak registrar] call, result in
         guard call.method == "shareText" else {
           result(FlutterMethodNotImplemented)
           return
@@ -43,7 +51,7 @@ import UIKit
         if let subject {
           activityController.setValue(subject, forKey: "subject")
         }
-        controller?.present(activityController, animated: true)
+        registrar?.viewController?.present(activityController, animated: true)
         result(nil)
       }
 
@@ -52,9 +60,9 @@ import UIKit
       // Open previews the file itself rather than launching another app.
       let saveChannel = FlutterMethodChannel(
         name: saveChannelName,
-        binaryMessenger: controller.binaryMessenger
+        binaryMessenger: registrar.messenger()
       )
-      saveChannel.setMethodCallHandler { [weak self, weak controller] call, result in
+      saveChannel.setMethodCallHandler { [weak self, weak registrar] call, result in
         guard call.method == "openFile" else {
           result(FlutterMethodNotImplemented)
           return
@@ -88,12 +96,10 @@ import UIKit
         self?.preview = item
         let quickLook = QLPreviewController()
         quickLook.dataSource = item
-        controller?.present(quickLook, animated: true)
+        registrar?.viewController?.present(quickLook, animated: true)
         result(nil)
       }
     }
-    GeneratedPluginRegistrant.register(with: self)
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
 
