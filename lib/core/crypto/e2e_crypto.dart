@@ -108,6 +108,9 @@ class E2ECrypto {
   static Future<bool> hasPrivateKey(String authUid) async =>
       (await _loadKeyPair(authUid)) != null;
 
+  static Future<void> clearLocalKey(String authUid) =>
+      _secureStorage.delete(key: _privKeyStorageKey(authUid));
+
   // ── Sealing / unsealing the per-file content key ──────────────────────────
 
   /// Seals [contentKey] to [recipientPublicKeyB64] (base64url X25519 pubkey).

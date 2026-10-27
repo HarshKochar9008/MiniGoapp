@@ -99,4 +99,14 @@ class RecentRecipients {
       jsonEncode(_cache.map((r) => r.toJson()).toList()),
     );
   }
+
+  /// Forgets every remembered code. Clears the in-memory copy too — wiping
+  /// only the prefs key would let the next [record] write the old list back.
+  static Future<void> clear() async {
+    _cache = [];
+    _loaded = true;
+    revision.value++;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+  }
 }
