@@ -48,4 +48,14 @@ class ContactAliases {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, jsonEncode(_cache));
   }
+
+  /// Forgets every alias. Clears the in-memory copy too — wiping only the
+  /// prefs key would let the next [setAlias] write the stale map back.
+  static Future<void> clear() async {
+    _cache = {};
+    _loaded = true;
+    revision.value++;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+  }
 }

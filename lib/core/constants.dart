@@ -50,6 +50,17 @@ class AppConstants {
   // Support contact shown when the service is unavailable.
   static const supportEmail = 'harshkochar88@gmail.com';
 
+  // Public pages. Leave a link null until the page actually exists: the About
+  // screen then hides the website row and shows the in-app terms and privacy
+  // policy instead of sending people to a placeholder URL.
+  static const String? websiteUrl = null;
+  static const String? termsOfServiceUrl = null;
+  static const String? privacyPolicyUrl = null;
+
+  /// Set once MiniGo is live on Google Play. The listing is keyed by package
+  /// name, so opening it for an unpublished id can land on an unrelated app.
+  static const playStoreListed = false;
+
   // Short code alphabet — ambiguous chars excluded (O, 0, I, 1, L)
   static const codeAlphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   static const codeLength = 6;
@@ -76,6 +87,15 @@ class AppConstants {
   // Transfer TTL
   static const transferTtlHours = 24;
 
+  /// Expired transfer rows are purged after this many days. Must match
+  /// `HARD_DELETE_DAYS` in the expire-transfers edge function.
+  static const transferRecordRetentionDays = 7;
+
+  /// Anonymous identities with no session activity for this long are retired
+  /// by the server sweep. Must match the default `p_retention` of
+  /// `cleanup_stale_anonymous_identities()`.
+  static const inactiveIdentityRetentionDays = 90;
+
   // Pagination
   static const transfersPageSize = 50;
 
@@ -84,6 +104,10 @@ class AppConstants {
   static const prefUserDbId = 'user_db_id';
   static const prefAuthUid = 'auth_uid';
   static const prefNickname = 'nickname';
+
+  /// Per-transfer list of file ids already downloaded, suffixed with the
+  /// transfer id.
+  static const prefDownloadedFilesPrefix = 'downloaded_files_';
 
   static String normalizeShortCode(String value) => value.trim().toUpperCase();
 

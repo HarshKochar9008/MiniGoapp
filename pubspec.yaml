@@ -55,6 +55,8 @@ dependencies:
   battery_plus: ^7.0.0
   google_fonts: ^8.1.0
   lucide_icons_flutter: 3.1.24
+  package_info_plus: ^9.0.1
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
@@ -82,4 +84,5 @@ flutter:
   assets:
     - assets/logo.png
     - assets/minigo_ufo.png
+    - assets/icon/app_icon.png
     - .env

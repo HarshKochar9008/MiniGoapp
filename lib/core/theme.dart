@@ -17,8 +17,12 @@ export '../Minigo/theme/mini_theme.dart'
 
 class ThemeController {
   static const _themeModeKey = 'theme_mode';
+
+  /// What a fresh install uses, and what resetting preferences returns to.
+  static const defaultMode = ThemeMode.light;
+
   static final ValueNotifier<ThemeMode> themeMode =
-      ValueNotifier<ThemeMode>(ThemeMode.light);
+      ValueNotifier<ThemeMode>(defaultMode);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,8 +35,10 @@ class ThemeController {
         themeMode.value = ThemeMode.system;
         break;
       case 'light':
-      default:
         themeMode.value = ThemeMode.light;
+        break;
+      default:
+        themeMode.value = defaultMode;
     }
   }
 
@@ -40,6 +46,13 @@ class ThemeController {
     themeMode.value = mode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeModeKey, mode.name);
+  }
+
+  /// Forgets the saved choice so the app follows [defaultMode] again.
+  static Future<void> reset() async {
+    themeMode.value = defaultMode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_themeModeKey);
   }
 }
 
