@@ -518,6 +518,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     return Scaffold(
       backgroundColor: context.mini.paper,
+      // Tabs scroll beneath the glass nav. Its height reaches them as
+      // MediaQuery bottom padding, which each tab adds to its scroll inset.
+      extendBody: true,
       body: Column(
         children: [
           const GlobalStatusBanner(),
@@ -568,27 +571,26 @@ class _MiniBottomNav extends StatelessWidget {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          decoration: miniCard(
-            context,
-            radius: MiniRadius.pill,
-            strong: true,
-          ),
-          child: Row(
-            children: List.generate(_items.length, (i) {
-              final item = _items[i];
-              final isActive = i == currentIndex;
-              return Expanded(
-                child: _MiniNavTile(
-                  icon: item.icon,
-                  activeIcon: item.activeIcon,
-                  label: item.label,
-                  isActive: isActive,
-                  onTap: () => onTap(i),
-                ),
-              );
-            }),
+        child: MiniGlass(
+          radius: MiniRadius.pill,
+          strong: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              children: List.generate(_items.length, (i) {
+                final item = _items[i];
+                final isActive = i == currentIndex;
+                return Expanded(
+                  child: _MiniNavTile(
+                    icon: item.icon,
+                    activeIcon: item.activeIcon,
+                    label: item.label,
+                    isActive: isActive,
+                    onTap: () => onTap(i),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
       ),

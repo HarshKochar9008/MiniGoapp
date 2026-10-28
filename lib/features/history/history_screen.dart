@@ -282,9 +282,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    // The lists scroll beneath the shell's glass nav: they set no padding, so
+    // ListView adds its height from MediaQuery. Centred states sit above it.
+    final navInset = MediaQuery.paddingOf(context).bottom;
+    Widget aboveNav(Widget child) =>
+        Padding(padding: EdgeInsets.only(bottom: navInset), child: child);
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -378,7 +384,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     )
                   : _error != null
-                      ? Center(
+                      ? aboveNav(Center(
                           child: Padding(
                             padding: const EdgeInsets.all(48),
                             child: Column(
@@ -394,14 +400,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ],
                             ),
                           ),
-                        )
+                        ))
                       : _transfers == null || _applyFilter(_transfers!).isEmpty
                           // The current tab may be empty only because its
                           // transfers sit on pages not fetched yet — keep
                           // paging before declaring it empty.
                           ? (_transfers != null && _hasMore
                               ? _loadMoreFailed
-                                  ? Center(child: _loadMoreRetry())
+                                  ? aboveNav(Center(child: _loadMoreRetry()))
                                   : Builder(builder: (context) {
                                   _loadMore();
                                   return ListView.builder(
@@ -412,7 +418,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         const TransferTileSkeleton(),
                                   );
                                 })
-                              : _buildEmpty(c))
+                              : aboveNav(_buildEmpty(c)))
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
                               color: c.accent,

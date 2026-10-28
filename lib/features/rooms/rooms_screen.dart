@@ -111,9 +111,13 @@ class _RoomsScreenState extends State<RoomsScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    // Height of the shell's glass nav. The list scrolls beneath it; static
+    // states stay centred in the area above it.
+    final navInset = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             // Header
@@ -176,13 +180,16 @@ class _RoomsScreenState extends State<RoomsScreen> {
 
             Expanded(
               child: _loading
-                  ? Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: c.accent,
+                  ? Padding(
+                      padding: EdgeInsets.only(bottom: navInset),
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: c.accent,
+                          ),
                         ),
                       ),
                     )
@@ -197,14 +204,17 @@ class _RoomsScreenState extends State<RoomsScreen> {
                           ),
                         )
                       : _rooms.isEmpty
-                          ? _EmptyRooms(c: c)
+                          ? Padding(
+                              padding: EdgeInsets.only(bottom: navInset),
+                              child: _EmptyRooms(c: c),
+                            )
                           : RefreshIndicator(
                               onRefresh: _loadRooms,
                               color: c.accent,
                               child: ListView.separated(
                                 physics: const AlwaysScrollableScrollPhysics(),
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                                padding: EdgeInsets.fromLTRB(
+                                    20, 12, 20, 24 + navInset),
                                 itemCount: _rooms.length,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(height: 10),

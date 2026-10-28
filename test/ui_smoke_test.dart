@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glossy/glossy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:minigo/Minigo/theme/mini_theme.dart';
 import 'package:minigo/Minigo/widgets/mini_code_reel.dart';
@@ -86,6 +87,15 @@ void main() {
           const SizedBox(height: 12),
           const MiniIconPlate(
               icon: Icons.bolt_rounded, tint: MiniColors.blue600),
+          const SizedBox(height: 12),
+          const MiniGlass(
+            radius: MiniRadius.pill,
+            strong: true,
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Text('Glass'),
+            ),
+          ),
         ],
       );
 
@@ -104,8 +114,32 @@ void main() {
       expect(find.text('Primary'), findsOneWidget);
       expect(find.text('A4X · 9K2'), findsOneWidget);
       expect(find.text('42%'), findsOneWidget);
+      expect(find.text('Glass'), findsOneWidget);
     });
   }
+
+  testWidgets('glass panel takes its child\'s size and passes taps through',
+      (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(
+      theme: buildMiniTheme(),
+      home: Center(
+        child: MiniGlass(
+          radius: MiniRadius.pill,
+          child: GestureDetector(
+            onTap: () => taps++,
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox(width: 120, height: 48),
+          ),
+        ),
+      ),
+    ));
+
+    expect(tester.getSize(find.byType(MiniGlass)), const Size(120, 48));
+    expect(tester.getSize(find.byType(GlossyContainer)), const Size(120, 48));
+    await tester.tap(find.byType(MiniGlass));
+    expect(taps, 1);
+  });
 
   testWidgets('progress arc clamps out-of-range values', (tester) async {
     await tester.pumpWidget(

@@ -1301,7 +1301,7 @@ class _EmptyFilesMini extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text('Images, videos, documents — any type',
+              Text('Images, videos, documents — anything goes',
                   style: MiniText.small),
             ],
           ),

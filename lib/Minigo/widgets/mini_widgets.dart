@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:glossy/glossy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mime/mime.dart';
 import '../theme/mini_theme.dart';
@@ -51,6 +52,56 @@ class MiniCard extends StatelessWidget {
             ),
     );
     return body;
+  }
+}
+
+/// Frosted-glass panel for chrome that floats over scrolling content — the
+/// tab bar, floating action pills. Whatever passes beneath blurs through a
+/// translucent [MiniThemeExtension.paperDeep] tint; over bare paper it reads
+/// like an ordinary raised card. Sized by [child], which paints on top.
+class MiniGlass extends StatelessWidget {
+  final Widget child;
+  final double radius;
+  final bool strong;
+
+  const MiniGlass({
+    super.key,
+    required this.child,
+    this.radius = MiniRadius.card,
+    this.strong = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // GlossyContainer insists on a fixed size. Positioned.fill pins it to
+        // the child's box, and infinity then resolves to exactly that.
+        Positioned.fill(
+          child: DecoratedBox(
+            // The lift is painted here, once. Handed to GlossyContainer it is
+            // drawn again inside the clip, greying the translucent fill.
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              boxShadow: miniCardShadow(context, strong: strong),
+            ),
+            child: GlossyContainer(
+              width: double.infinity,
+              height: double.infinity,
+              borderRadius: BorderRadius.circular(radius),
+              color: c.paperDeep,
+              opacity: context.isDarkMini ? 0.72 : 0.8,
+              strengthX: 18,
+              strengthY: 18,
+              border: Border.all(color: c.divider, width: 0.5),
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
   }
 }
 

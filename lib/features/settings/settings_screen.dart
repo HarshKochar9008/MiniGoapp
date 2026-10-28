@@ -105,9 +105,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
+      // Scrolls beneath the shell's glass nav, whose height arrives as
+      // MediaQuery bottom padding.
       body: SafeArea(
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 28),
+          padding: EdgeInsets.only(
+              bottom: 28 + MediaQuery.paddingOf(context).bottom),
           children: [
             // Header
             Padding(
