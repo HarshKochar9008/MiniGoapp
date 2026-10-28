@@ -752,6 +752,10 @@ class TransferService {
   /// in-flight transfer as failed, so the second caller is rejected instead.
   static bool _sendInFlight = false;
 
+  /// Whether a send is uploading right now. Local cleanup checks this first —
+  /// deleting its temp copies or resume state mid-upload would fail the send.
+  static bool get isSendInFlight => _sendInFlight;
+
   static Future<TransferResult> sendFiles({
     required String senderId,
     required String receiverId,

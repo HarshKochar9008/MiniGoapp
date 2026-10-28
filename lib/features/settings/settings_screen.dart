@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/app_reset.dart';
@@ -24,13 +25,25 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   ThemeMode _themeMode = ThemeController.themeMode.value;
   String? _nickname;
-
-  static const _appVersion = 'MiniGo 1.1.0';
+  late final Future<PackageInfo> _packageInfo = PackageInfo.fromPlatform();
 
   @override
   void initState() {
     super.initState();
     _nickname = widget.identity.nickname;
+    ThemeController.themeMode.addListener(_syncThemeMode);
+  }
+
+  @override
+  void dispose() {
+    ThemeController.themeMode.removeListener(_syncThemeMode);
+    super.dispose();
+  }
+
+  /// Appearance can also be reset from Privacy & Security.
+  void _syncThemeMode() {
+    final mode = ThemeController.themeMode.value;
+    if (mode != _themeMode) setState(() => _themeMode = mode);
   }
 
   Future<void> _editNickname() async {
@@ -92,9 +105,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final c = context.mini;
     return Scaffold(
       backgroundColor: c.paper,
+      // Scrolls beneath the shell's glass nav, whose height arrives as
+      // MediaQuery bottom padding.
       body: SafeArea(
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 28),
+          padding: EdgeInsets.only(
+              bottom: 28 + MediaQuery.paddingOf(context).bottom),
           children: [
             // Header
             Padding(
@@ -191,7 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'Privacy & Security',
                   sub: 'Encryption, data collection & your rights',
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PrivacyScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => PrivacyScreen(identity: widget.identity),
+                    ),
                   ),
                 ),
               ],
@@ -215,9 +234,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Footer
             const SizedBox(height: 26),
             Center(
-              child: Text(
-                _appVersion,
-                style: MiniText.small.copyWith(color: c.inkFaint),
+              child: FutureBuilder<PackageInfo>(
+                future: _packageInfo,
+                builder: (context, snapshot) => Text(
+                  snapshot.hasData
+                      ? 'MiniGo ${snapshot.data!.version}'
+                      : 'MiniGo',
+                  style: MiniText.small.copyWith(color: c.inkFaint),
+                ),
               ),
             ),
           ],

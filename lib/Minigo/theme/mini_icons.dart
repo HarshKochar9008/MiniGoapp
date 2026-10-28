@@ -22,6 +22,7 @@ abstract final class MiniIcons {
   static const IconData settingsActive = LucideIcons.settings500;
   static const IconData back = LucideIcons.arrowLeft;
   static const IconData chevronRight = LucideIcons.chevronRight;
+  static const IconData externalLink = LucideIcons.arrowUpRight;
   static const IconData close = LucideIcons.x;
 
   // Transfer direction
@@ -68,6 +69,9 @@ abstract final class MiniIcons {
   static const IconData error = LucideIcons.circleAlert;
   static const IconData report = LucideIcons.octagonAlert;
   static const IconData info = LucideIcons.info;
+  static const IconData warning = LucideIcons.triangleAlert;
+  static const IconData removed = LucideIcons.circleMinus;
+  static const IconData changed = LucideIcons.circleDot;
   static const IconData offline = LucideIcons.wifiOff;
   static const IconData cloudOff = LucideIcons.cloudOff;
   static const IconData blocked = LucideIcons.ban;
@@ -82,6 +86,30 @@ abstract final class MiniIcons {
   static const IconData shield = LucideIcons.shield;
   static const IconData encrypted = LucideIcons.shieldCheck;
   static const IconData biometric = LucideIcons.fingerprint;
+  static const IconData key = LucideIcons.keyRound;
+  static const IconData securityPractices = LucideIcons.lockKeyhole;
+  static const IconData bug = LucideIcons.bug;
+
+  // Account & data
+  static const IconData account = LucideIcons.circleUserRound;
+  static const IconData device = LucideIcons.smartphone;
+  static const IconData signOut = LucideIcons.logOut;
+  static const IconData sharingCode = LucideIcons.rectangleEllipsis;
+  static const IconData cloud = LucideIcons.cloud;
+  static const IconData storage = LucideIcons.hardDrive;
+  static const IconData preferences = LucideIcons.slidersHorizontal;
+  static const IconData retention = LucideIcons.calendarClock;
+  static const IconData howItWorks = LucideIcons.route;
+
+  // About
+  static const IconData version = LucideIcons.tag;
+  static const IconData buildNumber = LucideIcons.hash;
+  static const IconData whatsNew = LucideIcons.gift;
+  static const IconData update = LucideIcons.circleArrowDown;
+  static const IconData website = LucideIcons.globe;
+  static const IconData mail = LucideIcons.mail;
+  static const IconData legal = LucideIcons.scale;
+  static const IconData licenses = LucideIcons.scrollText;
 
   // Theme
   static const IconData lightMode = LucideIcons.sun;

@@ -35,7 +35,7 @@ class ReceiveScreen extends StatefulWidget {
 
 class _ReceiveScreenState extends State<ReceiveScreen>
     with WidgetsBindingObserver {
-  static const _downloadedKeysPrefix = 'downloaded_files_';
+  static const _downloadedKeysPrefix = AppConstants.prefDownloadedFilesPrefix;
   static const int _storageSafetyBufferBytes = 50 * 1024 * 1024; // 50 MB
   final Battery _battery = Battery();
   List<Map<String, dynamic>>? _files;

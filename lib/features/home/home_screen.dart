@@ -144,10 +144,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final displayName = widget.identity.nickname ?? 'MiniGo User';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final headerCodeColor = isDark ? c.accent : c.ink;
+    // Height of the shell's glass nav, which this tab scrolls beneath.
+    final navInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: c.paper,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             // Top bar
@@ -209,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // Large code card
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 100),
+                padding: EdgeInsets.fromLTRB(20, 28, 20, 100 + navInset),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -330,16 +333,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: EdgeInsets.only(bottom: 6 + navInset),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _PillButton(
               icon: MiniIcons.receive,
               label: 'Received',
-              background: c.paperDeep,
               foreground: c.ink,
-              border: c.divider,
               onTap: _openReceived,
             ),
             const SizedBox(width: 10),
@@ -361,56 +362,59 @@ class _HomeScreenState extends State<HomeScreen> {
 class _PillButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color background;
+
+  /// Solid fill. Null renders the pill as frosted glass, so the content
+  /// scrolling beneath it shows through.
+  final Color? background;
   final Color foreground;
-  final Color? border;
   final VoidCallback onTap;
 
   const _PillButton({
     required this.icon,
     required this.label,
-    required this.background,
     required this.foreground,
     required this.onTap,
-    this.border,
+    this.background,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(MiniRadius.pill),
-        boxShadow: miniCardShadow(context, strong: border == null),
-      ),
-      child: Material(
-        color: background,
-        shape: StadiumBorder(
-          side: border != null ? BorderSide(color: border!) : BorderSide.none,
-        ),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const StadiumBorder(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 17),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: foreground),
-                const SizedBox(width: 9),
-                Text(
-                  label,
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: -0.1,
-                    fontSize: 15,
-                    color: foreground,
-                  ),
+    final pill = Material(
+      color: background ?? Colors.transparent,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 17),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: foreground),
+              const SizedBox(width: 9),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.1,
+                  fontSize: 15,
+                  color: foreground,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+    if (background == null) {
+      return MiniGlass(radius: MiniRadius.pill, child: pill);
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MiniRadius.pill),
+        boxShadow: miniCardShadow(context, strong: true),
+      ),
+      child: pill,
     );
   }
 }
