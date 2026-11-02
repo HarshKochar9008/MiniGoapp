@@ -195,7 +195,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
                     )
                   : _error != null
                       ? Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding:
+                              EdgeInsets.fromLTRB(20, 20, 20, 20 + navInset),
                           child: StatusBanner(
                             icon: MiniIcons.offline,
                             text: _error!,
@@ -791,6 +792,12 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
       setState(() {
         _joining = false;
         _error = 'This room has expired.';
+      });
+    } on RoomLookupThrottledException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _joining = false;
+        _error = e.toString();
       });
     } catch (e) {
       if (!mounted) return;

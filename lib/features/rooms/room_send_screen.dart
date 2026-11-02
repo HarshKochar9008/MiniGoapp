@@ -186,7 +186,8 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
       final proceed = await _confirmSendWithoutEncryption(
         unencryptable.map((s) => _memberName(s.member)).toList(),
       );
-      if (proceed != true || !mounted) {
+      if (!mounted) return;
+      if (proceed != true) {
         setState(() => _sending = false);
         return;
       }
@@ -239,18 +240,33 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
           }
         });
       } catch (e) {
+        final raw = e.toString();
+        final refusal = _roomRefusal(raw);
+        // The server refused the transfer row itself, so the job saved for
+        // resuming it describes a send that can never go through.
+        if (refusal != null) await TransferService.clearPendingUploadJob();
         if (!mounted) return;
         failures++;
-        final raw = e.toString();
         setState(() {
           state.status = _MemberSendStatus.failed;
-          state.error = raw.contains('room_share_denied')
-              ? 'Sharing is not available in this room right now'
-              : raw.replaceAll('Exception: ', '');
+          state.error = refusal ?? raw.replaceAll('Exception: ', '');
         });
         // Permission is per-sender, not per-recipient — no point retrying
-        // the remaining members if the host has blocked us.
-        if (raw.contains('room_share_denied')) break;
+        // the remaining members if the host has blocked us. Fail them too,
+        // so none is left on "Waiting" under the summary.
+        if (raw.contains('room_share_denied')) {
+          final skipped = _memberStates
+              .where((s) => s.status == _MemberSendStatus.waiting)
+              .toList();
+          failures += skipped.length;
+          setState(() {
+            for (final s in skipped) {
+              s.status = _MemberSendStatus.failed;
+              s.error = refusal;
+            }
+          });
+          break;
+        }
       }
     }
 
@@ -265,6 +281,19 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
             : 'Sent, but $failures member(s) failed.';
       }
     });
+  }
+
+  /// What to show when the server refuses a room transfer (the errors raised
+  /// by the `transfers_check_room` trigger), or null for any other failure.
+  static String? _roomRefusal(String raw) {
+    if (raw.contains('room_share_denied')) {
+      return 'Sharing is not available in this room right now';
+    }
+    if (raw.contains('room_recipient_not_member')) {
+      return 'No longer in this room';
+    }
+    if (raw.contains('room_expired')) return 'This room has expired';
+    return null;
   }
 
   /// Asked once when one or more members published no X25519 public key, so

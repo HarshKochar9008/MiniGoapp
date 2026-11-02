@@ -101,6 +101,14 @@ class RoomExpiredException implements Exception {
   String toString() => 'This room has expired.';
 }
 
+/// `lookup_room_by_code` is metered per identity, so room codes can't be
+/// enumerated.
+class RoomLookupThrottledException implements Exception {
+  @override
+  String toString() =>
+      'Too many room codes tried. Wait a few minutes and try again.';
+}
+
 class RoomService {
   static Future<void> _ensureSession() async {
     try {
@@ -166,8 +174,16 @@ class RoomService {
     // (same pattern as `lookup_user_by_code` for recipients). It returns
     // expired rooms too, so the isExpired check below still distinguishes
     // "expired" from "no such room".
-    final rpcRows = await SupabaseConfig.client
-        .rpc('lookup_room_by_code', params: {'p_code': normalized});
+    final Object? rpcRows;
+    try {
+      rpcRows = await SupabaseConfig.client
+          .rpc('lookup_room_by_code', params: {'p_code': normalized});
+    } on PostgrestException catch (e) {
+      if (e.message.contains('too many lookups')) {
+        throw RoomLookupThrottledException();
+      }
+      rethrow;
+    }
     final row = (rpcRows is List && rpcRows.isNotEmpty)
         ? Map<String, dynamic>.from(rpcRows.first as Map)
         : null;

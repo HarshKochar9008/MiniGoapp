@@ -29,14 +29,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     text: IdentityService.identityNotifier.value?.nickname,
   );
 
+  /// The nickname save can take a while on a slow network with no feedback;
+  /// a second tap must not run onComplete twice (in a Settings replay, that
+  /// popped the shell itself and left a black screen).
+  bool _finishing = false;
+
   Future<void> _finish() async {
-    final trimmedNick = _nickname?.trim();
-    if (trimmedNick != null && trimmedNick.isNotEmpty) {
-      await IdentityService.setNickname(trimmedNick);
+    if (_finishing) return;
+    _finishing = true;
+    try {
+      final trimmedNick = _nickname?.trim();
+      if (trimmedNick != null && trimmedNick.isNotEmpty) {
+        await IdentityService.setNickname(trimmedNick);
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarding_complete', true);
+      if (!mounted) return;
+      widget.onComplete();
+    } finally {
+      _finishing = false;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
-    widget.onComplete();
   }
 
   void _next() => setState(() => _step++);

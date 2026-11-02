@@ -539,3 +539,105 @@ alter table public.transfer_files
     is_encrypted is not true
     or enc_algo in ('x25519-aesgcm-v1', 'x25519-aesgcm-v2')
   ) not valid;
+
+-- 15. the INSERT side (20261029000001). Runs after 11 and 12, which it
+-- overrides: created_at is stamped server-side (a far-future one dodged the
+-- TTL sweep), room transfers need a live room, a sharing-allowed sender and a
+-- member receiver, and lookup_room_by_code is metered.
+
+create or replace function public.transfers_derive_codes()
+returns trigger language plpgsql security definer set search_path = public
+as $fn$
+begin
+  new.sender_code := (
+    select u.short_code from public.users u where u.id = new.sender_id);
+  if new.receiver_id is null then
+    new.receiver_code := null;
+  else
+    new.receiver_code := (
+      select u.short_code from public.users u where u.id = new.receiver_id);
+  end if;
+  new.created_at := now();
+  return new;
+end;
+$fn$;
+
+drop trigger if exists transfers_derive_codes on public.transfers;
+create trigger transfers_derive_codes
+  before insert on public.transfers
+  for each row execute function public.transfers_derive_codes();
+
+revoke all on function public.transfers_derive_codes()
+  from public, anon, authenticated;
+
+do $$
+begin
+  alter table public.transfers disable trigger transfers_freeze_participants;
+  update public.transfers set created_at = now() where created_at > now();
+  alter table public.transfers enable trigger transfers_freeze_participants;
+end $$;
+
+create or replace function public.transfers_check_room()
+returns trigger language plpgsql security definer set search_path = public
+as $fn$
+declare
+  v_room_name text;
+begin
+  if new.room_id is null then
+    new.room_name := null;
+    return new;
+  end if;
+  select r.name into v_room_name from public.rooms r
+  where r.id = new.room_id and r.expires_at > now();
+  if not found then
+    raise exception 'room_expired';
+  end if;
+  if not exists (
+    select 1 from public.room_members m
+    where m.room_id = new.room_id and m.user_id = new.sender_id
+      and m.can_share is not false) then
+    raise exception 'room_share_denied';
+  end if;
+  if not exists (
+    select 1 from public.room_members m
+    where m.room_id = new.room_id and m.user_id = new.receiver_id) then
+    raise exception 'room_recipient_not_member';
+  end if;
+  new.room_name := v_room_name;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists transfers_check_room on public.transfers;
+create trigger transfers_check_room
+  before insert on public.transfers
+  for each row execute function public.transfers_check_room();
+
+revoke all on function public.transfers_check_room()
+  from public, anon, authenticated;
+
+drop function if exists public.lookup_room_by_code(text);
+create function public.lookup_room_by_code(p_code text)
+returns table (
+  id uuid, code text, name text, owner_id uuid, expires_at timestamptz)
+language plpgsql security definer set search_path = public
+as $fn$
+begin
+  if auth.uid() is null then
+    raise exception 'lookup_room_by_code: authentication required';
+  end if;
+  if not public.rate_limit_hit(
+       'lookup_room_by_code', auth.uid(), 30, interval '10 minutes') then
+    raise exception
+      'lookup_room_by_code: too many lookups, please try again shortly';
+  end if;
+  return query
+    select r.id, r.code, r.name, r.owner_id, r.expires_at
+    from public.rooms r
+    where r.code = upper(trim(p_code))
+    limit 1;
+end;
+$fn$;
+
+revoke all on function public.lookup_room_by_code(text) from public, anon;
+grant execute on function public.lookup_room_by_code(text) to authenticated;

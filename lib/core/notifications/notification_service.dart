@@ -161,7 +161,11 @@ class NotificationService {
   /// until the next launch. The FCM token is available either way.
   static Future<void> syncFcmToken(String userId) async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      // Timeouts: a hung request here wedged the offline drain (its _running
+      // flag never cleared). TimeoutException is retryable, so it re-queues.
+      final token = await FirebaseMessaging.instance
+          .getToken()
+          .timeout(const Duration(seconds: 15));
       if (token == null || token.isEmpty) return;
       try {
         await SupabaseConfig.ensureValidSession();
@@ -170,7 +174,9 @@ class NotificationService {
       }
       await SupabaseConfig.client
           .from('users')
-          .update({'fcm_token': token}).eq('id', userId);
+          .update({'fcm_token': token})
+          .eq('id', userId)
+          .timeout(const Duration(seconds: 15));
       await PendingBackendJobs.clearFcmTokenSyncPending();
     } catch (e) {
       if (NetworkErrors.isRetryableFailure(e)) {

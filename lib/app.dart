@@ -119,8 +119,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   static const Duration _networkRetryDelay = Duration(seconds: 5);
   static const int _maxAutoRetryAttempts = 3;
   int _autoRetryAttempts = 0;
-  bool _runningDiagnostics = false;
-  String? _diagnosticsReport;
   VoidCallback? _connectivityListener;
   bool _consumingSharedFiles = false;
 
@@ -274,7 +272,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     setState(() {
       _loading = true;
       _error = null;
-      _diagnosticsReport = null;
     });
     try {
       if (!SupabaseConfig.isInitialized) {
@@ -289,13 +286,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         Analytics.instance.identify(identity.id, shortCode: identity.shortCode);
         Analytics.instance.logEvent(AnalyticsEvents.identityReady);
         NotificationService.setUserId(identity.id);
-        await NotificationService.syncFcmToken(identity.id);
+        // Not awaited: it queues itself for retry on failure, and the shell
+        // shouldn't sit on "Setting up…" behind a token fetch + DB round trip.
+        unawaited(NotificationService.syncFcmToken(identity.id));
         NotificationService.handleLaunchAndPendingNavigation();
         OfflineSyncCoordinator.instance.start(userId: identity.id);
         unawaited(OfflineSyncCoordinator.instance.runPendingWork());
         unawaited(PendingBackendJobs.refreshPendingCount());
         unawaited(WidgetBridge.refresh());
         final rawAction = await WidgetBridge.getAndClearAction();
+        if (!mounted) return;
         HomeAutoAction? widgetAction;
         if (rawAction == 'send') widgetAction = HomeAutoAction.openSend;
         if (rawAction == 'qr') widgetAction = HomeAutoAction.showQr;
@@ -380,23 +380,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _runDiagnostics() async {
-    if (_runningDiagnostics) return;
-    setState(() {
-      _runningDiagnostics = true;
-      _diagnosticsReport = 'Running diagnostics…';
-    });
-
-    final report = await ServiceHealth.instance.runDiagnosticsReport();
-
-    if (mounted) {
-      setState(() {
-        _runningDiagnostics = false;
-        _diagnosticsReport = report;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -469,34 +452,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   onPressed: _loadIdentity,
                 ),
                 const SizedBox(height: 8),
-                // const SizedBox(height: 10),
-                // _MiniGhostButton(
-                //   label: _runningDiagnostics
-                //       ? 'Running diagnostics…'
-                //       : 'Run diagnostics',
-                //   onPressed: _runningDiagnostics ? null : _runDiagnostics,
-                // ),
                 MiniButton(
                   label: 'Contact support',
                   style: MiniBtnStyle.ghost,
                   onPressed: _contactSupport,
                 ),
-                if (_diagnosticsReport != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: miniWell(context),
-                    child: Text(
-                      _diagnosticsReport!,
-                      style: GoogleFonts.jetBrainsMono(
-                        color: context.mini.inkSoft,
-                        fontSize: 11,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -548,9 +508,7 @@ class _MiniBottomNav extends StatelessWidget {
 
   static const _items = [
     _NavItem(
-        icon: MiniIcons.home,
-        activeIcon: MiniIcons.homeActive,
-        label: 'Home'),
+        icon: MiniIcons.home, activeIcon: MiniIcons.homeActive, label: 'Home'),
     _NavItem(
         icon: MiniIcons.rooms,
         activeIcon: MiniIcons.roomsActive,
