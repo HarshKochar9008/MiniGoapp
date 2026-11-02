@@ -64,6 +64,11 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   /// Set when validation fails because a code saved in recent recipients no
   /// longer exists — drives the "Forget this code" action under the error.
   String? _staleRecentCode;
+
+  /// Numbers each recipient lookup. Anything that changes the code field bumps
+  /// it, so a lookup that returns for a code no longer on screen is dropped
+  /// instead of marking the new code verified with the old person's id.
+  int _validationSeq = 0;
   String? _validatedRecipientId;
   String? _validatedRecipientKey;
   TransferCancellationToken? _uploadCancellationToken;
@@ -116,6 +121,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    // Nothing else can show or cancel an upload once this screen is gone.
+    _uploadCancellationToken?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     RecentRecipients.revision.removeListener(_onRecentsChanged);
     _codeFocus.removeListener(_onCodeFocusChanged);
@@ -138,10 +145,13 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _checkInterruptedUploadRecovery() async {
+    // A send still running is not "interrupted": offering to discard it would
+    // mark the live transfer failed while its files keep arriving.
+    if (TransferService.isSendInFlight) return;
     final pending = await TransferService.getPendingUploadJob(
       senderId: widget.identity.id,
     );
-    if (!mounted || pending == null) return;
+    if (!mounted || pending == null || TransferService.isSendInFlight) return;
 
     final existing = <PlatformFile>[];
     for (final file in pending.toPlatformFiles()) {
@@ -218,6 +228,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       _info = 'Resumed interrupted upload. Tap Send to continue.';
       if (pending.receiverCode != null && pending.receiverCode!.isNotEmpty) {
         _codeController.text = pending.receiverCode!;
+        _validationSeq++;
+        _validatingCode = false;
       }
       if (hasResumedKey) {
         _validatedRecipientId = pending.receiverId;
@@ -496,8 +508,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Row(
         children: [
-          const Icon(MiniIcons.success,
-              size: 16, color: MiniColors.success),
+          const Icon(MiniIcons.success, size: 16, color: MiniColors.success),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -512,9 +523,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  alias != null
-                      ? MiniIcons.edit
-                      : MiniIcons.addPerson,
+                  alias != null ? MiniIcons.edit : MiniIcons.addPerson,
                   size: 15,
                   color: c.accent,
                 ),
@@ -535,28 +544,36 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _validateCode() async {
+    final seq = ++_validationSeq;
+    bool stale() => !mounted || seq != _validationSeq;
+    // The bump above orphans any lookup in flight, so it will never clear
+    // the spinner itself — every early exit here has to.
+    void reject(String message) => setState(() {
+          _codeError = message;
+          _validatingCode = false;
+        });
     final code = AppConstants.normalizeShortCode(_codeController.text);
     if (code.isEmpty) {
-      setState(() => _codeError = 'Enter a recipient code');
+      reject('Enter a recipient code');
       return;
     }
     if (code.length != AppConstants.codeLength) {
-      setState(() => _codeError =
-          'Code must be exactly ${AppConstants.codeLength} characters');
+      reject('Code must be exactly ${AppConstants.codeLength} characters');
       return;
     }
     if (!AppConstants.isValidShortCodeFormat(code)) {
-      setState(
-          () => _codeError = 'Use only A-Z and 2-9 (excluding O, I, L, 0, 1)');
+      reject('Use only A-Z and 2-9 (excluding O, I, L, 0, 1)');
       return;
     }
     if (code == widget.identity.shortCode) {
-      setState(() => _codeError = 'You cannot send files to yourself');
+      reject('You cannot send files to yourself');
       return;
     }
 
-    if (!await ConnectionStatus.instance.refresh()) {
-      setState(() => _codeError = 'No internet connection');
+    final online = await ConnectionStatus.instance.refresh();
+    if (stale()) return;
+    if (!online) {
+      reject('No internet connection');
       return;
     }
 
@@ -568,7 +585,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
     try {
       final recipient = await IdentityService.findUserByCode(code);
-      if (!mounted) return;
+      if (stale()) return;
 
       if (recipient == null) {
         // A dead saved code usually means that person's identity was reset
@@ -598,7 +615,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated);
     } on PostgrestException catch (e) {
       Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
-      if (mounted) {
+      if (mounted && seq == _validationSeq) {
         setState(() {
           _codeError = 'We had trouble checking this code. Please try again.';
           _validatingCode = false;
@@ -607,7 +624,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
-      if (mounted) {
+      if (mounted && seq == _validationSeq) {
         setState(() {
           _codeError = NetworkErrors.isRetryableFailure(e)
               ? 'Cannot reach MiniGo to validate this code. '
@@ -628,6 +645,29 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   Future<void> _send() async {
     if (_validatedRecipientId == null || _selectedFiles.isEmpty) return;
 
+    // The checks below await dialogs and network calls while the code field,
+    // recent chips and file list stay editable. Everything confirmed here —
+    // above all the "not encrypted" warning — is about this recipient and
+    // these files, so the send aborts if either changed in the meantime.
+    final recipientId = _validatedRecipientId!;
+    final recipientKey = _validatedRecipientKey;
+    final recipientCode = AppConstants.normalizeShortCode(_codeController.text);
+    final allowUnencrypted = !_recipientIsEncryptable;
+    final files = List<PlatformFile>.of(_selectedFiles);
+    bool selectionChanged() {
+      if (_validatedRecipientId != recipientId ||
+          _validatedRecipientKey != recipientKey ||
+          AppConstants.normalizeShortCode(_codeController.text) !=
+              recipientCode ||
+          _selectedFiles.length != files.length) {
+        return true;
+      }
+      for (var i = 0; i < files.length; i++) {
+        if (!identical(_selectedFiles[i], files[i])) return true;
+      }
+      return false;
+    }
+
     // Checked before the push probe: it costs no network round trip, and it is
     // the more consequential of the two warnings.
     if (!_recipientIsEncryptable) {
@@ -638,7 +678,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
     final pushReadiness =
         await TransferService.verifyClosedAppDeliveryReadiness(
-      receiverId: _validatedRecipientId!,
+      receiverId: recipientId,
     );
     if (!pushReadiness.ready) {
       if (!mounted) return;
@@ -658,10 +698,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     final confirmed = await _confirmMeteredUploadIfNeeded();
     if (!confirmed || !mounted) return;
 
-    if (!await ConnectionStatus.instance.refresh()) {
-      if (!mounted) return;
+    final online = await ConnectionStatus.instance.refresh();
+    if (!mounted) return;
+    if (!online) {
       setState(() {
         _error = 'No internet connection. Try again when you are online.';
+      });
+      return;
+    }
+
+    if (selectionChanged()) {
+      setState(() {
+        _error = 'The recipient or files changed. Check them and send again.';
       });
       return;
     }
@@ -675,19 +723,19 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     });
 
     Analytics.instance.logEvent(AnalyticsEvents.sendStarted, {
-      'file_count': _selectedFiles.length,
+      'file_count': files.length,
       'total_bytes': _totalSize,
     });
 
     try {
       final result = await TransferService.sendFiles(
         senderId: widget.identity.id,
-        receiverId: _validatedRecipientId!,
-        receiverCode: AppConstants.normalizeShortCode(_codeController.text),
-        recipientPublicKey: _validatedRecipientKey,
+        receiverId: recipientId,
+        receiverCode: recipientCode,
+        recipientPublicKey: recipientKey,
         // Only ever true once _confirmSendWithoutEncryption() said so above.
-        allowUnencrypted: !_recipientIsEncryptable,
-        files: _selectedFiles,
+        allowUnencrypted: allowUnencrypted,
+        files: files,
         cancellationToken: _uploadCancellationToken,
         onProgress: (states) {
           if (mounted) setState(() => _uploadStates = states);
@@ -911,353 +959,394 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    return Scaffold(
-      backgroundColor: c.paper,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(MiniIcons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Send to'),
-      ),
-      body: Column(
-        children: [
-          // Recipient code input
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: miniCard(context, radius: MiniRadius.control),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _codeController,
-                      focusNode: _codeFocus,
-                      // Stays editable after validation: onChanged resets the
-                      // validated state, so the user can switch recipients
-                      // without leaving the screen.
-                      enabled: !_sending,
-                      textCapitalization: TextCapitalization.characters,
-                      maxLength: AppConstants.codeLength,
-                      textAlign: TextAlign.center,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'[A-Za-z0-9]')),
-                        _UpperCaseFormatter(),
-                      ],
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 22,
-                        letterSpacing: 3,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '— — —   — — —',
-                        hintStyle: GoogleFonts.jetBrainsMono(
-                          fontSize: 18,
-                          color: c.inkFaint,
-                          letterSpacing: 3,
-                        ),
-                        counterText: '',
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
-                      onChanged: (_) {
-                        // Rebuild so the recent-code suggestions refilter.
-                        setState(() {
-                          _staleRecentCode = null;
-                          if (_codeValidated) {
-                            _codeValidated = false;
-                            _validatedRecipientId = null;
-                            _validatedRecipientKey = null;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                  if (!_codeValidated && !_sending)
-                    SizedBox(
-                      width: 40,
-                      height: 44,
-                      child: IconButton(
-                        icon: const Icon(
-                          MiniIcons.scanQr,
-                          size: 20,
-                        ),
-                        color: c.inkSoft,
-                        onPressed: _scanCode,
-                        tooltip: 'Scan QR code',
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: SizedBox(
-                      height: 44,
-                      child: FilledButton(
-                        onPressed:
-                            (_validatingCode || _sending || _codeValidated)
-                                ? null
-                                : _validateCode,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _codeValidated
-                              ? MiniColors.success
-                              : MiniColors.blue600,
-                          disabledBackgroundColor: _codeValidated
-                              ? MiniColors.success
-                              : MiniColors.blue600.withValues(alpha: 0.45),
-                          minimumSize: const Size(0, 44),
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                        ),
-                        child: _validatingCode
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                  strokeCap: StrokeCap.round,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _codeValidated ? 'Verified ✓' : 'Validate',
-                                style: GoogleFonts.outfit(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    return PopScope(
+      canPop: !_sending,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeaveWhileSending();
+      },
+      child: Scaffold(
+        backgroundColor: c.paper,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(MiniIcons.close),
+            onPressed: () => Navigator.maybePop(context),
           ),
-          // Recent recipients — pill chips under the code field, filtered by
-          // what's typed so far. Tapping one fills and validates the code.
-          if (_recentSuggestions.isNotEmpty && !_codeValidated && !_sending)
+          title: const Text('Send to'),
+        ),
+        body: Column(
+          children: [
+            // Recipient code input
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(5),
+                decoration: miniCard(context, radius: MiniRadius.control),
+                child: Row(
                   children: [
-                    Text('RECENT', style: MiniText.label),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final r in _recentSuggestions)
-                          Material(
-                            color: c.sand,
-                            borderRadius:
-                                BorderRadius.circular(MiniRadius.chip),
-                            child: InkWell(
-                              onTap: () => _applyRecentCode(r.code),
-                              borderRadius:
-                                  BorderRadius.circular(MiniRadius.chip),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      fmtCode(r.code),
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 13,
-                                        letterSpacing: 1,
-                                        fontWeight: FontWeight.w600,
-                                        color: c.ink,
-                                      ),
-                                    ),
-                                    if (r.label != null) ...[
-                                      const SizedBox(height: 2),
-                                      ConstrainedBox(
-                                        constraints:
-                                            const BoxConstraints(maxWidth: 110),
-                                        child: Text(
-                                          r.label!,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: MiniText.small
-                                              .copyWith(color: c.inkSoft),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
+                    Expanded(
+                      child: TextField(
+                        controller: _codeController,
+                        focusNode: _codeFocus,
+                        // Stays editable after validation: onChanged resets the
+                        // validated state, so the user can switch recipients
+                        // without leaving the screen.
+                        enabled: !_sending,
+                        textCapitalization: TextCapitalization.characters,
+                        maxLength: AppConstants.codeLength,
+                        textAlign: TextAlign.center,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[A-Za-z0-9]')),
+                          _UpperCaseFormatter(),
+                        ],
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 22,
+                          letterSpacing: 3,
+                          fontWeight: FontWeight.w600,
+                          color: c.ink,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '— — —   — — —',
+                          hintStyle: GoogleFonts.jetBrainsMono(
+                            fontSize: 18,
+                            color: c.inkFaint,
+                            letterSpacing: 3,
                           ),
-                      ],
+                          counterText: '',
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                        ),
+                        onChanged: (_) {
+                          // Rebuild so the recent-code suggestions refilter.
+                          setState(() {
+                            _staleRecentCode = null;
+                            // Abandon any lookup still running for the old text.
+                            _validationSeq++;
+                            _validatingCode = false;
+                            if (_codeValidated) {
+                              _codeValidated = false;
+                              _validatedRecipientId = null;
+                              _validatedRecipientKey = null;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                    if (!_codeValidated && !_sending)
+                      SizedBox(
+                        width: 40,
+                        height: 44,
+                        child: IconButton(
+                          icon: const Icon(
+                            MiniIcons.scanQr,
+                            size: 20,
+                          ),
+                          color: c.inkSoft,
+                          onPressed: _scanCode,
+                          tooltip: 'Scan QR code',
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: SizedBox(
+                        height: 44,
+                        child: FilledButton(
+                          onPressed:
+                              (_validatingCode || _sending || _codeValidated)
+                                  ? null
+                                  : _validateCode,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _codeValidated
+                                ? MiniColors.success
+                                : MiniColors.blue600,
+                            disabledBackgroundColor: _codeValidated
+                                ? MiniColors.success
+                                : MiniColors.blue600.withValues(alpha: 0.45),
+                            minimumSize: const Size(0, 44),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                          child: _validatingCode
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    strokeCap: StrokeCap.round,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _codeValidated ? 'Verified ✓' : 'Validate',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          if (_codeError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_codeError!,
-                      style: MiniText.small.copyWith(color: MiniColors.danger)),
-                  if (_staleRecentCode != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: _GhostAction(
-                        label: 'Forget this code',
-                        color: c.accent,
-                        onTap: _forgetStaleRecentCode,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (_codeValidated) _recipientNameRow(),
-
-          // The recipient published no X25519 key, so these files would go up
-          // as plaintext. Say so before the send, not after.
-          if (_codeValidated && !_recipientIsEncryptable)
-            StatusBanner(
-              icon: MiniIcons.unlock,
-              text: 'This recipient has no encryption key yet — files will '
-                  'not be end-to-end encrypted.',
-              tint: MiniColors.warn,
-            ),
-
-          // Power save banner
-          if (_powerSaveMode)
-            StatusBanner(
-              icon: MiniIcons.batterySaver,
-              text:
-                  'Battery saver is on. Large uploads may be slower or pause.',
-              tint: MiniColors.warn,
-            ),
-
-          // Files section
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Files header
-                  Row(
+            // Recent recipients — pill chips under the code field, filtered by
+            // what's typed so far. Tapping one fills and validates the code.
+            if (_recentSuggestions.isNotEmpty && !_codeValidated && !_sending)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Files', style: MiniText.label),
-                            if (_selectedFiles.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_selectedFiles.length} selected · ${_formatSize(_totalSize)}',
-                                style: MiniText.small,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (!_sending && _selectedFiles.isNotEmpty) ...[
-                        _GhostAction(label: 'Add more', onTap: _pickFiles),
-                        const SizedBox(width: 4),
-                        _GhostAction(
-                            label: 'Clear all',
-                            onTap: _clearAll,
-                            color: MiniColors.danger),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // File list / progress / empty
-                  if (_sending && _uploadStates != null)
-                    TransferUploadProgressList(states: _uploadStates!)
-                  else if (_selectedFiles.isEmpty)
-                    _EmptyFilesMini(onPick: _pickFiles)
-                  else
-                    for (var i = 0; i < _selectedFiles.length; i++) ...[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: miniCard(context, radius: MiniRadius.tile),
-                        child: MiniFileRow(
-                          name: _selectedFiles[i].name,
-                          size: _formatSize(_selectedFiles[i].size),
-                          mimeCategory: MiniFileRow.categoryFromFileName(
-                              _selectedFiles[i].name),
-                          trailing: _sending
-                              ? null
-                              : GestureDetector(
-                                  onTap: () => _removeFile(i),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Icon(MiniIcons.close,
-                                        size: 16, color: c.inkFaint),
+                      Text('RECENT', style: MiniText.label),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final r in _recentSuggestions)
+                            Material(
+                              color: c.sand,
+                              borderRadius:
+                                  BorderRadius.circular(MiniRadius.chip),
+                              child: InkWell(
+                                onTap: () => _applyRecentCode(r.code),
+                                borderRadius:
+                                    BorderRadius.circular(MiniRadius.chip),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        fmtCode(r.code),
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 13,
+                                          letterSpacing: 1,
+                                          fontWeight: FontWeight.w600,
+                                          color: c.ink,
+                                        ),
+                                      ),
+                                      if (r.label != null) ...[
+                                        const SizedBox(height: 2),
+                                        ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                              maxWidth: 110),
+                                          child: Text(
+                                            r.label!,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: MiniText.small
+                                                .copyWith(color: c.inkSoft),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_codeError != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_codeError!,
+                        style:
+                            MiniText.small.copyWith(color: MiniColors.danger)),
+                    if (_staleRecentCode != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: _GhostAction(
+                          label: 'Forget this code',
+                          color: c.accent,
+                          onTap: _forgetStaleRecentCode,
                         ),
+                      ),
+                  ],
+                ),
+              ),
+            if (_codeValidated) _recipientNameRow(),
+
+            // The recipient published no X25519 key, so these files would go up
+            // as plaintext. Say so before the send, not after.
+            if (_codeValidated && !_recipientIsEncryptable)
+              StatusBanner(
+                icon: MiniIcons.unlock,
+                text: 'This recipient has no encryption key yet — files will '
+                    'not be end-to-end encrypted.',
+                tint: MiniColors.warn,
+              ),
+
+            // Power save banner
+            if (_powerSaveMode)
+              StatusBanner(
+                icon: MiniIcons.batterySaver,
+                text:
+                    'Battery saver is on. Large uploads may be slower or pause.',
+                tint: MiniColors.warn,
+              ),
+
+            // Files section
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Files header
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Files', style: MiniText.label),
+                              if (_selectedFiles.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_selectedFiles.length} selected · ${_formatSize(_totalSize)}',
+                                  style: MiniText.small,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (!_sending && _selectedFiles.isNotEmpty) ...[
+                          _GhostAction(label: 'Add more', onTap: _pickFiles),
+                          const SizedBox(width: 4),
+                          _GhostAction(
+                              label: 'Clear all',
+                              onTap: _clearAll,
+                              color: MiniColors.danger),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // File list / progress / empty
+                    if (_sending && _uploadStates != null)
+                      TransferUploadProgressList(states: _uploadStates!)
+                    else if (_selectedFiles.isEmpty)
+                      _EmptyFilesMini(onPick: _pickFiles)
+                    else
+                      for (var i = 0; i < _selectedFiles.length; i++) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration:
+                              miniCard(context, radius: MiniRadius.tile),
+                          child: MiniFileRow(
+                            name: _selectedFiles[i].name,
+                            size: _formatSize(_selectedFiles[i].size),
+                            mimeCategory: MiniFileRow.categoryFromFileName(
+                                _selectedFiles[i].name),
+                            trailing: _sending
+                                ? null
+                                : GestureDetector(
+                                    onTap: () => _removeFile(i),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(MiniIcons.close,
+                                          size: 16, color: c.inkFaint),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: MiniIcons.error,
+                        text: _error!,
+                        tint: MiniColors.danger,
+                      ),
+                    ] else if (_info != null) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: MiniIcons.info,
+                        text: _info!,
+                        tint: MiniColors.blue600,
                       ),
                     ],
 
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    StatusBanner(
-                      icon: MiniIcons.error,
-                      text: _error!,
-                      tint: MiniColors.danger,
-                    ),
-                  ] else if (_info != null) ...[
-                    const SizedBox(height: 8),
-                    StatusBanner(
-                      icon: MiniIcons.info,
-                      text: _info!,
-                      tint: MiniColors.blue600,
-                    ),
+                    if (_codeValidated && _selectedFiles.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Keep the app open while uploading.',
+                        style: MiniText.small,
+                      ),
+                    ],
                   ],
-
-                  if (_codeValidated && _selectedFiles.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Keep the app open while uploading.',
-                      style: MiniText.small,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
+
+            // Send button
+            if (_codeValidated && _selectedFiles.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 34),
+                child: FractionallySizedBox(
+                  widthFactor: 0.7,
+                  child: _sending
+                      ? MiniButton(
+                          label: _buildSendingLabel(),
+                          loading: true,
+                          onPressed: null,
+                          leading: GestureDetector(
+                            onTap: _cancelUpload,
+                            child: Icon(MiniIcons.close,
+                                size: 16, color: c.inkFaint),
+                          ),
+                        )
+                      : _SwipeToSendButton(onSend: _send),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Closing mid-upload cancels it (see [dispose]), so ask first.
+  Future<void> _confirmLeaveWhileSending() async {
+    if (!_sending) {
+      Navigator.pop(context);
+      return;
+    }
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel this send?'),
+        content: const Text(
+          'Closing now stops the upload. Files already delivered stay with '
+          'the recipient.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep sending'),
           ),
-
-          // Send button
-          if (_codeValidated && _selectedFiles.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 34),
-              child: FractionallySizedBox(
-                widthFactor: 0.7,
-                child: _sending
-                    ? MiniButton(
-                        label: _buildSendingLabel(),
-                        loading: true,
-                        onPressed: null,
-                        leading: GestureDetector(
-                          onTap: _cancelUpload,
-                          child: Icon(MiniIcons.close,
-                              size: 16, color: c.inkFaint),
-                        ),
-                      )
-                    : _SwipeToSendButton(onSend: _send),
-              ),
-            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel send'),
+          ),
         ],
       ),
     );
+    if (leave == true && mounted) Navigator.pop(context);
   }
 
   String _buildSendingLabel() {
@@ -1367,6 +1456,7 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
   static const _fireAt = 0.92;
 
   late final AnimationController _resetCtrl;
+  late final CurvedAnimation _resetCurve;
   Animation<double>? _resetAnim;
   double _progress = 0;
   bool _fired = false;
@@ -1377,24 +1467,28 @@ class _SwipeToSendButtonState extends State<_SwipeToSendButton>
     _resetCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
-    );
+    )..addListener(_onResetTick);
+    _resetCurve =
+        CurvedAnimation(parent: _resetCtrl, curve: Curves.easeOutCubic);
   }
 
   @override
   void dispose() {
+    _resetCurve.dispose();
     _resetCtrl.dispose();
     super.dispose();
   }
 
+  // One listener for the widget's lifetime. Adding it inside _snapBack put
+  // another on the controller for every released drag.
+  void _onResetTick() {
+    final anim = _resetAnim;
+    if (!mounted || anim == null) return;
+    setState(() => _progress = anim.value);
+  }
+
   void _snapBack() {
-    _resetAnim = Tween<double>(
-      begin: _progress,
-      end: 0,
-    ).animate(CurvedAnimation(parent: _resetCtrl, curve: Curves.easeOutCubic))
-      ..addListener(() {
-        if (!mounted) return;
-        setState(() => _progress = _resetAnim!.value);
-      });
+    _resetAnim = Tween<double>(begin: _progress, end: 0).animate(_resetCurve);
     _resetCtrl
       ..reset()
       ..forward();

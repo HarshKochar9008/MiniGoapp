@@ -185,8 +185,12 @@ class PendingUploadFile {
     final name = (json['name'] ?? '').toString();
     final path = (json['path'] ?? '').toString();
     final size = json['size'];
-    final parsedSize = size is int ? size : int.tryParse('$size') ?? 0;
-    if (name.isEmpty || path.isEmpty || parsedSize <= 0) return null;
+    final parsedSize = size is int ? size : int.tryParse('$size');
+    // 0 is a real size: dropping empty files shifted every later file's index
+    // and broke the index-keyed resume match (re-uploads, duplicate rows).
+    if (name.isEmpty || path.isEmpty || parsedSize == null || parsedSize < 0) {
+      return null;
+    }
     return PendingUploadFile(name: name, path: path, size: parsedSize);
   }
 }
@@ -284,6 +288,53 @@ class TransferCancellationToken {
   void cancel() => _cancelled = true;
 }
 
+/// Force-closes an [HttpClient] when its transfer is cancelled or stops moving
+/// bytes. Without it, a socket that silently stops acknowledging (Wi-Fi drop
+/// mid-transfer) blocks `addStream` / the response stream until the OS gives
+/// up — many minutes — and the cancel token is never even checked, because
+/// the only checks run when the next chunk flows.
+class _HttpWatchdog {
+  _HttpWatchdog(this._client, this._token) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _check());
+  }
+
+  static const stallTimeout = Duration(seconds: 60);
+
+  final HttpClient _client;
+  final TransferCancellationToken? _token;
+  late final Timer _timer;
+  DateTime _lastActivity = DateTime.now();
+  bool _cancelled = false;
+  bool _stalled = false;
+
+  /// Call whenever bytes move.
+  void touch() => _lastActivity = DateTime.now();
+
+  void _check() {
+    if (_token?.isCancelled == true) {
+      _cancelled = true;
+    } else if (DateTime.now().difference(_lastActivity) > stallTimeout) {
+      _stalled = true;
+    } else {
+      return;
+    }
+    _timer.cancel();
+    _client.close(force: true);
+  }
+
+  void stop() => _timer.cancel();
+
+  /// What a forced close really meant, for rethrowing in place of the raw
+  /// socket error it caused; null when the watchdog didn't fire.
+  Exception? get abortReason {
+    if (_cancelled) return TransferCancelledException();
+    if (_stalled) {
+      return const SocketException('Connection stalled: no data for 60 s');
+    }
+    return null;
+  }
+}
+
 class TransferCancelledException implements Exception {
   final String message;
   TransferCancelledException([this.message = 'Transfer cancelled by user.']);
@@ -311,19 +362,27 @@ class _TransferProgressBroadcaster {
   final SupabaseClient _client;
   final String _transferId;
   String? _lastSig;
+  String? _lastStatusSig;
   DateTime? _lastAt;
+
+  static const _minInterval = Duration(milliseconds: 280);
 
   void notify(List<FileUploadProgress> states) {
     final sig = states
         .map((e) => '${e.status.name}:${(e.progress * 100).round()}')
         .join('|');
+    if (sig == _lastSig) return;
+    // Every write is a realtime UPDATE delivered to the receiver. Status
+    // changes go out at once; percentage ticks at most once per interval.
+    final statusSig = states.map((e) => e.status.name).join('|');
     final now = DateTime.now();
-    final elapsed =
-        _lastAt == null ? const Duration(days: 1) : now.difference(_lastAt!);
-    if (sig == _lastSig && elapsed < const Duration(milliseconds: 280)) {
+    if (statusSig == _lastStatusSig &&
+        _lastAt != null &&
+        now.difference(_lastAt!) < _minInterval) {
       return;
     }
     _lastSig = sig;
+    _lastStatusSig = statusSig;
     _lastAt = now;
     unawaited(_write(states));
   }
@@ -521,9 +580,14 @@ class TransferService {
         XFile(file.path),
         store: TusFileStore(workDir!),
         maxChunkSize: 6 * 1024 * 1024,
-        retries: 12,
-        retryInterval: 1,
-        retryScale: RetryScale.exponential,
+        // tus_client_dart 2.5.0's own retry is broken: _getData() advances the
+        // offset before the PATCH is sent, and a retry re-sends the stale
+        // Upload-Offset header with the *next* chunk's bytes, so every retry
+        // fails (409) — and the stream's onDone resets the retry counter, so
+        // it never gives up and ignores cancel. Fail fast instead: sendFiles'
+        // own retry loop re-runs this with a fresh client and session token,
+        // and x-upsert makes the restart safe.
+        retries: 0,
       );
 
       cancelTimer =
@@ -599,7 +663,9 @@ class TransferService {
     TransferCancellationToken? cancellationToken,
   }) async {
     final fileLength = await file.length();
-    final httpClient = HttpClient();
+    final httpClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 30);
+    final watchdog = _HttpWatchdog(httpClient, cancellationToken);
     try {
       final request = await httpClient.putUrl(Uri.parse(url));
       request.headers.set('Content-Type', contentType);
@@ -610,19 +676,26 @@ class TransferService {
         if (cancellationToken?.isCancelled == true) {
           throw TransferCancelledException();
         }
+        watchdog.touch();
         bytesSent += chunk.length;
         onProgress?.call(bytesSent, fileLength);
         return chunk;
       });
 
       await request.addStream(progressStream);
+      watchdog.touch();
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
 
       if (response.statusCode >= 400) {
         throw StorageUploadException(response.statusCode, body);
       }
+    } catch (_) {
+      final reason = watchdog.abortReason;
+      if (reason != null) throw reason;
+      rethrow;
     } finally {
+      watchdog.stop();
       httpClient.close();
     }
   }
@@ -645,7 +718,9 @@ class TransferService {
       '${AppConstants.supabaseUrl}/storage/v1/object/transfers/$storagePath',
     );
 
-    final httpClient = HttpClient();
+    final httpClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 30);
+    final watchdog = _HttpWatchdog(httpClient, cancellationToken);
     try {
       final request = await httpClient.postUrl(url);
       request.headers.set('Authorization', 'Bearer ${session.accessToken}');
@@ -659,19 +734,26 @@ class TransferService {
         if (cancellationToken?.isCancelled == true) {
           throw TransferCancelledException();
         }
+        watchdog.touch();
         bytesSent += chunk.length;
         onProgress?.call(bytesSent, fileLength);
         return chunk;
       });
 
       await request.addStream(progressStream);
+      watchdog.touch();
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
 
       if (response.statusCode >= 400) {
         throw StorageUploadException(response.statusCode, body);
       }
+    } catch (_) {
+      final reason = watchdog.abortReason;
+      if (reason != null) throw reason;
+      rethrow;
     } finally {
+      watchdog.stop();
       httpClient.close();
     }
   }
@@ -706,7 +788,9 @@ class TransferService {
   }
 
   /// Eligible rows already in `transfer_files` for this transfer, keyed by
-  /// `file_name` (sanitized), or `null` if this transfer must not be resumed.
+  /// `storage_path`, or `null` if this transfer must not be resumed. Not by
+  /// `file_name`: two names can sanitize to the same one, and the second file
+  /// would then look already uploaded.
   static Future<Map<String, Map<String, dynamic>>?>
       _loadTransferResumeSnapshot({
     required SupabaseClient client,
@@ -732,8 +816,8 @@ class TransferService {
     final out = <String, Map<String, dynamic>>{};
     for (final raw in rows) {
       final m = Map<String, dynamic>.from(raw);
-      final fn = (m['file_name'] ?? '').toString();
-      if (fn.isNotEmpty) out[fn] = m;
+      final path = (m['storage_path'] ?? '').toString();
+      if (path.isNotEmpty) out[path] = m;
     }
     return out;
   }
@@ -864,7 +948,7 @@ class TransferService {
     );
 
     late final String transferId;
-    Map<String, Map<String, dynamic>> resumeByFileName = {};
+    Map<String, Map<String, dynamic>> resumeByStoragePath = {};
 
     if (matches &&
         existingPending?.transferId != null &&
@@ -878,7 +962,7 @@ class TransferService {
       );
       if (snap != null) {
         transferId = tid;
-        resumeByFileName = snap;
+        resumeByStoragePath = snap;
       } else {
         await _abandonOrphanTransfer(client, tid);
         final transfer = await _insertTransferRow({
@@ -920,8 +1004,9 @@ class TransferService {
         .toList();
 
     for (var i = 0; i < files.length; i++) {
+      // Same path the upload loop below writes for file i.
       final safeName = sanitizeFileName(files[i].name);
-      final row = resumeByFileName[safeName];
+      final row = resumeByStoragePath['$transferId/${i}_$safeName'];
       if (row != null) {
         final sha = row['sha256_hash']?.toString();
         states = _updateState(
@@ -1326,6 +1411,10 @@ class TransferService {
         }
       }
       // For other errors, silently ignore — don't crash the transfer
+    } catch (_) {
+      // Network failures arrive unwrapped (ClientException/SocketException),
+      // not as PostgrestException. Letting them escape here skipped the
+      // pending-job cleanup and replaced a cancel with a generic error.
     }
   }
 
@@ -1405,6 +1494,8 @@ class TransferService {
     required String senderId,
     required String receiverId,
   }) async {
+    // Bounded: the offline drain awaits this with its _running flag set, so a
+    // hung socket here blocked every later drain for the session.
     await SupabaseConfig.client.functions.invoke(
       'send-transfer-fcm',
       body: {
@@ -1414,7 +1505,7 @@ class TransferService {
           'receiver_id': receiverId,
         },
       },
-    );
+    ).timeout(const Duration(seconds: 20));
   }
 
   /// Retries edge invokes that failed with a retryable network error after upload.
@@ -1683,7 +1774,6 @@ class TransferService {
     // when signing fails or the object predates the R2 cutover (HTTP 404).
     var useR2 = R2Storage.enabled;
 
-    final httpClient = HttpClient();
     IOSink? sink;
     final tempDir = await getTemporaryDirectory();
     // Prefix with random to avoid collisions when multiple files have the same name
@@ -1706,6 +1796,11 @@ class TransferService {
 
         final existingBytes = await file.exists() ? await file.length() : 0;
         HttpClientResponse? response;
+        // One client per attempt: the watchdog force-closes it on a stall or
+        // cancel, and a closed client can't serve the next attempt.
+        final httpClient = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 30);
+        final watchdog = _HttpWatchdog(httpClient, cancellationToken);
         try {
           String url;
           if (useR2) {
@@ -1769,6 +1864,7 @@ class TransferService {
               throw TransferCancelledException();
             }
 
+            watchdog.touch();
             sink!.add(chunk);
             receivedBytes += chunk.length;
             final safeTotal = totalBytes > 0 ? totalBytes : receivedBytes;
@@ -1777,6 +1873,8 @@ class TransferService {
 
           await sink?.close();
           sink = null;
+          // Decryption moves no network bytes; it must not count as a stall.
+          watchdog.stop();
           if (!isEncrypted) return file;
           return await _decryptDownloadedFile(
             cipherFile: file,
@@ -1792,7 +1890,9 @@ class TransferService {
           // Wrong key or tampered ciphertext fails identically every time —
           // retrying only re-downloads the whole file to fail again.
           if (e is E2EDecryptException) rethrow;
-          lastError = e.toString().replaceAll('Exception: ', '');
+          lastError = (watchdog.abortReason ?? e)
+              .toString()
+              .replaceAll('Exception: ', '');
 
           // Object not on R2 (uploaded before the cutover) — use Supabase
           // Storage for the remaining attempts.
@@ -1811,6 +1911,9 @@ class TransferService {
           if (isLastAttempt) break;
 
           await Future.delayed(Duration(seconds: attempt * 2));
+        } finally {
+          watchdog.stop();
+          httpClient.close();
         }
       }
 
@@ -1821,7 +1924,6 @@ class TransferService {
           'Download failed after $maxAttempts attempts: $lastError');
     } finally {
       await sink?.close();
-      httpClient.close();
     }
   }
 

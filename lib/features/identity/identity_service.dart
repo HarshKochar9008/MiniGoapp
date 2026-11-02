@@ -36,11 +36,26 @@ class IdentityService {
     identityNotifier.value = identity;
   }
 
-  static Future<UserIdentity> initialize() async {
+  static Future<UserIdentity>? _initInFlight;
+
+  /// Overlapping callers (startup auto-retry, onboarding Retry) share one
+  /// attempt. Their `.timeout()`s don't cancel the first one, and on a first
+  /// launch two concurrent attempts would each sign in anonymously and end up
+  /// with two different accounts.
+  static Future<UserIdentity> initialize() {
+    if (_cached != null) return Future.value(_cached!);
+    return _initInFlight ??=
+        _initialize().whenComplete(() => _initInFlight = null);
+  }
+
+  static Future<UserIdentity> _initialize() async {
     if (_cached != null) return _cached!;
 
     final prefs = await SharedPreferences.getInstance();
     final cachedIdentity = _identityFromPrefs(prefs);
+    // Provisional: an offline retry runs on the saved identity. Dropped below
+    // wherever it turns out not to belong to this session — a later failure
+    // would otherwise hand it straight back to the next call, unchecked.
     if (cachedIdentity != null) {
       _setCached(cachedIdentity);
     }
@@ -52,6 +67,7 @@ class IdentityService {
       if (cachedIdentity != null && NetworkErrors.isRetryableFailure(e)) {
         return cachedIdentity;
       }
+      _setCached(null);
       rethrow;
     }
     final authUid = session.user.id;
@@ -60,6 +76,7 @@ class IdentityService {
     // If auth identity changed, retire the old server row (its code must stop
     // resolving for senders) and clear stale local mappings immediately.
     if (savedAuthUid != null && savedAuthUid != authUid) {
+      _setCached(null);
       unawaited(_retirePreviousIdentity(savedAuthUid));
       await _clearStoredIdentity(prefs);
     }

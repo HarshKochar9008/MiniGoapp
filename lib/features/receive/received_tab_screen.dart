@@ -31,6 +31,11 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
   Timer? _realtimeHealthTimer;
   DateTime _lastRealtimeSignalAt = DateTime.now().toUtc();
   late final VoidCallback _onConnectionChanged;
+  Timer? _liveReloadDebounce;
+  int _loadGen = 0;
+
+  /// Last status seen per transfer, so progress-only UPDATEs are ignored.
+  final Map<String, String> _knownStatus = {};
 
   @override
   void initState() {
@@ -61,6 +66,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     WidgetsBinding.instance.removeObserver(this);
     _realtimeHealthTimer?.cancel();
+    _liveReloadDebounce?.cancel();
     if (_channel != null) TransferService.unsubscribe(_channel!);
     super.dispose();
   }
@@ -69,7 +75,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(ConnectionStatus.instance.refresh());
-      _loadTransfers();
+      _loadTransfers(silent: true);
       _ensureRealtimeHealthy(forceResubscribe: true);
     }
   }
@@ -80,15 +86,22 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
       userId: widget.identity.id,
       onTransferChange: (record, event) {
         _lastRealtimeSignalAt = DateTime.now().toUtc();
-        _loadTransfers();
         if (!mounted) return;
+        // The sender rewrites upload_progress every few hundred ms while
+        // uploading; each write is an UPDATE. Only a status change can alter
+        // this list, so the rest must not trigger a reload.
+        final id = (record['id'] ?? '').toString();
+        final status = record['status'] as String? ?? 'pending';
+        final previous = _knownStatus[id] ?? _listedStatus(id);
+        _knownStatus[id] = status;
+        if (event == PostgresChangeEvent.update && previous == status) return;
+        _scheduleLiveReload();
         if (event == PostgresChangeEvent.insert) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Incoming transfer…')),
           );
           return;
         }
-        final status = record['status'] as String? ?? 'pending';
         if (status == 'completed' || status == 'partial') {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -126,34 +139,58 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     _subscribeToRealtime();
   }
 
-  Future<void> _loadTransfers() async {
+  String? _listedStatus(String id) {
+    for (final t in _transfers ?? const <Map<String, dynamic>>[]) {
+      if ((t['id'] ?? '').toString() == id) return t['status']?.toString();
+    }
+    return null;
+  }
+
+  /// A burst of status changes collapses into one silent reload.
+  void _scheduleLiveReload() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _loadTransfers(silent: true);
+    });
+  }
+
+  /// [silent] keeps the current list on screen instead of the skeleton, and
+  /// keeps it on failure too (the next status change or resume retries).
+  Future<void> _loadTransfers({bool silent = false}) async {
     // Realtime events can still land after dispose.
     if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final gen = ++_loadGen;
+    // Nothing to keep showing yet, so the first load is never silent.
+    final showSkeleton = !silent || _transfers == null;
+    if (showSkeleton) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final transfers = await TransferService.getIncomingTransfers(
         widget.identity.id,
         page: 0,
       );
-      if (mounted) {
+      // An older load finishing last must not overwrite a newer list.
+      if (mounted && gen == _loadGen) {
         final active = transfers
             .where((t) => (t['status'] ?? 'pending') != 'expired')
             .toList();
         setState(() {
           _transfers = active;
           _loading = false;
+          _error = null;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Could not load transfers. Check your connection.';
-          _loading = false;
-        });
-      }
+      if (!mounted || gen != _loadGen) return;
+      if (!showSkeleton) return; // keep showing the last good list
+      setState(() {
+        _error = 'Could not load transfers. Check your connection.';
+        _loading = false;
+      });
     }
   }
 
@@ -184,8 +221,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: IconButton(
-                        icon: Icon(MiniIcons.back,
-                            color: c.ink, size: 22),
+                        icon: Icon(MiniIcons.back, color: c.ink, size: 22),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
@@ -235,8 +271,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                     ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon:
-                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
+                    icon: Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],

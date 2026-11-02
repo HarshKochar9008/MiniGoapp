@@ -88,7 +88,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-    Navigator.of(context).pop();
+    // A bare pop() would close whatever is on top — the send screen, a
+    // dialog, the QR sheet — and leave this dead room showing underneath.
+    // Everything above this route belongs to the room, so close it all.
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isActive) return;
+    final navigator = Navigator.of(context);
+    navigator.popUntil((r) => r == route);
+    navigator.pop();
   }
 
   @override

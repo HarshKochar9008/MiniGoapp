@@ -123,7 +123,9 @@ class TransferFileProgressTile extends StatelessWidget {
               state.sha256 != null) ...[
             const SizedBox(height: 6),
             Text(
-              'SHA-256: ${state.sha256!.substring(0, 16)}…',
+              // The receiver renders this from sender-written JSON, so a
+              // short value must not throw a RangeError in build.
+              'SHA-256: ${state.sha256!.length > 16 ? '${state.sha256!.substring(0, 16)}…' : state.sha256!}',
               style: GoogleFonts.jetBrainsMono(
                 color: c.inkFaint,
                 fontSize: 11,
@@ -166,8 +168,7 @@ class TransferFileProgressTile extends StatelessWidget {
         return const Icon(MiniIcons.success,
             color: MiniColors.success, size: 18);
       case FileUploadStatus.failed:
-        return const Icon(MiniIcons.error,
-            color: MiniColors.danger, size: 18);
+        return const Icon(MiniIcons.error, color: MiniColors.danger, size: 18);
     }
   }
 

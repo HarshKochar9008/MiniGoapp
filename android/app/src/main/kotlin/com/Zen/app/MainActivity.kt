@@ -84,6 +84,11 @@ class MainActivity : FlutterActivity() {
                     "getAndClearAction" -> {
                         val action = pendingWidgetAction ?: intent?.getStringExtra("widget_action")
                         pendingWidgetAction = null
+                        // Clear the launch intent's extra too: Flutter asks on
+                        // every resume, and leaving it re-fired the action
+                        // (a second SendScreen) after each file picker or
+                        // permission dialog.
+                        intent?.removeExtra("widget_action")
                         result.success(action)
                     }
                     else -> result.notImplemented()

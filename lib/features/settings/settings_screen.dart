@@ -10,6 +10,7 @@ import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../qr/qr_widgets.dart';
+import '../transfer/transfer_service.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
 import '../../Minigo/theme/mini_icons.dart';
@@ -92,12 +93,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmFullLocalReset() async {
+    // Same guard as the Privacy screen: the reset deletes the temp copies
+    // and resume state a running upload is reading from.
+    if (_blockedBySend()) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => const _ResetAppDialog(),
     );
     if (ok != true || !mounted) return;
+    if (_blockedBySend()) return;
     await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
+  }
+
+  bool _blockedBySend() {
+    if (!TransferService.isSendInFlight) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('A send is in progress. Try again once it finishes.'),
+      ),
+    );
+    return true;
   }
 
   @override
@@ -190,7 +205,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => OnboardingScreen(
-                          onComplete: () => Navigator.of(context).pop(),
+                          // maybePop: never removes the shell's root route.
+                          onComplete: () => Navigator.of(context).maybePop(),
                         ),
                       ),
                     );

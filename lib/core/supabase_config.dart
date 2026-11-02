@@ -33,7 +33,12 @@ Future<void> initSupabase() async {
   // TLS handshake aborts on stricter Android TLS policies.
   await Supabase.initialize(
     url: url,
-    anonKey: key,
+    // Same key, new parameter name: the SDK does publishableKey ?? anonKey.
+    publishableKey: key,
+    // Auth is anonymous-only, so no link is ever an auth callback. Left on,
+    // any deep link carrying a `code` param — minigo://send?code=ABC234 from
+    // a camera QR scan — was treated as a PKCE exchange that always fails.
+    authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
   );
   SupabaseConfig._initialized = true;
 }
@@ -60,11 +65,18 @@ class SupabaseConfig {
   /// Listens for token-expired events and refreshes the session automatically.
   static void startAuthListener() {
     _authSub?.cancel();
-    _authSub = client.auth.onAuthStateChange.listen((data) {
-      if (data.event == AuthChangeEvent.tokenRefreshed) {
-        // Token was refreshed — nothing to do, SDK handles it.
-      }
-    });
+    _authSub = client.auth.onAuthStateChange.listen(
+      (data) {
+        if (data.event == AuthChangeEvent.tokenRefreshed) {
+          // Token was refreshed — nothing to do, SDK handles it.
+        }
+      },
+      // gotrue reports failed background refreshes (e.g. offline near token
+      // expiry, every ~10 s) on this stream. Unhandled, each one reached
+      // PlatformDispatcher.onError and was logged to Crashlytics as fatal.
+      // The callers that need a session handle refresh failures themselves.
+      onError: (Object _, StackTrace __) {},
+    );
   }
 
   static void stopAuthListener() {

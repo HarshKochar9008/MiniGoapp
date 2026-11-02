@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide UserIdentity;
@@ -46,6 +48,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _loadingMore = false;
   bool _loadMoreFailed = false;
 
+  /// Bumped by every reload from page 0. A page fetch begun under an older
+  /// generation belongs to a list that is gone; merging it would advance the
+  /// cursor past pages the new list never loaded.
+  int _listGen = 0;
+
+  /// Last status seen per transfer. The sender rewrites `upload_progress`
+  /// with every percent of an upload and each write is an UPDATE event, so
+  /// only a status change is worth reloading for.
+  final Map<String, String> _knownStatus = {};
+  Timer? _liveReloadDebounce;
+
+  /// A background reload failed, so the list may show an old status.
+  bool _staleAfterSilentFailure = false;
+
   String get _hiddenKey => 'history_hidden_${widget.identity.id}';
 
   @override
@@ -56,6 +72,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (!ConnectionStatus.instance.online.value || !mounted) return;
       if (_error != null) {
         _loadTransfers();
+      } else if (_staleAfterSilentFailure) {
+        _loadTransfers(silent: true);
       } else if (_loadMoreFailed) {
         setState(() => _loadMoreFailed = false);
       }
@@ -96,6 +114,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   void dispose() {
+    _liveReloadDebounce?.cancel();
     ContactAliases.revision.removeListener(_onAliasesChanged);
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     if (_channel != null) TransferService.unsubscribe(_channel!);
@@ -106,10 +125,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _channel = TransferService.subscribeToIncoming(
       userId: widget.identity.id,
       onTransferChange: (record, event) {
-        _loadTransfers();
         if (!mounted) return;
+        final id = (record['id'] ?? '').toString();
+        final status = record['status'] as String? ?? 'pending';
+        final previous = _knownStatus[id] ?? _listedStatus(id);
+        _knownStatus[id] = status;
+        if (event == PostgresChangeEvent.update && previous == status) return;
+        _scheduleLiveReload();
         if (event == PostgresChangeEvent.insert) {
-          final status = record['status'] as String? ?? 'pending';
           final msg = status == 'completed'
               ? 'Transfer ready — files available for download!'
               : 'New file transfer incoming…';
@@ -117,7 +140,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
               .showSnackBar(SnackBar(content: Text(msg)));
           return;
         }
-        final status = record['status'] as String? ?? 'pending';
         if (status == 'completed' || status == 'partial') {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
@@ -131,15 +153,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Future<void> _loadTransfers() async {
+  String? _listedStatus(String id) {
+    for (final t in _transfers ?? const <Map<String, dynamic>>[]) {
+      if ((t['id'] ?? '').toString() == id) return t['status']?.toString();
+    }
+    return null;
+  }
+
+  /// A burst of status changes collapses into one silent reload.
+  void _scheduleLiveReload() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      // A full load in flight may have queried before this change landed;
+      // dropping the reload here would leave the row on its old status.
+      if (_loading) {
+        _scheduleLiveReload();
+        return;
+      }
+      _loadTransfers(silent: true);
+    });
+  }
+
+  Future<void> _loadTransfers({bool silent = false}) async {
     // Realtime events can still land after dispose.
     if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-      _currentPage = 0;
-      _loadMoreFailed = false;
-    });
+    final gen = ++_listGen;
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _loadMoreFailed = false;
+      });
+    }
     try {
       final incoming = await TransferService.getIncomingTransfers(
           widget.identity.id,
@@ -147,27 +193,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final sent =
           await TransferService.getSentTransfers(widget.identity.id, page: 0);
       final transfers = _mergeAndSort(incoming, sent);
-      if (mounted) {
+      if (mounted && gen == _listGen) {
         setState(() {
+          // Bumped again on install: a page fetch that started mid-reload
+          // took the new generation but the old cursor, and would merge a
+          // page past the ones this fresh list hasn't loaded yet.
+          _listGen++;
+          _staleAfterSilentFailure = false;
           _transfers = transfers;
+          // Reset here, not when the load starts: a page fetch finishing in
+          // between would otherwise move the cursor for the old list.
+          _currentPage = 0;
           _loading = false;
+          _error = null;
+          _loadMoreFailed = false;
           _hasMore = incoming.length >= AppConstants.transfersPageSize ||
               sent.length >= AppConstants.transfersPageSize;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Could not load transfers. Check your connection.';
-          _loading = false;
-        });
+      if (!mounted || gen != _listGen) return;
+      if (silent) {
+        // Keep showing the last good list, but retry on reconnect: the
+        // status change that triggered this won't be sent again.
+        _staleAfterSilentFailure = true;
+        return;
       }
+      setState(() {
+        _error = 'Could not load transfers. Check your connection.';
+        _loading = false;
+      });
     }
   }
 
   Future<void> _loadMore() async {
     if (!_hasMore || _loadingMore || _loadMoreFailed) return;
     _loadingMore = true;
+    final gen = _listGen;
     final nextPage = _currentPage + 1;
     try {
       final moreIncoming = await TransferService.getIncomingTransfers(
@@ -177,7 +239,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           widget.identity.id,
           page: nextPage);
       final more = _mergeAndSort(moreIncoming, moreSent);
-      if (mounted) {
+      if (mounted && gen == _listGen) {
         setState(() {
           _transfers = _mergeSorted(_transfers ?? [], more);
           _currentPage = nextPage;
@@ -186,9 +248,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _loadMoreFailed = true);
+      if (mounted && gen == _listGen) setState(() => _loadMoreFailed = true);
     } finally {
       _loadingMore = false;
+      // A dropped page leaves the paging skeleton up with nothing in flight;
+      // rebuild so it asks for the current list's next page instead.
+      if (mounted && gen != _listGen) setState(() {});
     }
   }
 
@@ -312,8 +377,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                   IconButton(
-                    icon:
-                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
+                    icon: Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadTransfers,
                   ),
                 ],
@@ -409,15 +473,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ? _loadMoreFailed
                                   ? aboveNav(Center(child: _loadMoreRetry()))
                                   : Builder(builder: (context) {
-                                  _loadMore();
-                                  return ListView.builder(
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: 3,
-                                    itemBuilder: (_, __) =>
-                                        const TransferTileSkeleton(),
-                                  );
-                                })
+                                      _loadMore();
+                                      return ListView.builder(
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        itemCount: 3,
+                                        itemBuilder: (_, __) =>
+                                            const TransferTileSkeleton(),
+                                      );
+                                    })
                               : aboveNav(_buildEmpty(c)))
                           : RefreshIndicator(
                               onRefresh: _loadTransfers,
@@ -742,8 +806,7 @@ class _HistoryTile extends StatelessWidget {
                                     : MiniText.codeSmall
                                         .copyWith(color: c.ink)),
                             const SizedBox(width: 4),
-                            Icon(MiniIcons.copy,
-                                size: 11, color: c.inkFaint),
+                            Icon(MiniIcons.copy, size: 11, color: c.inkFaint),
                           ],
                         ),
                       ),

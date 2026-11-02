@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,9 +47,15 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   RealtimeChannel? _detailChannel;
   final Map<String, _FileDownloadState> _dlStates = {};
   final Map<String, TransferCancellationToken> _downloadTokens = {};
+
+  /// Set while "All" walks the list, so a second tap doesn't start a
+  /// parallel walk.
+  bool _downloadingAll = false;
   Set<String> _persistedDownloads = {};
   bool _powerSaveMode = false;
   late final VoidCallback _onConnectionChanged;
+  Timer? _filesReloadDebounce;
+  int _filesGen = 0;
 
   bool get _transferTerminal {
     final s = _transferStatus;
@@ -66,18 +73,28 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     _onConnectionChanged = () {
       if (!ConnectionStatus.instance.online.value) return;
       if (_loadError != null && mounted) {
-        _loadFiles();
+        _retryLoad();
       }
     };
     ConnectionStatus.instance.online.addListener(_onConnectionChanged);
     _refreshPowerSaveMode();
     _loadPersistedState();
+    // Join the channel before the first fetch, so a file committed while the
+    // fetch is in flight still arrives as an insert.
+    _subscribeToDetail();
     _loadFiles();
-    _loadTransferMetaAndSubscribe();
+    unawaited(_loadTransferMeta());
   }
 
   @override
   void dispose() {
+    _filesReloadDebounce?.cancel();
+    // A download that outlives this screen would still save and mark itself
+    // done, while a re-opened screen shows it as not downloaded and lets it
+    // start a second, duplicate save.
+    for (final token in _downloadTokens.values.toList()) {
+      token.cancel();
+    }
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     WidgetsBinding.instance.removeObserver(this);
     final ch = _detailChannel;
@@ -97,29 +114,50 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     });
   }
 
-  Future<void> _loadTransferMetaAndSubscribe() async {
+  void _subscribeToDetail() {
+    if (_detailChannel != null) return;
     final uid = SupabaseConfig.client.auth.currentUser?.id;
-    if (uid == null || !mounted) return;
-    final row = await TransferService.getTransferForReceiver(
-      transferId: widget.transferId,
-      receiverId: uid,
-    );
-    if (!mounted) return;
-    if (row != null) {
-      _applyTransferSnapshot(row);
-    }
+    if (uid == null) return;
     _detailChannel = TransferService.subscribeToTransferDetail(
       transferId: widget.transferId,
       receiverId: uid,
       onTransferRow: (r) {
         if (!mounted) return;
+        final wasTerminal = _transferTerminal;
         _applyTransferSnapshot(r);
+        // Inserts committed before the channel joined (or while the app was
+        // backgrounded) never arrive; the final status is the last chance to
+        // pick those files up.
+        if (!wasTerminal && _transferTerminal) _scheduleFilesReload();
       },
       onTransferFileInserted: (_) {
         if (!mounted) return;
-        _loadFiles();
+        _scheduleFilesReload();
       },
     );
+  }
+
+  Future<void> _loadTransferMeta() async {
+    final uid = SupabaseConfig.client.auth.currentUser?.id;
+    if (uid == null || !mounted) return;
+    try {
+      final row = await TransferService.getTransferForReceiver(
+        transferId: widget.transferId,
+        receiverId: uid,
+      );
+      if (mounted && row != null) _applyTransferSnapshot(row);
+    } catch (_) {
+      // Status and live progress are extras; the file list has its own error
+      // state, and the channel above still delivers the next status change.
+    }
+  }
+
+  /// A burst of file inserts collapses into one silent reload.
+  void _scheduleFilesReload() {
+    _filesReloadDebounce?.cancel();
+    _filesReloadDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _loadFiles(silent: true);
+    });
   }
 
   @override
@@ -127,6 +165,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     if (state == AppLifecycleState.resumed) {
       _refreshPowerSaveMode();
       unawaited(ConnectionStatus.instance.refresh());
+      // Realtime events sent while backgrounded are not replayed.
+      _subscribeToDetail();
+      _loadFiles(silent: true);
+      unawaited(_loadTransferMeta());
     }
   }
 
@@ -163,30 +205,45 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     );
   }
 
-  Future<void> _loadFiles() async {
+  /// [silent] keeps the current tiles (and their download progress) on
+  /// screen instead of swapping them for skeletons, and keeps them on failure.
+  Future<void> _loadFiles({bool silent = false}) async {
     // Realtime events can still land after dispose.
     if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _loadError = null;
-    });
+    final gen = ++_filesGen;
+    final showSkeleton = !silent || _files == null;
+    if (showSkeleton) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
     try {
       final files = await TransferService.getTransferFiles(widget.transferId);
-      if (mounted) {
+      // An older fetch finishing last must not drop a newer file.
+      if (mounted && gen == _filesGen) {
         setState(() {
           _files = files;
           _loading = false;
+          _loadError = null;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadError =
-              'Could not load files: ${e.toString().replaceAll('Exception: ', '')}';
-          _loading = false;
-        });
-      }
+      if (!mounted || gen != _filesGen || !showSkeleton) return;
+      setState(() {
+        _loadError =
+            'Could not load files: ${e.toString().replaceAll('Exception: ', '')}';
+        _loading = false;
+      });
     }
+  }
+
+  /// Retry after a failed load, also re-joining the channel if it never
+  /// opened (no session yet when the screen was built).
+  void _retryLoad() {
+    _subscribeToDetail();
+    _loadFiles();
+    unawaited(_loadTransferMeta());
   }
 
   String _formatSize(dynamic bytes) {
@@ -273,6 +330,24 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Future<void> _downloadFile(Map<String, dynamic> file) async {
     final fileId = file['id'] as String;
+    // Claimed before the first await. The tile only swaps to its ✕ once the
+    // pre-checks below finish, so a double tap — or "All" reaching a file
+    // already in flight — would otherwise start a second download and save.
+    if (_downloadTokens.containsKey(fileId)) return;
+    final cancellationToken = TransferCancellationToken();
+    _downloadTokens[fileId] = cancellationToken;
+    try {
+      await _runDownload(file, cancellationToken);
+    } finally {
+      _downloadTokens.remove(fileId);
+    }
+  }
+
+  Future<void> _runDownload(
+    Map<String, dynamic> file,
+    TransferCancellationToken cancellationToken,
+  ) async {
+    final fileId = file['id'] as String;
     final storagePath = file['storage_path'] as String;
     final fileName = file['file_name'] as String;
     final expectedHash = file['sha256_hash'] as String?;
@@ -328,8 +403,6 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     }
     if (!mounted) return;
 
-    final cancellationToken = TransferCancellationToken();
-    _downloadTokens[fileId] = cancellationToken;
     setState(() => _dlStates[fileId] = const _FileDownloadState(
           status: _DownloadStatus.downloading,
         ));
@@ -337,8 +410,12 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       'bytes': fileSize,
     });
 
+    // The save step copies this temp file out (MediaStore / Files). It is
+    // kept only where it is itself the "Open" target (iOS gallery preview).
+    File? downloadedFile;
+    var keepTempFile = false;
     try {
-      final downloadedFile = await TransferService.downloadToFile(
+      downloadedFile = await TransferService.downloadToFile(
         storagePath: storagePath,
         fileName: fileName,
         cancellationToken: cancellationToken,
@@ -390,6 +467,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       }
 
       final saved = await saveFileToDevice(downloadedFile, fileName);
+      keepTempFile = saved.open == downloadedFile.path;
 
       await _markDownloaded(fileId);
 
@@ -455,7 +533,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ));
       }
     } finally {
-      _downloadTokens.remove(fileId);
+      final temp = downloadedFile;
+      if (temp != null && !keepTempFile) {
+        unawaited(temp.delete().then((_) {}, onError: (_) {}));
+      }
     }
   }
 
@@ -551,7 +632,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   }
 
   Future<void> _downloadAll() async {
-    if (_files == null || _files!.isEmpty) return;
+    if (_files == null || _files!.isEmpty || _downloadingAll) return;
+    _downloadingAll = true;
+    try {
+      await _downloadAllPending();
+    } finally {
+      _downloadingAll = false;
+    }
+  }
+
+  Future<void> _downloadAllPending() async {
     HapticFeedback.selectionClick();
     Analytics.instance.logEvent(AnalyticsEvents.downloadAllRequested, {
       'pending': _files!.length,
@@ -589,122 +679,167 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         _files!.every(
             (f) => _dlStates[f['id']]?.status == _DownloadStatus.completed);
 
-    return Scaffold(
-      backgroundColor: c.paper,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
-              child: Row(
-                children: [
-                  Material(
-                    color: c.sand,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      onTap: () => Navigator.pop(context),
-                      customBorder: const CircleBorder(),
-                      child: Padding(
-                        padding: const EdgeInsets.all(9),
-                        child: Icon(MiniIcons.back,
-                            color: c.ink, size: 20),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('From',
-                            style: MiniText.label.copyWith(color: c.inkFaint)),
-                        const SizedBox(height: 3),
-                        Text(
-                          fmtCode(widget.senderCode),
-                          style: MiniText.code.copyWith(
-                            fontSize: 16,
-                            color: c.ink,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_files != null && _files!.isNotEmpty && !allCompleted)
+    return PopScope(
+      canPop: _downloadTokens.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeaveDuringDownload();
+      },
+      child: Scaffold(
+        backgroundColor: c.paper,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
+                child: Row(
+                  children: [
                     Material(
-                      color: c.accentSoft,
-                      borderRadius: BorderRadius.circular(MiniRadius.pill),
+                      color: c.sand,
+                      shape: const CircleBorder(),
                       child: InkWell(
-                        onTap: _downloadAll,
-                        borderRadius: BorderRadius.circular(MiniRadius.pill),
+                        onTap: () => Navigator.maybePop(context),
+                        customBorder: const CircleBorder(),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 9),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(MiniIcons.download,
-                                  size: 15, color: c.accent),
-                              const SizedBox(width: 6),
-                              Text(
-                                'All',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 13,
-                                  height: 1.2,
-                                  color: c.accent,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.all(9),
+                          child: Icon(MiniIcons.back, color: c.ink, size: 20),
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            _buildPowerSaveBanner(),
-
-            // Content
-            Expanded(
-              child: _loading
-                  ? ListView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      itemCount: 4,
-                      itemBuilder: (_, __) => const Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: TransferTileSkeleton(),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('From',
+                              style:
+                                  MiniText.label.copyWith(color: c.inkFaint)),
+                          const SizedBox(height: 3),
+                          Text(
+                            fmtCode(widget.senderCode),
+                            style: MiniText.code.copyWith(
+                              fontSize: 16,
+                              color: c.ink,
+                            ),
+                          ),
+                        ],
                       ),
-                    )
-                  : _loadError != null
-                      ? Center(
+                    ),
+                    if (_files != null && _files!.isNotEmpty && !allCompleted)
+                      Material(
+                        color: c.accentSoft,
+                        borderRadius: BorderRadius.circular(MiniRadius.pill),
+                        child: InkWell(
+                          onTap: _downloadAll,
+                          borderRadius: BorderRadius.circular(MiniRadius.pill),
                           child: Padding(
-                            padding: const EdgeInsets.all(48),
-                            child: Column(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 9),
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                Icon(MiniIcons.download,
+                                    size: 15, color: c.accent),
+                                const SizedBox(width: 6),
                                 Text(
-                                  _loadError!,
-                                  textAlign: TextAlign.center,
-                                  style: MiniText.bodySoft,
-                                ),
-                                const SizedBox(height: 20),
-                                MiniButton(
-                                  label: 'Retry',
-                                  onPressed: _loadFiles,
+                                  'All',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    height: 1.2,
+                                    color: c.accent,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        )
-                      : _buildReceiveBody(),
-            ),
-          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              _buildPowerSaveBanner(),
+
+              // Content
+              Expanded(
+                child: _loading
+                    ? ListView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: 4,
+                        itemBuilder: (_, __) => const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: TransferTileSkeleton(),
+                        ),
+                      )
+                    : _loadError != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(48),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _loadError!,
+                                    textAlign: TextAlign.center,
+                                    style: MiniText.bodySoft,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  MiniButton(
+                                    label: 'Retry',
+                                    onPressed: _retryLoad,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : _buildReceiveBody(),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  /// Leaving cancels in-flight downloads (see [dispose]), so ask first.
+  Future<void> _confirmLeaveDuringDownload() async {
+    // canPop is read at build time; the last download may have just ended.
+    if (_downloadTokens.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    final c = context.mini;
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.paperDeep,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(MiniRadius.card),
+        ),
+        title: Text(
+          'Stop downloading?',
+          style: MiniText.title.copyWith(color: c.ink, fontSize: 20),
+        ),
+        content: Text(
+          'Leaving this screen cancels the downloads in progress. '
+          'You can download them again later.',
+          style: MiniText.bodySoft,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep downloading'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) Navigator.pop(context);
   }
 }
 
@@ -928,8 +1063,8 @@ class _FileDownloadTile extends StatelessWidget {
               color: MiniColors.danger.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: const Icon(MiniIcons.close,
-                color: MiniColors.danger, size: 19),
+            child:
+                const Icon(MiniIcons.close, color: MiniColors.danger, size: 19),
           ),
         );
       case _DownloadStatus.verifying:
