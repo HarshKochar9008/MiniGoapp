@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -88,17 +90,17 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
 
   Future<void> _pickFiles() async {
     try {
-      final result = await FilePicker.pickFiles(
-        allowMultiple: true,
-        type: FileType.any,
-        withData: false,
-      );
-      if (result == null || !mounted) return;
+      final result = await FilePicker.pickFiles(type: FileType.any);
+      if (!mounted) return;
 
-      final accessible = result.files.where((f) => f.path != null).toList();
-      final oversized = accessible
-          .where((f) => f.size > AppConstants.maxFileSizeBytes)
-          .toList();
+      final accessible = result.where((f) => f.path != null).toList();
+      final oversized = <PlatformFile>[];
+      for (final file in accessible) {
+        if (await File(file.path!).length() > AppConstants.maxFileSizeBytes) {
+          oversized.add(file);
+        }
+      }
+      if (!mounted) return;
       if (oversized.isNotEmpty) {
         setState(() {
           _error = '${oversized.first.name} exceeds '
@@ -343,7 +345,8 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   String _memberName(RoomMember m) =>
       ContactAliases.aliasFor(m.userId) ?? m.displayName;
 
-  int get _totalSize => _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
+  int get _totalSize =>
+      _selectedFiles.fold<int>(0, (sum, f) => sum + (f.lengthSync() ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -358,7 +361,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content:
-                  Text('Sending in progress — please wait for it to finish.'),
+                  Text('Wait for the send to finish.'),
             ),
           );
         }
@@ -467,7 +470,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                           child: MiniFileRow(
                             name: _selectedFiles[i].name,
                             size: TransferService.formatFileSize(
-                                _selectedFiles[i].size),
+                                _selectedFiles[i].lengthSync() ?? 0),
                             mimeCategory: MiniFileRow.categoryFromFileName(
                                 _selectedFiles[i].name),
                             trailing: _sending || _sent

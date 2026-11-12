@@ -6,11 +6,17 @@
  *
  * Supabase's gateway forces `text/plain` + a sandbox CSP on HTML served from
  * the shared supabase.co domain (anti-phishing), so this endpoint cannot
- * render a redirect *page*. Instead it answers with a 302 straight to the
- * app: an Android intent:// URL (resolved against the minigo:// BROWSABLE
- * intent filter in AndroidManifest.xml) whose browser_fallback_url points
- * back here with ?fallback=1 — a plain-text page shown when the app is not
- * installed. Non-Android visitors get the raw minigo:// scheme attempt.
+ * render a page. It answers with a 302 picked by the phone's User-Agent:
+ *
+ *   Android  an intent:// URL (resolved against the minigo:// BROWSABLE
+ *            intent filter in AndroidManifest.xml): opens MiniGo when it's
+ *            installed. When it isn't, the browser falls back to the APK in
+ *            the public `releases` bucket and asks before downloading it.
+ *            `tool/distribute_android.sh --public` uploads that APK.
+ *   iPhone   IOS_INSTALL_URL (a TestFlight public link) once it's set with
+ *            `supabase secrets set`. iOS can't tell a page whether MiniGo is
+ *            installed, so people who have it scan with MiniGo's own scanner.
+ *   Other    the raw minigo:// scheme.
  *
  * Public endpoint, no auth (it only echoes a strictly validated 6-char code).
  * Deploy:
@@ -18,13 +24,10 @@
  */
 
 const ANDROID_PACKAGE = "com.Zen.app";
+const ANDROID_APK_PATH = "/storage/v1/object/public/releases/minigo.apk";
 
 // Mirrors AppConstants: 6 chars from an alphabet excluding O, 0, I, 1, L.
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
-
-function fmtCode(code: string): string {
-  return `${code.slice(0, 3)} · ${code.slice(3)}`;
-}
 
 Deno.serve((req) => {
   if (req.method !== "GET") {
@@ -37,29 +40,18 @@ Deno.serve((req) => {
     return new Response("Invalid code", { status: 400 });
   }
 
-  // App missing (or a browser that refused the intent) lands back here.
-  if (url.searchParams.get("fallback") === "1") {
-    return new Response(
-      `MiniGo send code: ${fmtCode(code)}\n\n` +
-        `Install MiniGo, then enter this code in the Send screen to ` +
-        `share files with this person.`,
-      {
-        status: 200,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      },
-    );
+  const userAgent = req.headers.get("User-Agent") ?? "";
+  const iosInstallUrl = Deno.env.get("IOS_INSTALL_URL");
+  let target = `minigo://send?code=${code}`;
+  if (/Android/i.test(userAgent)) {
+    // Built explicitly: behind the gateway url.origin reports http://.
+    const apkUrl = `https://${url.host}${ANDROID_APK_PATH}`;
+    target = `intent://send?code=${code}#Intent;scheme=minigo;package=${ANDROID_PACKAGE};S.browser_fallback_url=${
+      encodeURIComponent(apkUrl)
+    };end`;
+  } else if (/iPhone|iPad|iPod/i.test(userAgent) && iosInstallUrl) {
+    target = iosInstallUrl;
   }
-
-  // Build the external URL explicitly: behind the gateway url.origin reports
-  // http:// and url.pathname has the /functions/v1 prefix already stripped.
-  const fallbackUrl =
-    `https://${url.host}/functions/v1/qr?code=${code}&fallback=1`;
-  const isAndroid = /Android/i.test(req.headers.get("User-Agent") ?? "");
-  const target = isAndroid
-    ? `intent://send?code=${code}#Intent;scheme=minigo;package=${ANDROID_PACKAGE};S.browser_fallback_url=${
-      encodeURIComponent(fallbackUrl)
-    };end`
-    : `minigo://send?code=${code}`;
 
   return new Response(null, {
     status: 302,

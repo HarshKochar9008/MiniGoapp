@@ -52,7 +52,7 @@ Future<void> emailSupport(
   // mail apps then show literally.
   final query = {
     'subject': subject,
-    'body': '$prompt\n\n—\n$details',
+    'body': '$prompt\n\n\n$details',
   }
       .entries
       .map((e) =>

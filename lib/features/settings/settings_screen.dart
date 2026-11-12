@@ -9,9 +9,11 @@ import '../../core/theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../onboarding/onboarding_screen.dart';
-import '../qr/qr_widgets.dart';
+import '../onboarding_v2/onboarding_experiment.dart';
+import '../onboarding_v2/onboarding_flow.dart';
 import '../transfer/transfer_service.dart';
 import 'about_screen.dart';
+import 'my_card_sheet.dart';
 import 'privacy_screen.dart';
 import '../../Minigo/theme/mini_icons.dart';
 
@@ -71,9 +73,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showQr() {
+  void _showCard() {
     HapticFeedback.selectionClick();
-    QrCodeSheet.show(context, widget.identity.shortCode);
+    MyCardSheet.show(
+      context,
+      code: widget.identity.shortCode,
+      nickname: _nickname,
+    );
   }
 
   Future<void> _setThemeMode(ThemeMode mode) async {
@@ -151,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 shortCode: widget.identity.shortCode,
                 onEditName: _editNickname,
                 onCopyCode: _copyCode,
-                onShowQr: _showQr,
+                onShowCard: _showCard,
               ),
             ),
 
@@ -202,12 +208,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   label: 'App walkthrough',
                   sub: 'Replay the onboarding walkthrough',
                   onTap: () async {
-                    await Navigator.of(context).push(
+                    final navigator = Navigator.of(context);
+                    // Replays show the same onboarding variant the user got.
+                    final variant = await OnboardingExperiment.current();
+                    // maybePop: never removes the shell's root route.
+                    void close() => navigator.maybePop();
+                    await navigator.push(
                       MaterialPageRoute(
-                        builder: (_) => OnboardingScreen(
-                          // maybePop: never removes the shell's root route.
-                          onComplete: () => Navigator.of(context).maybePop(),
-                        ),
+                        builder: (_) =>
+                            variant == OnboardingVariant.questionnaire
+                                ? OnboardingFlowV2(
+                                    onComplete: close,
+                                    isReplay: true,
+                                  )
+                                : OnboardingScreen(onComplete: close),
                       ),
                     );
                     // The walkthrough's nickname step may have changed it.
@@ -276,14 +290,14 @@ class _ProfileCard extends StatelessWidget {
   final String shortCode;
   final VoidCallback onEditName;
   final VoidCallback onCopyCode;
-  final VoidCallback onShowQr;
+  final VoidCallback onShowCard;
 
   const _ProfileCard({
     required this.nickname,
     required this.shortCode,
     required this.onEditName,
     required this.onCopyCode,
-    required this.onShowQr,
+    required this.onShowCard,
   });
 
   @override
@@ -365,9 +379,9 @@ class _ProfileCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _ProfileAction(
-                  icon: MiniIcons.qr,
-                  label: 'My QR',
-                  onTap: onShowQr,
+                  icon: MiniIcons.shareCard,
+                  label: 'My card',
+                  onTap: onShowCard,
                 ),
               ],
             ),
@@ -499,12 +513,18 @@ class _ThemeSegment extends StatelessWidget {
               children: [
                 Icon(icon, size: 16, color: selected ? c.ink : c.inkFaint),
                 const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: GoogleFonts.outfit(
-                    fontSize: 12.5,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: selected ? c.ink : c.inkFaint,
+                // Flexible so large accessibility text on a narrow phone
+                // truncates instead of overflowing the segment.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? c.ink : c.inkFaint,
+                    ),
                   ),
                 ),
               ],
@@ -756,7 +776,7 @@ class _SettingsTile extends StatelessWidget {
 }
 
 /// Confirmation for the full local reset: what gets wiped (files, photos,
-/// pending uploads) floats above the bin, then a destructive pill action.
+/// videos) floats above the bin, then a destructive pill action.
 class _ResetAppDialog extends StatelessWidget {
   const _ResetAppDialog();
 
@@ -882,7 +902,7 @@ class _ResetIllustration extends StatelessWidget {
           Positioned(
             right: 8,
             top: 22,
-            child: tile(MiniIcons.upload, MiniColors.danger, 0.22),
+            child: tile(MiniIcons.video, c.accent, 0.22),
           ),
           Positioned(
             bottom: 0,

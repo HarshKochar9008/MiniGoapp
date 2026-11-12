@@ -60,7 +60,7 @@ class NotificationService {
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosInit = DarwinInitializationSettings();
       await _localNotifications.initialize(
-        const InitializationSettings(
+        settings: const InitializationSettings(
           android: androidInit,
           iOS: iosInit,
         ),
@@ -95,10 +95,11 @@ class NotificationService {
         final androidTag =
             IncomingTransferLocalNotifications.androidTagForTransfer(data);
         await _localNotifications.show(
-          notificationId,
-          title,
-          body,
-          IncomingTransferLocalNotifications.notificationDetails(
+          id: notificationId,
+          title: title,
+          body: body,
+          notificationDetails:
+              IncomingTransferLocalNotifications.notificationDetails(
             body,
             androidTag: androidTag,
           ),

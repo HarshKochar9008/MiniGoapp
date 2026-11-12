@@ -296,12 +296,54 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     return approved ?? false;
   }
 
-  Future<bool> _hasAggregateStorageForPendingDownloads() async {
-    final files = _files;
-    if (files == null || files.isEmpty) return true;
+  /// Asks before downloading [bytes] over mobile data, as Send asks before an
+  /// upload: here someone else picked the size. Never asks on Wi‑Fi.
+  Future<bool> _confirmMobileDataIfNeeded(int bytes, {int files = 1}) async {
+    if (bytes < AppConstants.cellularMeteredWarnThresholdBytes) return true;
+    final metered = await ConnectionStatus.instance.isLikelyMetered();
+    if (!metered || !mounted) return true;
 
-    var requiredBytes = 0;
-    for (final file in files) {
+    final c = context.mini;
+    final size = TransferService.formatFileSize(bytes);
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.paperDeep,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(MiniRadius.card),
+        ),
+        title: Text(
+          'Using mobile data',
+          style: MiniText.title.copyWith(color: c.ink, fontSize: 20),
+        ),
+        content: Text(
+          files == 1
+              ? 'This file is $size. Downloading it now will use your '
+                  'mobile data.'
+              : 'These $files files are $size in total. Downloading them '
+                  'now will use your mobile data.',
+          style: MiniText.bodySoft,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Download'),
+          ),
+        ],
+      ),
+    );
+    return approved ?? false;
+  }
+
+  /// Files not downloaded yet, and their total size.
+  ({int count, int bytes}) _pendingDownloads() {
+    var count = 0;
+    var bytes = 0;
+    for (final file in _files ?? const <Map<String, dynamic>>[]) {
       final fileId = file['id'] as String;
       final state = _dlStates[fileId]?.status;
       if (_persistedDownloads.contains(fileId) ||
@@ -309,9 +351,14 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         continue;
       }
       final rawSize = file['file_size'];
-      requiredBytes += rawSize is int ? rawSize : int.tryParse('$rawSize') ?? 0;
+      count++;
+      bytes += rawSize is int ? rawSize : int.tryParse('$rawSize') ?? 0;
     }
+    return (count: count, bytes: bytes);
+  }
 
+  Future<bool> _hasAggregateStorageForPendingDownloads() async {
+    final requiredBytes = _pendingDownloads().bytes;
     if (requiredBytes <= 0) return true;
 
     final freeSpaceGb = await DiskSpacePlus().getFreeDiskSpace ?? 0.0;
@@ -328,7 +375,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     );
   }
 
-  Future<void> _downloadFile(Map<String, dynamic> file) async {
+  /// [dataApproved]: "All" already asked about mobile data for the batch.
+  Future<void> _downloadFile(
+    Map<String, dynamic> file, {
+    bool dataApproved = false,
+  }) async {
     final fileId = file['id'] as String;
     // Claimed before the first await. The tile only swaps to its ✕ once the
     // pre-checks below finish, so a double tap — or "All" reaching a file
@@ -337,7 +388,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final cancellationToken = TransferCancellationToken();
     _downloadTokens[fileId] = cancellationToken;
     try {
-      await _runDownload(file, cancellationToken);
+      await _runDownload(file, cancellationToken, dataApproved: dataApproved);
     } finally {
       _downloadTokens.remove(fileId);
     }
@@ -345,8 +396,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Future<void> _runDownload(
     Map<String, dynamic> file,
-    TransferCancellationToken cancellationToken,
-  ) async {
+    TransferCancellationToken cancellationToken, {
+    required bool dataApproved,
+  }) async {
     final fileId = file['id'] as String;
     final storagePath = file['storage_path'] as String;
     final fileName = file['file_name'] as String;
@@ -376,6 +428,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
     final rawSize = file['file_size'];
     final fileSize = rawSize is int ? rawSize : int.tryParse('$rawSize') ?? 0;
+    // Declining leaves the file as it was, ready to download later.
+    if (!dataApproved && !await _confirmMobileDataIfNeeded(fileSize)) return;
     final powerApproved = await _confirmPowerSaveIfNeeded(fileSize);
     if (!powerApproved) {
       if (mounted) {
@@ -449,7 +503,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
         if (mounted) {
           setState(() => _dlStates[fileId] = const _FileDownloadState(
                 status: _DownloadStatus.failed,
-                error: 'Integrity check failed — file may be corrupted',
+                error: 'File may be corrupted. It failed the integrity check.',
               ));
         }
         return;
@@ -662,11 +716,18 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       return;
     }
 
+    // One question for the batch, not one per file.
+    final pending = _pendingDownloads();
+    if (!await _confirmMobileDataIfNeeded(pending.bytes,
+        files: pending.count)) {
+      return;
+    }
+
     for (final file in _files!) {
       final fileId = file['id'] as String;
       final state = _dlStates[fileId];
       if (state == null || state.status != _DownloadStatus.completed) {
-        await _downloadFile(file);
+        await _downloadFile(file, dataApproved: true);
       }
     }
   }

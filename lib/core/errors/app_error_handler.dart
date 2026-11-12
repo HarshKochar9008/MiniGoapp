@@ -54,7 +54,7 @@ class AppErrorHandler {
           // Backend answered the probe — the failure was a transient blip.
           showErrorSnackBar(
             context,
-            friendlyFallback ?? 'Connection hiccup. Please try again.',
+            friendlyFallback ?? 'Connection dropped. Try again.',
           );
           return;
       }

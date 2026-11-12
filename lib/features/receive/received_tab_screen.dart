@@ -107,8 +107,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
             SnackBar(
               content: Text(
                 status == 'completed'
-                    ? 'New files ready to download!'
-                    : 'Some files are ready to download.',
+                    ? 'Files ready to download'
+                    : 'Some files are ready to download',
               ),
             ),
           );
@@ -390,7 +390,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                 style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 8),
             Text(
-              'Files sent to you will appear here.\nShare your code so others can send you files.',
+              'Files sent to you show up here.',
               textAlign: TextAlign.center,
               style: MiniText.bodySoft.copyWith(color: c.inkSoft),
             ),

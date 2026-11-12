@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons_500.dart';
 
 /// The app's single icon set: Lucide outline glyphs at the standard 2px stroke.
 ///
@@ -13,13 +14,13 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 abstract final class MiniIcons {
   // Navigation
   static const IconData home = LucideIcons.house;
-  static const IconData homeActive = LucideIcons.house500;
+  static const IconData homeActive = LucideIcons500.house;
   static const IconData rooms = LucideIcons.users;
-  static const IconData roomsActive = LucideIcons.users500;
+  static const IconData roomsActive = LucideIcons500.users;
   static const IconData history = LucideIcons.clock;
-  static const IconData historyActive = LucideIcons.clock500;
+  static const IconData historyActive = LucideIcons500.clock;
   static const IconData settings = LucideIcons.settings;
-  static const IconData settingsActive = LucideIcons.settings500;
+  static const IconData settingsActive = LucideIcons500.settings;
   static const IconData back = LucideIcons.arrowLeft;
   static const IconData chevronRight = LucideIcons.chevronRight;
   static const IconData externalLink = LucideIcons.arrowUpRight;
@@ -52,6 +53,7 @@ abstract final class MiniIcons {
   static const IconData qr = LucideIcons.qrCode;
   static const IconData scanQr = LucideIcons.scanQrCode;
   static const IconData scanFrame = LucideIcons.scan;
+  static const IconData shareCard = LucideIcons.idCard;
 
   // Files
   static const IconData file = LucideIcons.file;

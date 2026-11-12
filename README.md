@@ -484,6 +484,10 @@ Existing files are never overwritten — a `_(1)`, `_(2)` suffix is appended aut
 | **Path traversal** | File names sanitized before storage path construction — `..`, `<>`, pipes, wildcards, and control characters stripped. |
 | **API keys** | Only the Supabase anonymous key (a public, RLS-scoped key) is bundled in the app. The service role key never leaves the server. |
 | **Duplicate delivery** | Downloaded file IDs persisted to `SharedPreferences`. Survives app restarts; prevents re-delivery on notification re-tap. |
+| **Runtime protection** | freeRASP (`lib/core/security/`) checks for tampering, hooking, root/jailbreak, emulators, debuggers and unofficial installs. In release builds a tampered or hooked copy stops transfers and asks for a reinstall; everything else is logged to Crashlytics by threat name only. |
+| **Obfuscation** | Release builds use R8 on Android and `--obfuscate` for Dart. Symbol files are uploaded to Crashlytics. |
+
+Release build, signing-hash and freeRASP setup commands are in [README_COMMANDS.md](README_COMMANDS.md) (sections 8 and 13).
 
 ---
 

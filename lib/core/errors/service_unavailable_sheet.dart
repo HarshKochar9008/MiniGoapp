@@ -137,16 +137,14 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
               ),
               const SizedBox(height: 22),
               Text(
-                'Service temporarily unavailable',
+                'MiniGo is down',
                 textAlign: TextAlign.center,
                 style: MiniText.title.copyWith(color: c.ink, fontSize: 20),
               ),
               const SizedBox(height: 10),
               Text(
-                'We\'re having trouble reaching MiniGo\'s servers. '
-                'This is on our side — not your device or connection. '
-                'Your files and transfers are safe.\n\n'
-                'Please try again in a few minutes.',
+                'The problem is on our side, not your connection. Your '
+                'files and transfers are safe. Try again in a few minutes.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
                   fontSize: 14.5,
@@ -164,7 +162,7 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
                     borderRadius: BorderRadius.circular(MiniRadius.pill),
                   ),
                   child: Text(
-                    'Still unavailable — thanks for your patience.',
+                    'Still down. Try again later.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.outfit(
                       fontSize: 13,

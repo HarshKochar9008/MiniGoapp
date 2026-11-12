@@ -526,9 +526,8 @@ class _EmptyRooms extends StatelessWidget {
             Text('No rooms yet', style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 8),
             Text(
-              'Create a room and share its code, or join one '
-              'with a code from a friend. Up to '
-              '${AppConstants.maxRoomMembers} people per room.',
+              'Create a room and share its code, or join one with a code. '
+              'Up to ${AppConstants.maxRoomMembers} people per room.',
               textAlign: TextAlign.center,
               style: MiniText.small,
             ),
@@ -609,8 +608,8 @@ class _CreateRoomSheetState extends State<_CreateRoomSheet> {
     final c = context.mini;
     return _RoomSheetScaffold(
       title: 'Create a room',
-      subtitle: 'You get a code others can use to join — '
-          'up to ${AppConstants.maxRoomMembers} people.',
+      subtitle: 'You get a code others can use to join. Up to '
+          '${AppConstants.maxRoomMembers} people.',
       error: _error,
       button: MiniButton(
         label: _creating ? 'Creating…' : 'Create room',
@@ -839,11 +838,10 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
           color: c.ink,
         ),
         decoration: InputDecoration(
-          hintText: '— — —   — — —',
-          hintStyle: GoogleFonts.jetBrainsMono(
-            fontSize: 18,
+          hintText: 'Room code',
+          hintStyle: MiniText.body.copyWith(
+            fontSize: 17,
             color: c.inkFaint,
-            letterSpacing: 3,
           ),
           counterText: '',
           filled: true,

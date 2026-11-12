@@ -19,7 +19,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   const iosInit = DarwinInitializationSettings();
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
-    const InitializationSettings(
+    settings: const InitializationSettings(
       android: androidInit,
       iOS: iosInit,
     ),
@@ -50,10 +50,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       IncomingTransferLocalNotifications.androidTagForTransfer(data);
 
   await plugin.show(
-    notificationId,
-    title,
-    body,
-    IncomingTransferLocalNotifications.notificationDetails(
+    id: notificationId,
+    title: title,
+    body: body,
+    notificationDetails: IncomingTransferLocalNotifications.notificationDetails(
       body,
       androidTag: androidTag,
     ),

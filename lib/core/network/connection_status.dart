@@ -47,4 +47,15 @@ class ConnectionStatus {
       return online.value;
     }
   }
+
+  /// Whether data is likely billed by the byte (mobile data), so a large
+  /// transfer should ask first. A guess: a hotspot looks like Wi‑Fi.
+  Future<bool> isLikelyMetered() async {
+    try {
+      final result = await Connectivity().checkConnectivity();
+      return result.contains(ConnectivityResult.mobile);
+    } catch (_) {
+      return false;
+    }
+  }
 }

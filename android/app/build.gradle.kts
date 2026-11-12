@@ -9,7 +9,7 @@ plugins {
 }
 
 // Release signing config is read from android/key.properties (git-ignored).
-// Falls back to debug signing when the file is absent (fresh checkouts / CI).
+// Release builds fail without it; debug and profile builds don't need it.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
@@ -19,9 +19,9 @@ if (keystorePropertiesFile.exists()) {
 android {
     // Must match package_name in android/app/google-services.json (Firebase Android app).
     namespace = "com.Zen.app"
-    // Pinned to satisfy plugin requirements (mobile_scanner, androidx.core:core 1.18.0
-    // both require compileSdk 36; multiple firebase/flutter plugins require NDK 27).
-    compileSdk = 36
+    // Pinned to satisfy plugin requirements (permission_handler_android compiles
+    // against 37; multiple firebase/flutter plugins require NDK 27).
+    compileSdk = 37
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -75,10 +75,20 @@ android {
         }
     }
 
+    // A release build must carry the upload key: freeRASP pins its certificate
+    // hash (lib/core/security/rasp_config.dart), so a debug-signed release
+    // would report itself as tampered and lock. Fail here instead.
+    if (isReleaseBuild && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "Release builds need android/key.properties pointing at the upload " +
+                "keystore. Debug and profile builds don't.",
+        )
+    }
+
     buildTypes {
         release {
-            // Real release keystore when key.properties is present; otherwise
-            // fall back to debug signing so plain checkouts still build.
+            // Debug signing only remains so that configuring release while
+            // running a debug or profile task works on a fresh checkout.
             signingConfig = if (keystorePropertiesFile.exists())
                 signingConfigs.getByName("release")
             else

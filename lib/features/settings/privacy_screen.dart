@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../Minigo/theme/mini_icons.dart';
-import '../../Minigo/widgets/mini_widgets.dart';
 import '../../core/app_reset.dart';
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
@@ -203,7 +201,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
         const MiniImpactGroup('Not affected', MiniImpact.kept, [
           'Your sharing code, nickname, and contacts',
           'Transfers and files you’ve saved',
-          'Notification permission — change it in your phone’s Settings',
+          'Notification permission (change it in your phone’s Settings)',
         ]),
       ],
       confirmLabel: 'Reset preferences',
@@ -273,7 +271,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
               ? 'Temporary files'
               : 'Temporary files (${TransferService.formatFileSize(bytes)})',
           if (job != null)
-            'Your unfinished send — the recipient will see it as failed',
+            'Your unfinished send (the recipient will see it as failed)',
           'Recent recipients and contact names you’ve saved',
           'Download history for received files',
           'App preferences',
@@ -328,7 +326,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           'working for good.',
       impact: [
         MiniImpactGroup('On MiniGo’s servers', MiniImpact.changed, [
-          'Your code is deactivated — no one can send to it again',
+          'Your code is deactivated, so no one can send to it again',
           'Your nickname and notification token are erased',
           'Files already sent to you still expire '
               '${AppFacts.transferLifetime} after they were sent',
@@ -425,7 +423,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       icon: MiniIcons.key,
       title: 'Secure local storage',
       message: 'MiniGo creates a private encryption key on this device and '
-          'keeps it in $_secureStoreName. It never leaves your device — '
+          'keeps it in $_secureStoreName. It never leaves your device. '
           'MiniGo’s servers only get the matching public key, which senders '
           'use to encrypt files for you.',
       children: [
@@ -522,7 +520,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       icon: MiniIcons.timer,
       title: 'Transfer expiration',
       message: 'Every transfer expires ${AppFacts.transferLifetime} after it’s '
-          'sent — or when its room closes, if that’s sooner. After that:',
+          'sent, or when its room closes if that’s sooner. After that:',
       children: [
         const MiniSheetFact(
           icon: MiniIcons.blocked,
@@ -552,8 +550,8 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       icon: MiniIcons.lock,
       title: 'File access controls',
       message: 'Each transfer belongs to two people: the sender and the '
-          'recipient. MiniGo’s server rules stop everyone else — including '
-          'other MiniGo users — from seeing the transfer or downloading its '
+          'recipient. MiniGo’s server rules stop everyone else, including '
+          'other MiniGo users, from seeing the transfer or downloading its '
           'files.',
       children: const [
         MiniSheetFact(
@@ -577,10 +575,10 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
       context,
       icon: MiniIcons.encrypted,
       title: 'Upload and download privacy',
-      message: 'When the recipient’s app supports it — as current versions of '
-          'MiniGo do — files are encrypted on the sender’s phone before '
-          'upload. Only the recipient’s device holds the key to open them; '
-          'MiniGo’s servers store data they can’t read.',
+      message: 'If the recipient’s app supports it, as current versions of '
+          'MiniGo do, files are encrypted on the sender’s phone before '
+          'upload. Only the recipient’s device holds the key to open them, '
+          'so MiniGo’s servers store data they can’t read.',
       children: const [
         MiniSheetFact(
           icon: MiniIcons.warning,
@@ -657,7 +655,7 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
         MiniSheetFact(
           icon: MiniIcons.document,
           title: 'Transfer records',
-          body: 'File names, sizes, sender, recipient, and status — kept for '
+          body: 'File names, sizes, sender, recipient, and status. Kept for '
               '${AppFacts.recordRetention}.',
         ),
         const MiniSheetFact(
@@ -758,7 +756,6 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     return MiniSettingsPage(
       title: 'Privacy & Security',
       children: [
-        const _OverviewCard(),
         _securityAndAccount(),
         _fileSharing(),
         _dataAndDevice(),
@@ -951,69 +948,6 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _OverviewCard extends StatelessWidget {
-  const _OverviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mini;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      padding: const EdgeInsets.all(18),
-      decoration: miniCard(context, strong: true),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MiniIconPlate(
-                icon: MiniIcons.encrypted,
-                tint: c.accent,
-                size: 44,
-                iconSize: 21,
-                radius: 11,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  'Your privacy matters. Manage your security preferences and '
-                  'understand how MiniGo handles your information.',
-                  style: GoogleFonts.outfit(
-                    fontSize: 15,
-                    height: 1.45,
-                    color: c.ink,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const HairLine(),
-          const SizedBox(height: 14),
-          const MiniFactLine(
-            icon: MiniIcons.check,
-            tint: MiniColors.success,
-            text: 'No email, phone number, or password',
-          ),
-          const SizedBox(height: 10),
-          MiniFactLine(
-            icon: MiniIcons.check,
-            tint: MiniColors.success,
-            text: 'Transfers expire after ${AppFacts.transferLifetime}',
-          ),
-          const SizedBox(height: 10),
-          const MiniFactLine(
-            icon: MiniIcons.check,
-            tint: MiniColors.success,
-            text: 'Only the sender and recipient can open a transfer',
-          ),
-        ],
-      ),
     );
   }
 }

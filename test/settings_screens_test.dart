@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:minigo/Minigo/theme/mini_theme.dart';
@@ -10,10 +11,12 @@ import 'package:minigo/core/contacts/contact_aliases.dart';
 import 'package:minigo/core/contacts/recent_recipients.dart';
 import 'package:minigo/core/theme.dart';
 import 'package:minigo/features/identity/identity_service.dart';
+import 'package:minigo/features/onboarding_v2/onboarding_services.dart';
 import 'package:minigo/features/settings/about_screen.dart';
 import 'package:minigo/features/settings/app_facts.dart';
 import 'package:minigo/features/settings/privacy_screen.dart';
 import 'package:minigo/features/settings/release_notes.dart';
+import 'package:minigo/features/settings/settings_screen.dart';
 import 'package:minigo/features/settings/update_check.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -84,15 +87,13 @@ void main() {
           (tester) async {
         await pumpScreen(tester, const AboutScreen(), dark: dark);
 
-        expect(find.text('Share simply. Stay in control.'), findsOneWidget);
         expect(find.text('Version 1.0.0 (7)'), findsOneWidget);
 
         await tester.scrollUntilVisible(
-          find.text('Made with care by the MiniGo team.'),
+          find.text('Open-source licenses'),
           300,
           scrollable: page(),
         );
-        expect(find.text('Version 1.0.0 · Build 7'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -130,7 +131,6 @@ void main() {
           dark: dark,
         );
 
-        expect(find.textContaining('Your privacy matters.'), findsOneWidget);
         expect(find.text('Anonymous'), findsOneWidget);
         expect(find.text('This device'), findsOneWidget);
 
@@ -209,6 +209,43 @@ void main() {
       expect(find.text('Sign out and delete account?'), findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString(AppConstants.prefShortCode), identity.shortCode);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Settings', () {
+    testWidgets('reset and sign out waits for confirmation', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        AppConstants.prefShortCode: identity.shortCode,
+      });
+      await pumpScreen(tester, const SettingsScreen(identity: identity));
+      await openRow(tester, 'Reset local data and sign out');
+
+      expect(find.text('Reset app data?'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reset app data?'), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(AppConstants.prefShortCode), identity.shortCode);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('My card shows the card styled in onboarding', (tester) async {
+      // The card's QR link is built from the backend URL.
+      dotenv.loadFromString(
+          envString: 'SUPABASE_URL=https://example.supabase.co');
+      addTearDown(dotenv.clean);
+      await const OnbServices().saveCardStyle((tone: 1, line: 1));
+      await pumpScreen(tester, const SettingsScreen(identity: identity));
+
+      await tester.tap(find.text('My card'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('YOUR CARD'), findsOneWidget);
+      expect(find.text('Drop files here'), findsOneWidget);
+      expect(find.text('Share my card'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

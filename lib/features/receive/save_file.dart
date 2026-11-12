@@ -88,7 +88,7 @@ Future<void> _ensurePhotosPermission() async {
   final status = await Permission.photosAddOnly.request();
   if (!status.isGranted) {
     throw PermissionDeniedException(
-      'Gallery access denied. Please enable it in Settings → Privacy → Photos.',
+      'MiniGo can’t save to Photos. Allow photo access for MiniGo in Settings.',
     );
   }
 }
@@ -141,7 +141,7 @@ Future<SavedFile> _saveToAndroid(
       if (e.code == 'permission_denied' && attempt == 0) {
         if (await Permission.storage.request().isGranted) continue;
         throw PermissionDeniedException(
-          'Storage access denied. Please enable it in Settings → App Permissions.',
+          'MiniGo can’t save files. Allow storage access for MiniGo in Settings.',
         );
       }
       throw SaveFileException('Could not save the file: ${e.message ?? e.code}');

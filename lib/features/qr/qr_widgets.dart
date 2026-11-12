@@ -94,7 +94,7 @@ class QrCodeSheet extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             forRoom
-                ? 'Scan this in MiniGo → Rooms → Join to join the room'
+                ? 'Scan this from Join room in MiniGo'
                 : 'Ask someone to scan this to send you files',
             style: MiniText.small.copyWith(color: c.inkSoft),
           ),

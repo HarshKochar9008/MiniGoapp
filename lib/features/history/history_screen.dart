@@ -134,8 +134,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _scheduleLiveReload();
         if (event == PostgresChangeEvent.insert) {
           final msg = status == 'completed'
-              ? 'Transfer ready — files available for download!'
-              : 'New file transfer incoming…';
+              ? 'Files ready to download'
+              : 'Incoming transfer…';
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(msg)));
           return;
@@ -144,8 +144,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
               status == 'completed'
-                  ? 'Transfer ready — files available for download!'
-                  : 'Some files from a transfer are ready to download.',
+                  ? 'Files ready to download'
+                  : 'Some files are ready to download',
             ),
           ));
         }

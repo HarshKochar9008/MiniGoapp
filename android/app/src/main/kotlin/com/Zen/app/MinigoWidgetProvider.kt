@@ -73,7 +73,7 @@ class MinigoWidgetProvider : AppWidgetProvider() {
             val displayCode = if (!raw.isNullOrBlank() && raw.length == 6) {
                 "${raw.substring(0, 3)} ${raw.substring(3)}"
             } else {
-                "— — —"
+                "--- ---"
             }
 
             val views = RemoteViews(context.packageName, R.layout.widget_minigo)

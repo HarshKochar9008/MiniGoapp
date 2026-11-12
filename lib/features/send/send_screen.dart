@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:battery_plus/battery_plus.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -102,7 +101,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     String? error;
     for (final f in widget.initialFiles) {
       if (f.path == null || !seenNames.add(f.name)) continue;
-      if (f.size > AppConstants.maxFileSizeBytes) {
+      if ((f.lengthSync() ?? 0) > AppConstants.maxFileSizeBytes) {
         error = '${f.name} exceeds '
             '${AppConstants.maxFileSizeBytes ~/ 1024 ~/ 1024} MB limit '
             'and was skipped';
@@ -197,8 +196,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       builder: (ctx) => AlertDialog(
         title: const Text('Resume interrupted upload?'),
         content: Text(
-          'We found an interrupted upload with ${existing.length} file(s). '
-          'Do you want to resume it?',
+          'An upload of ${existing.length} file(s) didn’t finish. Resume it?',
         ),
         actions: [
           TextButton(
@@ -249,17 +247,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> _isLikelyMeteredConnection() async {
-    try {
-      final result = await Connectivity().checkConnectivity();
-      return result.contains(ConnectivityResult.mobile);
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<bool> _confirmMeteredUploadIfNeeded() async {
-    final isMetered = await _isLikelyMeteredConnection();
+    final isMetered = await ConnectionStatus.instance.isLikelyMetered();
     if (!mounted) return false;
     final threshold = isMetered
         ? AppConstants.cellularMeteredWarnThresholdBytes
@@ -327,23 +316,23 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   Future<void> _pickFiles() async {
     try {
-      final result = await FilePicker.pickFiles(
-        allowMultiple: true,
-        type: FileType.any,
-        withData: false,
-      );
-      if (result == null || !mounted) return;
+      final result = await FilePicker.pickFiles(type: FileType.any);
+      if (!mounted) return;
 
-      final accessibleRaw = result.files.where((f) => f.path != null).toList();
+      final accessibleRaw = result.where((f) => f.path != null).toList();
       final seenNames = <String>{};
       final accessible = <PlatformFile>[];
       for (final f in accessibleRaw) {
         if (seenNames.add(f.name)) accessible.add(f);
       }
 
-      final oversized = accessible
-          .where((f) => f.size > AppConstants.maxFileSizeBytes)
-          .toList();
+      final oversized = <PlatformFile>[];
+      for (final file in accessible) {
+        if (await File(file.path!).length() > AppConstants.maxFileSizeBytes) {
+          oversized.add(file);
+        }
+      }
+      if (!mounted) return;
       if (oversized.isNotEmpty) {
         setState(() {
           _error = '${oversized.first.name} exceeds '
@@ -597,7 +586,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         setState(() {
           _codeError = isSavedCode
               ? 'No user found with code "$code". This saved code may be out '
-                  'of date — ask them for their current code.'
+                  'of date. Ask them for their current code.'
               : 'No user found with code "$code"';
           _staleRecentCode = isSavedCode ? code : null;
           _validatingCode = false;
@@ -617,7 +606,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
       if (mounted && seq == _validationSeq) {
         setState(() {
-          _codeError = 'We had trouble checking this code. Please try again.';
+          _codeError = 'Couldn’t check this code. Try again.';
           _validatingCode = false;
         });
         unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
@@ -627,9 +616,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (mounted && seq == _validationSeq) {
         setState(() {
           _codeError = NetworkErrors.isRetryableFailure(e)
-              ? 'Cannot reach MiniGo to validate this code. '
-                  'Check your connection and try again.'
-              : 'Could not validate this code. Please try again.';
+              ? 'Can’t reach MiniGo to check this code. Check your '
+                  'connection and try again.'
+              : 'Couldn’t check this code. Try again.';
           _validatingCode = false;
         });
         unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
@@ -763,7 +752,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         Analytics.instance.logEvent(AnalyticsEvents.sendFailed, {
           'partial': true,
           'completed': result.completedFiles,
-          'reason': failureMessage,
+          // Not failureMessage: that names the file, and logs leave the
+          // device.
+          'reason': _firstFailureReason(result) ?? 'unknown',
         });
         HapticFeedback.lightImpact();
         setState(() {
@@ -898,13 +889,23 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Why the first failed file failed, in the words shown to the user.
+  String? _firstFailureReason(TransferResult result) {
+    for (final s in result.fileStates) {
+      if (s.status == FileUploadStatus.failed) {
+        return _toUserFriendlyError(s.error ?? 'Unknown error');
+      }
+    }
+    return null;
+  }
+
   String _buildPartialFailureMessage(TransferResult result) {
     final failed = result.fileStates
         .where((s) => s.status == FileUploadStatus.failed)
         .toList();
     if (failed.isEmpty) return 'Some files could not be sent.';
     final first = failed.first;
-    final reason = _toUserFriendlyError(first.error ?? 'Unknown error');
+    final reason = _firstFailureReason(result)!;
     if (failed.length == 1) return '$reason (${first.fileName})';
     return '$reason (${first.fileName}). ${failed.length - 1} more file(s) failed.';
   }
@@ -954,7 +955,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
   String _formatSize(int bytes) => TransferService.formatFileSize(bytes);
 
-  int get _totalSize => _selectedFiles.fold<int>(0, (sum, f) => sum + f.size);
+  int get _totalSize =>
+      _selectedFiles.fold<int>(0, (sum, f) => sum + (f.lengthSync() ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -1006,11 +1008,10 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           color: c.ink,
                         ),
                         decoration: InputDecoration(
-                          hintText: '— — —   — — —',
-                          hintStyle: GoogleFonts.jetBrainsMono(
-                            fontSize: 18,
+                          hintText: 'Enter code',
+                          hintStyle: MiniText.body.copyWith(
+                            fontSize: 17,
                             color: c.inkFaint,
-                            letterSpacing: 3,
                           ),
                           counterText: '',
                           border: InputBorder.none,
@@ -1078,7 +1079,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                   ),
                                 )
                               : Text(
-                                  _codeValidated ? 'Verified ✓' : 'Validate',
+                                  _codeValidated ? 'Verified' : 'Check',
                                   style: GoogleFonts.outfit(
                                     color: Colors.white,
                                     fontSize: 14,
@@ -1185,8 +1186,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             if (_codeValidated && !_recipientIsEncryptable)
               StatusBanner(
                 icon: MiniIcons.unlock,
-                text: 'This recipient has no encryption key yet — files will '
-                    'not be end-to-end encrypted.',
+                text: 'This recipient has no encryption key yet, so files '
+                    'won’t be end-to-end encrypted.',
                 tint: MiniColors.warn,
               ),
 
@@ -1249,7 +1250,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                               miniCard(context, radius: MiniRadius.tile),
                           child: MiniFileRow(
                             name: _selectedFiles[i].name,
-                            size: _formatSize(_selectedFiles[i].size),
+                            size: _formatSize(
+                                _selectedFiles[i].lengthSync() ?? 0),
                             mimeCategory: MiniFileRow.categoryFromFileName(
                                 _selectedFiles[i].name),
                             trailing: _sending
@@ -1390,7 +1392,9 @@ class _EmptyFilesMini extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text('Images, videos, documents — anything goes',
+              Text(
+                  'Up to ${AppConstants.maxFilesPerTransfer} files, '
+                  '${AppConstants.maxFileSizeBytes ~/ 1024 ~/ 1024} MB each',
                   style: MiniText.small),
             ],
           ),

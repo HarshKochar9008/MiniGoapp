@@ -182,7 +182,6 @@ class _AboutScreenState extends State<AboutScreen> {
             _appInformation(info, loading),
             _support(),
             _legal(info),
-            _Footer(info: info),
           ],
         );
       },
@@ -334,13 +333,7 @@ class _IdentityCard extends StatelessWidget {
               color: c.ink,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Share simply. Stay in control.',
-            textAlign: TextAlign.center,
-            style: MiniText.bodySoft.copyWith(color: c.inkSoft),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
             child: loading
@@ -381,7 +374,6 @@ class _AboutAppSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.mini;
     return MiniSettingsSection(
       title: 'About the app',
       children: [
@@ -390,17 +382,6 @@ class _AboutAppSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'MiniGo makes sharing files simple and convenient. Transfer '
-                'files using a short sharing code, without unnecessary '
-                'complexity.',
-                style: GoogleFonts.outfit(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(height: 16),
               MiniFactLine(
                 icon: MiniIcons.sharingCode,
                 text: 'Send with a ${AppConstants.codeLength}-character code '
@@ -421,37 +402,6 @@ class _AboutAppSection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _Footer extends StatelessWidget {
-  final PackageInfo? info;
-  const _Footer({required this.info});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.mini;
-    final info = this.info;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 34, 24, 0),
-      child: Column(
-        children: [
-          Text(
-            'Made with care by the MiniGo team.',
-            textAlign: TextAlign.center,
-            style: MiniText.small.copyWith(color: c.inkSoft),
-          ),
-          if (info != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Version ${info.version} · Build ${info.buildNumber}',
-              textAlign: TextAlign.center,
-              style: MiniText.small.copyWith(color: c.inkFaint, fontSize: 12),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

@@ -352,6 +352,28 @@ RadialGradient miniGlow(Color tint, {double strength = 0.28}) => RadialGradient(
 // Theme builders
 // ---------------------------------------------------------------------------
 
+/// [base] with Outfit applied to every style, as
+/// `GoogleFonts.outfitTextTheme` did. Since google_fonts 9 that helper returns
+/// the `material_ui` package's TextTheme, which ThemeData here doesn't accept;
+/// `GoogleFonts.outfit` still returns a plain TextStyle.
+TextTheme _outfitTextTheme(TextTheme base) => TextTheme(
+      displayLarge: GoogleFonts.outfit(textStyle: base.displayLarge),
+      displayMedium: GoogleFonts.outfit(textStyle: base.displayMedium),
+      displaySmall: GoogleFonts.outfit(textStyle: base.displaySmall),
+      headlineLarge: GoogleFonts.outfit(textStyle: base.headlineLarge),
+      headlineMedium: GoogleFonts.outfit(textStyle: base.headlineMedium),
+      headlineSmall: GoogleFonts.outfit(textStyle: base.headlineSmall),
+      titleLarge: GoogleFonts.outfit(textStyle: base.titleLarge),
+      titleMedium: GoogleFonts.outfit(textStyle: base.titleMedium),
+      titleSmall: GoogleFonts.outfit(textStyle: base.titleSmall),
+      bodyLarge: GoogleFonts.outfit(textStyle: base.bodyLarge),
+      bodyMedium: GoogleFonts.outfit(textStyle: base.bodyMedium),
+      bodySmall: GoogleFonts.outfit(textStyle: base.bodySmall),
+      labelLarge: GoogleFonts.outfit(textStyle: base.labelLarge),
+      labelMedium: GoogleFonts.outfit(textStyle: base.labelMedium),
+      labelSmall: GoogleFonts.outfit(textStyle: base.labelSmall),
+    );
+
 ThemeData buildMiniTheme() {
   const c = MiniThemeExtension.light;
   return ThemeData(
@@ -370,7 +392,7 @@ ThemeData buildMiniTheme() {
     extensions: const [c],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).apply(
+    textTheme: _outfitTextTheme(ThemeData.light().textTheme).apply(
       fontSizeFactor: 1.0,
     ),
     appBarTheme: AppBarTheme(
@@ -501,7 +523,7 @@ ThemeData buildMiniDarkTheme() {
     extensions: const [c],
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+    textTheme: _outfitTextTheme(ThemeData.dark().textTheme),
     appBarTheme: AppBarTheme(
       backgroundColor: c.paper,
       foregroundColor: c.ink,

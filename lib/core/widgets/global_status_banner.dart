@@ -102,14 +102,14 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
       color = MiniColors.warn;
       icon = MiniIcons.cloudOff;
       text = pending > 0
-          ? 'Offline — $pending pending, will retry when back'
-          : 'You are offline';
+          ? 'Offline. $pending pending, will retry when you’re back.'
+          : 'You’re offline';
       actionLabel = null;
       onTap = null;
     } else if (serviceDown) {
       color = MiniColors.danger;
       icon = MiniIcons.report;
-      text = 'Service issues — some features may not work right now';
+      text = 'MiniGo is having problems. Some things may not work.';
       actionLabel = 'Check again';
       onTap = _checkServiceAgain;
     } else {

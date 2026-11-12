@@ -32,9 +32,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
       eyebrow: 'MiniGo',
       children: [
         const _Intro(
-          'How this version of MiniGo handles your information, in plain '
-          'language: what’s collected and why, who processes it, and how long '
-          'it’s kept.',
+          'What this version of MiniGo collects, why, who processes it, and '
+          'how long it’s kept.',
         ),
         _DocumentSection(
           title: 'What MiniGo collects',
@@ -64,7 +63,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               'Your name, email address, or phone number.',
               'Your contacts or location.',
               'Files you haven’t chosen to send.',
-              'Advertising identifiers — MiniGo has no ads.',
+              'Advertising identifiers. MiniGo has no ads.',
             ]),
           ],
         ),
@@ -82,7 +81,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
           blocks: [
             _Paragraph(
               'When a transfer is end-to-end encrypted, MiniGo’s servers only '
-              'store data they can’t read — the key to open it exists only on '
+              'store data they can’t read. The key to open it exists only on '
               'the recipient’s device. File names, sizes, and transfer times '
               'aren’t encrypted, because they’re needed to deliver the '
               'transfer.',
@@ -98,10 +97,10 @@ class PrivacyPolicyScreen extends StatelessWidget {
           blocks: [
             const _Paragraph('MiniGo relies on these services to run:'),
             _Bullets([
-              'Supabase — accounts, transfer records, and file storage.',
-              if (_usesR2Storage) 'Cloudflare R2 — file storage.',
-              'Google Firebase — notifications and crash reports.',
-              'Google Fonts — the app’s typefaces, downloaded the first time '
+              'Supabase: accounts, transfer records, and file storage.',
+              if (_usesR2Storage) 'Cloudflare R2: file storage.',
+              'Google Firebase: notifications and crash reports.',
+              'Google Fonts: the app’s typefaces, downloaded the first time '
                   'it runs.',
             ]),
           ],
@@ -185,7 +184,7 @@ class TermsScreen extends StatelessWidget {
           title: 'Temporary storage',
           blocks: [
             _Paragraph(
-              'MiniGo doesn’t store files permanently — transfers expire after '
+              'MiniGo doesn’t store files permanently. Transfers expire after '
               '${AppFacts.transferLifetime}.',
             ),
           ],

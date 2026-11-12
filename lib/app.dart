@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,8 +17,10 @@ import 'core/network/network_errors.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/offline/offline_sync_coordinator.dart';
 import 'core/offline/pending_backend_jobs.dart';
+import 'core/security/security_gate.dart';
 import 'core/supabase_config.dart';
 import 'core/theme.dart';
+import 'core/utils/local_platform_file.dart';
 import 'core/widgets/global_status_banner.dart';
 import 'Minigo/widgets/mini_ufo.dart';
 import 'Minigo/widgets/mini_widgets.dart';
@@ -29,6 +30,8 @@ import 'features/rooms/rooms_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/identity/identity_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/onboarding_v2/onboarding_experiment.dart';
+import 'features/onboarding_v2/onboarding_flow.dart';
 import 'features/send/send_screen.dart';
 import 'Minigo/theme/mini_icons.dart';
 
@@ -53,7 +56,7 @@ class MiniGoApp extends StatelessWidget {
           MiniText.palette =
               Theme.of(context).extension<MiniThemeExtension>() ??
                   MiniThemeExtension.light;
-          return child!;
+          return SecurityGate(child: child!);
         },
         home: const _AppEntry(),
       ),
@@ -70,6 +73,7 @@ class _AppEntry extends StatefulWidget {
 
 class _AppEntryState extends State<_AppEntry> {
   bool? _onboardingComplete;
+  OnboardingVariant _variant = OnboardingVariant.classic;
 
   @override
   void initState() {
@@ -80,7 +84,15 @@ class _AppEntryState extends State<_AppEntry> {
   Future<void> _checkOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     final done = prefs.getBool('onboarding_complete') ?? false;
-    if (mounted) setState(() => _onboardingComplete = done);
+    // Only installs that still need onboarding join the A/B test.
+    final variant =
+        done ? OnboardingVariant.classic : await OnboardingExperiment.assign();
+    if (mounted) {
+      setState(() {
+        _variant = variant;
+        _onboardingComplete = done;
+      });
+    }
   }
 
   @override
@@ -93,9 +105,10 @@ class _AppEntryState extends State<_AppEntry> {
     }
 
     if (!_onboardingComplete!) {
-      return OnboardingScreen(
-        onComplete: () => setState(() => _onboardingComplete = true),
-      );
+      void done() => setState(() => _onboardingComplete = true);
+      return _variant == OnboardingVariant.questionnaire
+          ? OnboardingFlowV2(onComplete: done)
+          : OnboardingScreen(onComplete: done);
     }
 
     return const MainShell();
@@ -132,7 +145,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       final shared = await ShareIntentBridge.getAndClearSharedFiles();
       if (shared.isEmpty || !mounted) return;
       final files = shared
-          .map((f) => PlatformFile(path: f.path, name: f.name, size: f.size))
+          .map((f) =>
+              LocalPlatformFile(path: f.path, name: f.name, size: f.size))
           .toList();
       rootNavigatorKey.currentState?.push(
         MaterialPageRoute(
@@ -182,17 +196,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     BackendHealth health = BackendHealth.unknown,
   }) {
     if (health == BackendHealth.serviceDown) {
-      return 'MiniGo is temporarily unavailable. This is on our side — '
-          'not your connection. Please try again in a few minutes.';
+      return 'MiniGo is down right now. It’s not your connection. Try again '
+          'in a few minutes.';
     }
     if (_isNetworkLookupFailure(error)) {
       if (willAutoRetry) {
-        return 'Could not reach MiniGo. Check your internet connection. Retrying…';
+        return 'Can’t reach MiniGo. Check your connection. Retrying…';
       }
-      return 'Could not reach MiniGo. Check your internet connection, then tap Retry.';
+      return 'Can’t reach MiniGo. Check your connection, then tap Retry.';
     }
     if (kDebugMode) debugPrint('Startup failed: $error');
-    return 'Could not connect. Check your internet and try again.';
+    return 'Can’t connect. Check your connection and try again.';
   }
 
   @override
@@ -326,9 +340,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       if (kDebugMode) debugPrint('Startup config error: ${e.message}');
       if (mounted) {
         setState(() {
-          _error = 'Please close and reopen '
-              'the app. If this keeps happening,'
-              ' contact support.';
+          _error = 'Close and reopen the app. If this keeps happening, '
+              'contact support.';
           _loading = false;
         });
       }
@@ -389,7 +402,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const MiniUfo(size: 170),
+              const MiniUfoLogo(size: 170),
               const SizedBox(height: 10),
               SizedBox(
                 width: 22,

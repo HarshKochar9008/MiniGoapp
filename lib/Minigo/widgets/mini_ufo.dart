@@ -26,6 +26,10 @@ class MiniUfo extends StatefulWidget {
   /// Keep bobbing after arrival. Set false for a static hero.
   final bool hover;
 
+  /// Draw the breathing glow under the hull. Turn it off when the saucer
+  /// hovers over content: there the glow reads as a beam shining onto it.
+  final bool groundGlow;
+
   /// Accent used for the glow and streaks. Defaults to the theme
   /// accent so the animation reads correctly in light and dark mode.
   final Color? tint;
@@ -39,6 +43,7 @@ class MiniUfo extends StatefulWidget {
     this.size = 150,
     this.arrive = true,
     this.hover = true,
+    this.groundGlow = true,
     this.tint,
     this.onArrived,
   });
@@ -167,26 +172,27 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
             clipBehavior: Clip.none,
             children: [
               // Breathing ground glow.
-              Transform.translate(
-                offset: Offset(0, widget.size * 0.30 + bob * 0.5),
-                child: Opacity(
-                  opacity: (0.55 + 0.45 * wave).clamp(0.0, 1.0) * flight,
-                  child: Container(
-                    width: widget.size * (0.62 + 0.06 * wave),
-                    height: widget.size * 0.20,
-                    decoration: BoxDecoration(
-                      borderRadius:
-                          BorderRadius.all(Radius.elliptical(box, box)),
-                      gradient: RadialGradient(
-                        colors: [
-                          tint.withValues(alpha: 0.34),
-                          tint.withValues(alpha: 0),
-                        ],
+              if (widget.groundGlow)
+                Transform.translate(
+                  offset: Offset(0, widget.size * 0.30 + bob * 0.5),
+                  child: Opacity(
+                    opacity: (0.55 + 0.45 * wave).clamp(0.0, 1.0) * flight,
+                    child: Container(
+                      width: widget.size * (0.62 + 0.06 * wave),
+                      height: widget.size * 0.20,
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.all(Radius.elliptical(box, box)),
+                        gradient: RadialGradient(
+                          colors: [
+                            tint.withValues(alpha: 0.34),
+                            tint.withValues(alpha: 0),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
 
               // Halo behind the hull.
               Opacity(
@@ -243,6 +249,28 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+/// The saucer artwork as a still logo: no motion, glow or halo. Takes the
+/// same `size * 1.25` square as [MiniUfo] so the two swap without moving the
+/// layout around them.
+class MiniUfoLogo extends StatelessWidget {
+  final double size;
+
+  const MiniUfoLogo({super.key, this.size = 150});
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+        dimension: size * 1.25,
+        child: Center(
+          child: Image.asset(
+            'assets/minigo_ufo.png',
+            width: size,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      );
 }
 
 /// Thin streaks rushing along the saucer's travel axis during the warp-in.

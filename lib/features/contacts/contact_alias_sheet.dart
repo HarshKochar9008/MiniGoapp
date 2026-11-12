@@ -88,9 +88,8 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
                 style: MiniText.title.copyWith(color: c.ink)),
             const SizedBox(height: 6),
             Text(
-              'Only you see this name — it stays on this device. '
-              'Their code is ${fmtCode(widget.code)}. '
-              'Leave empty to remove the name.',
+              'For code ${fmtCode(widget.code)}. Only you see this name. '
+              'Leave it empty to remove it.',
               style: MiniText.bodySoft.copyWith(color: c.inkSoft),
             ),
             const SizedBox(height: 20),
@@ -104,7 +103,7 @@ class _ContactAliasSheetState extends State<ContactAliasSheet> {
                 color: c.ink,
               ),
               decoration: InputDecoration(
-                hintText: 'e.g. Priya, Work laptop…',
+                hintText: 'e.g. Priya',
                 hintStyle: GoogleFonts.outfit(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,

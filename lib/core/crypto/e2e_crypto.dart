@@ -61,9 +61,7 @@ class E2ECrypto {
 
   static final _x25519 = X25519();
   static final _aes = AesGcm.with256bits();
-  static final _secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  static final _secureStorage = const FlutterSecureStorage();
 
   static String _privKeyStorageKey(String authUid) =>
       'e2e_x25519_priv_$authUid';
@@ -314,8 +312,8 @@ class E2ECrypto {
         final isFinal = block.length < encChunk;
         if (block.length < _tagLen) {
           throw const E2EDecryptException(
-            'Encrypted file is truncated — it did not finish uploading, or it '
-            'was modified in transit.',
+            'Encrypted file is incomplete. It didn’t finish uploading, or it '
+            'was changed in transit.',
           );
         }
 
@@ -333,7 +331,7 @@ class E2ECrypto {
           // Also the failure mode for a removed or appended trailing chunk:
           // the final-chunk flag in the AAD no longer matches what was signed.
           throw const E2EDecryptException(
-            'Decryption failed — the file was modified, truncated, or the '
+            'Couldn’t decrypt this file. It was changed or cut short, or the '
             'wrong key was used.',
           );
         }
@@ -380,7 +378,8 @@ class E2ECrypto {
           output.add(plain);
         } catch (e) {
           throw const E2EDecryptException(
-            'Decryption failed — file was tampered with or the wrong key was used.',
+            'Couldn’t decrypt this file. It was tampered with, or the wrong '
+            'key was used.',
           );
         }
         index++;

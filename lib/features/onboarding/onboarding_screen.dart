@@ -269,22 +269,17 @@ class _OnbWelcome extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const MiniUfo(size: 190),
+              const MiniUfoLogo(size: 190),
               const SizedBox(height: 22),
               Text(
-                'Send anything.',
+                'Send files to any phone',
                 style: MiniText.display,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'to anyone, anywhere.',
-                style: MiniText.display.copyWith(color: c.accent),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
               Text(
-                'No accounts. No phone numbers. Just a six-character code.',
+                'Share a six-character code instead of your number. No '
+                'account needed.',
                 textAlign: TextAlign.center,
                 style: MiniText.bodySoft,
               ),
@@ -355,19 +350,17 @@ class _OnbGenerateState extends State<_OnbGenerate> {
                 _CodeShuffler(style: MiniText.codeLarge),
                 const SizedBox(height: 40),
                 Text(
-                  _failed ? 'Couldn\'t craft your code' : 'Crafting your code',
+                  _failed ? 'Couldn\'t create your code' : 'Creating your code',
                   style: MiniText.title,
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _failed
-                      ? 'Check your internet connection and try again.'
-                      : 'a few quiet moments…',
-                  style: MiniText.bodySoft,
-                  textAlign: TextAlign.center,
-                ),
                 if (_failed) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Check your connection and try again.',
+                    style: MiniText.bodySoft,
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 28),
                   MiniButton(label: 'Retry', onPressed: _createIdentity),
                 ],
@@ -408,7 +401,7 @@ class _OnbCodeState extends State<_OnbCode> {
           child: Column(
             children: [
               const SizedBox(height: 24),
-              Text('YOUR UNIQUE CODE', style: MiniText.label),
+              Text('YOUR CODE', style: MiniText.label),
               const SizedBox(height: 24),
               _CodeShuffler(
                 settle: widget.code ?? 'A4X9K2',
@@ -427,7 +420,8 @@ class _OnbCodeState extends State<_OnbCode> {
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                   decoration: miniCard(context, radius: MiniRadius.control),
                   child: Text(
-                    'This is you. Anyone can send you files with this code – it never changes and reveals nothing about you.',
+                    'Anyone with this code can send you files. It stays the '
+                    'same and doesn’t reveal who you are.',
                     textAlign: TextAlign.center,
                     style: MiniText.bodySoft,
                   ),
@@ -456,9 +450,9 @@ class _OnbPermissions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = const [
-      ['Notifications', 'so files arrive when you\'re away'],
-      ['Files & photos', 'asked the first time you send or save'],
-      ['Camera', 'asked the first time you scan a QR code'],
+      ['Notifications', 'Get told when files arrive'],
+      ['Files & photos', 'Asked when you first send or save'],
+      ['Camera', 'Asked when you first scan a QR code'],
     ];
     final c = context.mini;
     return Scaffold(
@@ -469,7 +463,7 @@ class _OnbPermissions extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('A few quiet permissions', style: MiniText.title),
+              Text('Permissions', style: MiniText.title),
               const SizedBox(height: 28),
               for (final r in items)
                 Padding(
@@ -558,7 +552,7 @@ class _OnbNickname extends StatelessWidget {
               Text('Pick a nickname', style: MiniText.title),
               const SizedBox(height: 8),
               Text(
-                'This helps others recognize you. Totally optional.',
+                'Optional. People in your rooms will see it.',
                 textAlign: TextAlign.center,
                 style: MiniText.bodySoft,
               ),
@@ -573,7 +567,7 @@ class _OnbNickname extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'e.g., Alex, BlueBunny, ...',
+                  hintText: 'e.g. Alex',
                   filled: true,
                   fillColor: c.sand,
                   border: OutlineInputBorder(
@@ -630,16 +624,16 @@ class _OnbReady extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              const MiniUfo(size: 170, tint: MiniColors.success),
+              const MiniUfoLogo(size: 170),
               const SizedBox(height: 12),
               Text(
-                'You\'re ready.',
+                'You\'re set up',
                 style: MiniText.display,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
-                'Send and receive files with anyone, anywhere — no sign-up needed.',
+                'Share your code to start receiving files.',
                 textAlign: TextAlign.center,
                 style: MiniText.bodySoft,
               ),

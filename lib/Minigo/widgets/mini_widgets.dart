@@ -255,13 +255,18 @@ class MiniButton extends StatelessWidget {
                     leading!,
                     const SizedBox(width: 9),
                   ],
-                  Text(
-                    label,
-                    style: GoogleFonts.outfit(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: fg,
-                      letterSpacing: -0.1,
+                  // Flexible so a long label (or large accessibility text)
+                  // wraps inside the pill instead of overflowing it.
+                  Flexible(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: fg,
+                        letterSpacing: -0.1,
+                      ),
                     ),
                   ),
                 ],

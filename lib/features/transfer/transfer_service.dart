@@ -13,11 +13,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:tus_client_dart/tus_client_dart.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/constants.dart';
 import '../../core/crypto/e2e_crypto.dart';
 import '../../core/network/network_errors.dart';
 import '../../core/offline/pending_backend_jobs.dart';
+import '../../core/security/app_security.dart';
 import '../../core/supabase_config.dart';
+import '../../core/utils/local_platform_file.dart';
 import '../../core/utils/safe_file_name.dart';
 import '../identity/identity_service.dart';
 import 'r2_storage.dart';
@@ -110,7 +113,7 @@ class PendingUploadJob {
   List<PlatformFile> toPlatformFiles() {
     return files
         .map(
-          (f) => PlatformFile(
+          (f) => LocalPlatformFile(
             name: f.name,
             path: f.path,
             size: f.size,
@@ -197,10 +200,14 @@ class PendingUploadFile {
 
 // ── Exceptions ───────────────────────────────────────────────────────────────
 
-class FileTooLargeException implements Exception {
+class FileTooLargeException implements Exception, NamesUserFile {
   final String fileName;
   final int size;
   FileTooLargeException(this.fileName, this.size);
+
+  @override
+  String get logDescription =>
+      'File too large (${(size / 1024 / 1024).toStringAsFixed(0)} MB).';
 
   @override
   String toString() =>
@@ -217,9 +224,12 @@ class TooManyFilesException implements Exception {
       'Too many files ($count). Max: ${AppConstants.maxFilesPerTransfer}.';
 }
 
-class IntegrityException implements Exception {
+class IntegrityException implements Exception, NamesUserFile {
   final String fileName;
   IntegrityException(this.fileName);
+
+  @override
+  String get logDescription => 'Integrity check failed.';
 
   @override
   String toString() => 'Integrity check failed for $fileName.';
@@ -768,7 +778,7 @@ class TransferService {
     PendingUploadJob? pending, {
     required String receiverId,
     required String? receiverCode,
-    required List<PlatformFile> validFiles,
+    required List<PendingUploadFile> validFiles,
   }) {
     if (pending == null) return false;
     if (pending.receiverId != receiverId) return false;
@@ -860,6 +870,7 @@ class TransferService {
     /// plaintext upload.
     bool allowUnencrypted = false,
   }) async {
+    AppSecurity.instance.ensureTransfersAllowed();
     final hasKey =
         recipientPublicKey != null && recipientPublicKey.trim().isNotEmpty;
     if (!hasKey && !allowUnencrypted) {
@@ -896,15 +907,29 @@ class TransferService {
     String? roomName,
     String? recipientPublicKey,
   }) async {
+    // The size the picker reported, else read from disk. Resolved once so the
+    // limit check, progress, the resume match and the stored file_size agree.
+    // An unreadable file counts as 0 here; the upload loop fails it below.
+    final sizes = <int>[];
     for (final file in files) {
-      if (file.size > AppConstants.maxFileSizeBytes) {
-        throw FileTooLargeException(file.name, file.size);
+      final size = await file.length() ?? 0;
+      if (size > AppConstants.maxFileSizeBytes) {
+        throw FileTooLargeException(file.name, size);
       }
+      sizes.add(size);
     }
     if (files.length > AppConstants.maxFilesPerTransfer) {
       throw TooManyFilesException(files.length);
     }
-    final validFiles = files.where((f) => f.path != null).toList();
+    final validFiles = [
+      for (var i = 0; i < files.length; i++)
+        if (files[i].path != null)
+          PendingUploadFile(
+            name: files[i].name,
+            path: files[i].path!,
+            size: sizes[i],
+          ),
+    ];
 
     final existingPending = await getPendingUploadJob(senderId: senderId);
     final matches = _pendingJobMatchesSend(
@@ -999,9 +1024,10 @@ class TransferService {
       createdAt: createdAtBase,
     );
 
-    var states = files
-        .map((f) => FileUploadProgress(fileName: f.name, fileSize: f.size))
-        .toList();
+    var states = [
+      for (var i = 0; i < files.length; i++)
+        FileUploadProgress(fileName: files[i].name, fileSize: sizes[i]),
+    ];
 
     for (var i = 0; i < files.length; i++) {
       // Same path the upload loop below writes for file i.
@@ -1038,6 +1064,9 @@ class TransferService {
         if (cancellationToken?.isCancelled == true) {
           throw TransferCancelledException();
         }
+        // A send under way when a critical threat lands stops before the
+        // next file is read or encrypted.
+        AppSecurity.instance.ensureTransfersAllowed();
 
         if (states[i].status == FileUploadStatus.completed) {
           report(states);
@@ -1203,7 +1232,7 @@ class TransferService {
               await _insertTransferFile({
                 'transfer_id': transferId,
                 'file_name': safeName,
-                'file_size': file.size,
+                'file_size': sizes[i],
                 'mime_type': mimeType,
                 'storage_path': storagePath,
                 'sha256_hash': hash,
@@ -1310,7 +1339,7 @@ class TransferService {
   static Future<void> _storePendingUploadJob({
     required String senderId,
     required String receiverId,
-    required List<PlatformFile> files,
+    required List<PendingUploadFile> files,
     String? receiverCode,
     String? receiverPublicKey,
 
@@ -1319,18 +1348,8 @@ class TransferService {
     String? transferId,
     DateTime? createdAt,
   }) async {
+    if (files.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
-    final serializableFiles = files
-        .where((f) => f.path != null)
-        .map(
-          (f) => PendingUploadFile(
-            name: f.name,
-            path: f.path!,
-            size: f.size,
-          ),
-        )
-        .toList();
-    if (serializableFiles.isEmpty) return;
 
     final tid = transferId?.trim();
     final job = PendingUploadJob(
@@ -1340,7 +1359,7 @@ class TransferService {
       receiverPublicKey: receiverPublicKey,
       transferId: (tid != null && tid.isNotEmpty) ? tid : null,
       createdAt: createdAt ?? DateTime.now().toUtc(),
-      files: serializableFiles,
+      files: files,
     );
     await prefs.setString(_pendingUploadKey, jsonEncode(job.toJson()));
   }
@@ -1769,6 +1788,7 @@ class TransferService {
     /// v2 rollout have no tag recorded.
     String? encAlgo,
   }) async {
+    AppSecurity.instance.ensureTransfersAllowed();
     await SupabaseConfig.ensureValidSession();
     // R2 hybrid: prefer a presigned R2 URL, falling back to Supabase Storage
     // when signing fails or the object predates the R2 cutover (HTTP 404).
@@ -1875,6 +1895,9 @@ class TransferService {
           sink = null;
           // Decryption moves no network bytes; it must not count as a stall.
           watchdog.stop();
+          // A critical threat may have landed mid-download: hand over no
+          // bytes and keep the private key out of it.
+          AppSecurity.instance.ensureTransfersAllowed();
           if (!isEncrypted) return file;
           return await _decryptDownloadedFile(
             cipherFile: file,
@@ -1890,6 +1913,10 @@ class TransferService {
           // Wrong key or tampered ciphertext fails identically every time —
           // retrying only re-downloads the whole file to fail again.
           if (e is E2EDecryptException) rethrow;
+          if (e is SecurityRestrictedException) {
+            if (await file.exists()) await file.delete();
+            rethrow;
+          }
           lastError = (watchdog.abortReason ?? e)
               .toString()
               .replaceAll('Exception: ', '');
@@ -1941,7 +1968,7 @@ class TransferService {
   }) async {
     final authUid = SupabaseConfig.client.auth.currentUser?.id;
     if (authUid == null) {
-      throw const E2EDecryptException('Not signed in — cannot decrypt.');
+      throw const E2EDecryptException('Not signed in, so this file can’t be decrypted.');
     }
     if (encWrappedKey == null || encWrappedKey.isEmpty || encNonce == null) {
       throw const E2EDecryptException('Missing encryption metadata.');
