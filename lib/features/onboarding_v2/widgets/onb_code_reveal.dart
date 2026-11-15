@@ -34,6 +34,11 @@ class OnbCodeStage extends StatefulWidget {
   final VoidCallback onPull;
   final VoidCallback onLanded;
 
+  /// The tiles have locked in ([settleDelay] into the reveal, on the reveal's
+  /// own clock): the caption and button can follow. Fires once per reveal,
+  /// after the frame.
+  final VoidCallback? onSettled;
+
   const OnbCodeStage({
     super.key,
     required this.code,
@@ -41,6 +46,7 @@ class OnbCodeStage extends StatefulWidget {
     required this.revealed,
     required this.onPull,
     required this.onLanded,
+    this.onSettled,
   });
 
   static const revealDuration = Duration(milliseconds: 1800);
@@ -72,16 +78,33 @@ class _OnbCodeStageState extends State<OnbCodeStage>
   final _glyphs = _Glyphs();
   late final List<_Spark> _sparks = _Spark.scatter(math.Random(7), 36);
 
+  /// Where on the reveal clock the tiles lock in.
+  static final double _settleAt = OnbCodeStage.settleDelay.inMicroseconds /
+      OnbCodeStage.revealDuration.inMicroseconds;
+  bool _settleReported = false;
+
   @override
   void initState() {
     super.initState();
+    // A wall-clock Timer kept running while the app was in the background
+    // (tickers pause), so the button could show before the tiles locked in.
+    _reveal.addListener(_reportSettle);
     if (widget.revealed) _reveal.value = 1;
+  }
+
+  void _reportSettle() {
+    if (_settleReported || _reveal.value < _settleAt) return;
+    _settleReported = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onSettled?.call();
+    });
   }
 
   @override
   void didUpdateWidget(OnbCodeStage old) {
     super.didUpdateWidget(old);
     if (widget.revealed && !old.revealed) {
+      _settleReported = false;
       if (onbReduceMotion(context)) {
         _reveal.value = 1;
       } else {

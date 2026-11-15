@@ -8,9 +8,13 @@ import '../offline/offline_sync_coordinator.dart';
 import '../offline/pending_backend_jobs.dart';
 import '../../Minigo/theme/mini_icons.dart';
 
-/// Global status banner that surfaces:
-///   * Offline state (with retry queue summary, if any).
-///   * Backend outage ("service issues") when online but Supabase is down.
+/// Global status banner that surfaces, in priority order:
+///   * Offline: no network on the device (with retry queue summary, if any).
+///   * No internet: a network that can't reach the internet, e.g. Wi‑Fi
+///     waiting on a sign-in page ([BackendHealth.offline] while
+///     [ConnectionStatus] says online).
+///   * Backend outage ("service issues"): the internet works, the backend
+///     answers with server errors.
 ///   * "Syncing N items" while online with pending queued work.
 /// Renders as a slim slot at the top of the shell — never blocks content.
 class GlobalStatusBanner extends StatefulWidget {
@@ -62,17 +66,24 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
             return ValueListenableBuilder<int>(
               valueListenable: PendingBackendJobs.pendingCount,
               builder: (context, pending, ___) {
+                final noInternet = online && health == BackendHealth.offline;
                 final serviceDown =
                     online && health == BackendHealth.serviceDown;
                 final hasPending = pending > 0;
-                final show = !online || serviceDown || hasPending;
+                final show = !online || noInternet || serviceDown || hasPending;
                 return AnimatedSize(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 180),
                     child: show
-                        ? _buildBanner(context, online, serviceDown, pending)
+                        ? _buildBanner(
+                            context,
+                            online: online,
+                            noInternet: noInternet,
+                            serviceDown: serviceDown,
+                            pending: pending,
+                          )
                         : const SizedBox(key: ValueKey('empty'), height: 0),
                   ),
                 );
@@ -85,20 +96,19 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
   }
 
   Widget _buildBanner(
-    BuildContext context,
-    bool online,
-    bool serviceDown,
-    int pending,
-  ) {
-    final isOffline = !online;
-
+    BuildContext context, {
+    required bool online,
+    required bool noInternet,
+    required bool serviceDown,
+    required int pending,
+  }) {
     final Color color;
     final IconData icon;
     final String text;
     final String? actionLabel;
     final VoidCallback? onTap;
 
-    if (isOffline) {
+    if (!online) {
       color = MiniColors.warn;
       icon = MiniIcons.cloudOff;
       text = pending > 0
@@ -106,6 +116,16 @@ class _GlobalStatusBannerState extends State<GlobalStatusBanner> {
           : 'You’re offline';
       actionLabel = null;
       onTap = null;
+    } else if (noInternet) {
+      // Connected, but not to the internet: nothing will flip on its own
+      // when a Wi‑Fi sign-in completes, so offer a re-check.
+      color = MiniColors.warn;
+      icon = MiniIcons.cloudOff;
+      text = pending > 0
+          ? 'No internet. $pending pending, will retry when it’s back.'
+          : 'Connected, but no internet. Your Wi‑Fi may need you to sign in.';
+      actionLabel = 'Check again';
+      onTap = _checkServiceAgain;
     } else if (serviceDown) {
       color = MiniColors.danger;
       icon = MiniIcons.report;

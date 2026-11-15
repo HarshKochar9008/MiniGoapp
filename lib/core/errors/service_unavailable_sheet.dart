@@ -17,7 +17,14 @@ class ServiceUnavailableSheet extends StatefulWidget {
 
   static bool _visible = false;
 
-  /// Shows the sheet, guaranteeing only one instance at a time.
+  /// Forgets that a sheet is showing. For the app reset, which tears the
+  /// navigator down: a sheet's future may never complete then, and the flag
+  /// would otherwise block the sheet for the rest of the process.
+  static void resetVisibility() => _visible = false;
+
+  /// Shows the sheet, guaranteeing only one instance at a time. It closes
+  /// itself when the service recovers, or when the problem turns out to be
+  /// the connection (the banner covers that).
   static Future<void> show(BuildContext context,
       {VoidCallback? onRetry}) async {
     if (_visible) return;
@@ -43,7 +50,36 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
   bool _retrying = false;
   bool _stillDown = false;
   bool _runningDiagnostics = false;
+  bool _closing = false;
   String? _diagnosticsReport;
+
+  @override
+  void initState() {
+    super.initState();
+    ServiceHealth.instance.status.addListener(_onHealthChanged);
+  }
+
+  @override
+  void dispose() {
+    ServiceHealth.instance.status.removeListener(_onHealthChanged);
+    super.dispose();
+  }
+
+  /// A background re-check (or any other probe) can settle the outage while
+  /// the sheet is open. "Try again" handles its own result.
+  void _onHealthChanged() {
+    if (!mounted || _retrying) return;
+    final health = ServiceHealth.instance.status.value;
+    if (health == BackendHealth.healthy || health == BackendHealth.offline) {
+      _close();
+    }
+  }
+
+  void _close() {
+    if (_closing) return;
+    _closing = true;
+    Navigator.pop(context);
+  }
 
   Future<void> _retry() async {
     if (_retrying) return;
@@ -54,8 +90,11 @@ class _ServiceUnavailableSheetState extends State<ServiceUnavailableSheet> {
     final health = await ServiceHealth.instance.check(force: true);
     if (!mounted) return;
     if (health == BackendHealth.healthy) {
-      Navigator.pop(context);
+      _close();
       widget.onRetry?.call();
+    } else if (health == BackendHealth.offline) {
+      // Not the service after all: the banner explains the connection.
+      _close();
     } else {
       setState(() {
         _retrying = false;

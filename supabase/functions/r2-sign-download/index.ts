@@ -8,7 +8,11 @@
  *     (config.toml sets `verify_jwt = true`; do NOT pass --no-verify-jwt).
  *   - The caller's JWT is resolved to their application user row, and a URL is
  *     only minted if that user is the RECEIVER or SENDER of the transfer and
- *     the transfer has not expired.
+ *     the transfer has not expired — by status, or by being past its TTL
+ *     (the sweep stamps `expired` up to one interval late, and files can
+ *     outlive the stamp until the purge phase runs).
+ *   - Refusals are 401/403/410. The app treats 410 as "expired" (no retries,
+ *     no fallback) and never routes a refusal through Supabase Storage.
  *
  * Secrets: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
  * (see r2-sign-upload for details). Returns 503 { error: "r2_not_configured" }
@@ -18,6 +22,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 
 const URL_EXPIRES_SECONDS = 3600;
+/// Transfers live this long after created_at. Mirrors TTL_HOURS in
+/// expire-transfers and AppConstants.transferTtlHours in the app.
+const TTL_HOURS = 24;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -113,7 +120,7 @@ Deno.serve(async (req) => {
   // --- Authorize: caller must be a party to a non-expired transfer ----------
   const { data: transfer, error: tErr } = await admin
     .from("transfers")
-    .select("id, sender_id, receiver_id, status")
+    .select("id, sender_id, receiver_id, status, created_at")
     .eq("id", transferId)
     .maybeSingle();
   if (tErr) {
@@ -128,7 +135,12 @@ Deno.serve(async (req) => {
     // Same response for "not found" and "not yours" — no existence oracle.
     return json({ error: "Forbidden" }, 403);
   }
-  if ((transfer.status ?? "").toString().toLowerCase() === "expired") {
+  const createdMs = Date.parse((transfer.created_at ?? "").toString());
+  const pastTtl = Number.isFinite(createdMs) &&
+    createdMs < Date.now() - TTL_HOURS * 3600 * 1000;
+  if (
+    (transfer.status ?? "").toString().toLowerCase() === "expired" || pastTtl
+  ) {
     return json({ error: "Transfer has expired" }, 410);
   }
 

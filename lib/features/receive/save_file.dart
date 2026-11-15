@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -95,7 +95,10 @@ Future<void> _ensurePhotosPermission() async {
 
 const _saveChannel = MethodChannel('minigo/native_save');
 
-/// iOS: Documents is the directory the Files app exposes for this app.
+/// iOS: Documents is the directory the Files app exposes for this app — but
+/// only because Info.plist sets UIFileSharingEnabled and
+/// LSSupportsOpeningDocumentsInPlace. Without both, files saved here are
+/// invisible to the user.
 Future<SavedFile> _saveToIosDocuments(File file, String fileName) async {
   final docsDir = await getApplicationDocumentsDirectory();
   final saveDir = Directory('${docsDir.path}/MiniGo');
@@ -104,7 +107,9 @@ Future<SavedFile> _saveToIosDocuments(File file, String fileName) async {
   }
   final savePath = _uniquePath(saveDir.path, fileName);
   await file.copy(savePath);
-  return (label: savePath, open: savePath);
+  // A container path means nothing to the user; say where Files shows it.
+  final savedName = savePath.substring(savePath.lastIndexOf('/') + 1);
+  return (label: 'Files › MiniGo › $savedName', open: savePath);
 }
 
 /// Hands the file to the platform, which writes it through MediaStore — the
@@ -124,7 +129,8 @@ Future<SavedFile> _saveToAndroid(
 }) async {
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
-      final saved = await _saveChannel.invokeMethod<String>('saveToMediaStore', {
+      final saved =
+          await _saveChannel.invokeMethod<String>('saveToMediaStore', {
         'sourcePath': file.path,
         'fileName': fileName,
         'mimeType': lookupMimeType(fileName),
@@ -132,7 +138,8 @@ Future<SavedFile> _saveToAndroid(
       });
       // Only a MediaStore row can be handed to ACTION_VIEW; the pre-Q branch
       // returns a bare path, which no other app is allowed to read.
-      final uri = saved != null && saved.startsWith('content://') ? saved : null;
+      final uri =
+          saved != null && saved.startsWith('content://') ? saved : null;
       return (
         label: kind == 'download' ? 'Downloads' : 'Gallery (MiniGo album)',
         open: uri,
@@ -144,7 +151,8 @@ Future<SavedFile> _saveToAndroid(
           'MiniGo can’t save files. Allow storage access for MiniGo in Settings.',
         );
       }
-      throw SaveFileException('Could not save the file: ${e.message ?? e.code}');
+      throw SaveFileException(
+          'Could not save the file: ${e.message ?? e.code}');
     }
   }
   throw SaveFileException('Could not save the file');

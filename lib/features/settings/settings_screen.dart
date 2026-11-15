@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -35,12 +37,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _nickname = widget.identity.nickname;
     ThemeController.themeMode.addListener(_syncThemeMode);
+    IdentityService.identityNotifier.addListener(_syncNickname);
+  }
+
+  @override
+  void didUpdateWidget(SettingsScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.identity.id != old.identity.id ||
+        widget.identity.nickname != old.identity.nickname) {
+      _nickname = widget.identity.nickname;
+    }
   }
 
   @override
   void dispose() {
     ThemeController.themeMode.removeListener(_syncThemeMode);
+    IdentityService.identityNotifier.removeListener(_syncNickname);
     super.dispose();
+  }
+
+  /// The nickname can also change outside this screen (onboarding replay,
+  /// a queued edit landing on the next start).
+  void _syncNickname() {
+    final current = IdentityService.identityNotifier.value;
+    if (!mounted || current == null || current.id != widget.identity.id) {
+      return;
+    }
+    if (current.nickname != _nickname) {
+      setState(() => _nickname = current.nickname);
+    }
   }
 
   /// Appearance can also be reset from Privacy & Security.
@@ -108,7 +133,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (ok != true || !mounted) return;
     if (_blockedBySend()) return;
-    await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
+
+    // The reset waits on the network (retire, re-check, sign-out). Block the
+    // screen meanwhile: a send started mid-reset would lose its files and
+    // session, and an unmarked wait reads as "nothing happened".
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    ));
+    var failed = false;
+    try {
+      await AppReset.clearLocalDataAndRelaunchUi(userId: widget.identity.id);
+    } catch (_) {
+      failed = true;
+    }
+    // On success the app was relaunched and this screen is gone.
+    if (!mounted) return;
+    navigator.pop();
+    if (failed) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Couldn’t reset the app. Please try again.'),
+        ),
+      );
+    }
   }
 
   bool _blockedBySend() {
@@ -211,10 +266,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final navigator = Navigator.of(context);
                     // Replays show the same onboarding variant the user got.
                     final variant = await OnboardingExperiment.current();
-                    // maybePop: never removes the shell's root route.
-                    void close() => navigator.maybePop();
+                    // Not maybePop: the v2 flow blocks pops with a PopScope
+                    // and answers a blocked one by calling this again, so
+                    // it could never close (and looped on the first step).
+                    // Acting on the route itself also can't touch the
+                    // shell's root route, and a second call is a no-op.
+                    late final Route<void> route;
+                    void close() {
+                      if (route.isCurrent) {
+                        navigator.pop();
+                      } else if (route.isActive) {
+                        navigator.removeRoute(route);
+                      }
+                    }
+
                     await navigator.push(
-                      MaterialPageRoute(
+                      route = MaterialPageRoute<void>(
                         builder: (_) =>
                             variant == OnboardingVariant.questionnaire
                                 ? OnboardingFlowV2(
@@ -253,8 +320,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SettingsTile(
                   icon: MiniIcons.restart,
                   iconTint: MiniColors.danger,
-                  label: 'Reset local data and sign out',
-                  sub: 'Removes local code, settings, and pending transfers.',
+                  label: 'Reset app and deactivate code',
+                  sub: 'Your code stops working for good. Clears this device.',
                   labelColor: MiniColors.danger,
                   onTap: _confirmFullLocalReset,
                 ),
@@ -806,8 +873,10 @@ class _ResetAppDialog extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Your saved code, settings, and pending uploads will be '
-                'removed on this device, and you’ll be signed out.',
+                'Your code will be deactivated for good, so people who have '
+                'it can no longer send to you. Settings and pending uploads '
+                'are removed from this device, and you’ll set up again with '
+                'a new code.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
                   fontSize: 15,

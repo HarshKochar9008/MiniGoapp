@@ -21,9 +21,13 @@ import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
+import '../rooms/room_lifecycle.dart';
+import '../rooms/room_send_screen.dart';
+import '../rooms/room_service.dart';
 import '../transfer/transfer_progress_widgets.dart';
 import '../transfer/transfer_service.dart';
 import '../../Minigo/theme/mini_icons.dart';
+import 'send_destination.dart';
 
 class SendScreen extends StatefulWidget {
   final UserIdentity identity;
@@ -35,11 +39,15 @@ class SendScreen extends StatefulWidget {
   /// screen's QR scan shortcut.
   final String? initialRecipientCode;
 
+  /// Works out whether a typed code is a person or a room.
+  final SendDestinationResolver resolver;
+
   const SendScreen({
     super.key,
     required this.identity,
     this.initialFiles = const [],
     this.initialRecipientCode,
+    this.resolver = const SendDestinationResolver(),
   });
 
   @override
@@ -70,6 +78,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   int _validationSeq = 0;
   String? _validatedRecipientId;
   String? _validatedRecipientKey;
+  String? _validatedRecipientNickname;
+
+  /// Set instead of the recipient fields when the code is a room's. The
+  /// files are then handed to [RoomSendScreen] rather than sent from here.
+  RoomDestination? _room;
+
+  /// Joining the room and/or loading its members before the hand-off.
+  bool _openingRoom = false;
+
+  /// Rooms I'm in, offered as one-tap destinations and matched against typed
+  /// codes without spending a metered room lookup.
+  List<Room> _myRooms = const [];
   TransferCancellationToken? _uploadCancellationToken;
   final Battery _battery = Battery();
   bool _powerSaveMode = false;
@@ -85,6 +105,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     _codeFocus.addListener(_onCodeFocusChanged);
     _applyInitialFiles();
     _refreshPowerSaveMode();
+    unawaited(_loadMyRooms());
     final initialCode = widget.initialRecipientCode;
     if (initialCode != null) _codeController.text = initialCode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -92,6 +113,29 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       unawaited(_checkInterruptedUploadRecovery());
       if (initialCode != null) unawaited(_validateCode());
     });
+  }
+
+  /// Best effort: without it the room chips are missing and a room code
+  /// costs one metered lookup, nothing more.
+  Future<void> _loadMyRooms() async {
+    try {
+      final rooms = await RoomService.listMyRooms(widget.identity.id);
+      if (!mounted) return;
+      setState(() => _myRooms = rooms);
+    } catch (_) {}
+  }
+
+  /// True once the code on screen is known to be a person or a room.
+  bool get _destinationResolved => _codeValidated || _room != null;
+
+  /// Forgets what the code resolved to. Call inside setState whenever the
+  /// code on screen changes.
+  void _clearDestination() {
+    _codeValidated = false;
+    _validatedRecipientId = null;
+    _validatedRecipientKey = null;
+    _validatedRecipientNickname = null;
+    _room = null;
   }
 
   void _applyInitialFiles() {
@@ -219,28 +263,35 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     }
 
     final resumedKey = pending.receiverPublicKey;
-    final hasResumedKey = resumedKey != null && resumedKey.isNotEmpty;
+    final resumedCode = pending.receiverCode?.trim() ?? '';
+    // Only trust the saved recipient when the code it belongs to is what the
+    // field will show: a job without a code (or with the field left holding
+    // whatever was typed) would otherwise send to an id nobody can see.
+    final hasResumedKey =
+        resumedKey != null && resumedKey.isNotEmpty && resumedCode.isNotEmpty;
     setState(() {
       _selectedFiles = existing;
       _codeError = null;
-      _info = 'Resumed interrupted upload. Tap Send to continue.';
-      if (pending.receiverCode != null && pending.receiverCode!.isNotEmpty) {
-        _codeController.text = pending.receiverCode!;
-        _validationSeq++;
-        _validatingCode = false;
+      _info = existing.length == pending.files.length
+          ? 'Resumed interrupted upload. Swipe to send to continue.'
+          : 'Resumed interrupted upload. Some files are no longer on this '
+              'device; the rest will finish the same transfer, and files '
+              'already delivered won’t be sent again.';
+      // Abandon any lookup still running for what was typed before.
+      _validationSeq++;
+      _validatingCode = false;
+      if (resumedCode.isNotEmpty) {
+        _codeController.text = resumedCode;
       }
+      _clearDestination();
       if (hasResumedKey) {
         _validatedRecipientId = pending.receiverId;
         _validatedRecipientKey = resumedKey;
         _codeValidated = true;
-      } else {
-        // Job predates key persistence (or the recipient had no key when the
-        // send started). Re-validate so a keyed recipient never resumes into
-        // an unencrypted upload.
-        _validatedRecipientId = null;
-        _validatedRecipientKey = null;
-        _codeValidated = false;
       }
+      // Otherwise the job predates key persistence (or the recipient had no
+      // key when the send started): re-validate below so a keyed recipient
+      // never resumes into an unencrypted upload.
     });
     if (!hasResumedKey && _codeController.text.trim().isNotEmpty) {
       await _validateCode();
@@ -425,9 +476,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (code == null || !mounted) return;
     setState(() {
       _codeController.text = code;
-      _codeValidated = false;
-      _validatedRecipientId = null;
-      _validatedRecipientKey = null;
+      _clearDestination();
       _codeError = null;
     });
     await _validateCode();
@@ -444,17 +493,26 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   /// Recent recipient codes to suggest under the field, filtered by what's
   /// typed. Hidden once a code is validated or while sending.
   List<RecentRecipient> get _recentSuggestions {
-    if (_codeValidated || _sending) return const [];
+    if (_destinationResolved || _sending) return const [];
     return RecentRecipients.matching(_codeController.text).take(5).toList();
+  }
+
+  /// Rooms I'm in whose code matches what's typed so far (all of them while
+  /// the field is empty).
+  List<Room> get _roomSuggestions {
+    if (_destinationResolved || _sending) return const [];
+    final typed = AppConstants.normalizeShortCode(_codeController.text);
+    return _myRooms
+        .where((r) => !r.isExpired && r.code.startsWith(typed))
+        .take(4)
+        .toList();
   }
 
   Future<void> _applyRecentCode(String code) async {
     _codeFocus.unfocus();
     _codeController.text = code;
     setState(() {
-      _codeValidated = false;
-      _validatedRecipientId = null;
-      _validatedRecipientKey = null;
+      _clearDestination();
       _codeError = null;
     });
     await _validateCode();
@@ -488,48 +546,307 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (mounted) setState(() {}); // reflect the new/updated alias
   }
 
-  /// Row shown once a code is validated: confirmation + an optional action to
-  /// save (or rename) a local, device-only nickname for this recipient.
-  Widget _recipientNameRow() {
+  /// The name to show for the validated person: my local alias for them,
+  /// else the nickname they chose, else nothing (the code is on screen).
+  String? get _recipientDisplayName =>
+      ContactAliases.aliasFor(_validatedRecipientId) ??
+      _validatedRecipientNickname;
+
+  /// Shown once the code is known to be a person's: who the files go to, and
+  /// an optional action to save (or rename) a device-only name for them.
+  Widget _personCard() {
     final c = context.mini;
     final alias = ContactAliases.aliasFor(_validatedRecipientId);
+    final name = _recipientDisplayName;
+    final code = AppConstants.normalizeShortCode(_codeController.text);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Row(
-        children: [
-          const Icon(MiniIcons.success, size: 16, color: MiniColors.success),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              alias != null ? 'Sending to $alias' : 'Code verified',
-              style: MiniText.small.copyWith(color: MiniColors.success),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: miniCard(context, radius: MiniRadius.control),
+        child: Row(
+          children: [
+            _DestinationAvatar(label: name ?? code, tint: MiniColors.success),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name != null ? 'Sending to $name' : 'Sending to one person',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MiniText.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: c.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Person · only they get these files',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MiniText.small.copyWith(color: c.inkSoft),
+                  ),
+                ],
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: _nameRecipient,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            if (!_sending)
+              _GhostAction(
+                label: alias != null ? 'Rename' : 'Name',
+                color: c.accent,
+                onTap: _nameRecipient,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Rooms I'm in, as one-tap destinations above the recent people.
+  Widget _roomSuggestionChips() {
+    final c = context.mini;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('YOUR ROOMS', style: MiniText.label),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Icon(
-                  alias != null ? MiniIcons.edit : MiniIcons.addPerson,
-                  size: 15,
-                  color: c.accent,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  alias != null ? 'Rename' : 'Name this person',
-                  style: MiniText.small.copyWith(
-                    color: c.accent,
-                    fontWeight: FontWeight.w500,
+                for (final room in _roomSuggestions)
+                  Material(
+                    color: c.sand,
+                    borderRadius: BorderRadius.circular(MiniRadius.chip),
+                    child: InkWell(
+                      onTap: () => _applyRecentCode(room.code),
+                      borderRadius: BorderRadius.circular(MiniRadius.chip),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(MiniIcons.rooms, size: 16, color: c.inkSoft),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 130),
+                                  child: Text(
+                                    room.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.ink,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _peopleCount(room.memberCount),
+                                  style:
+                                      MiniText.small.copyWith(color: c.inkSoft),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _peopleCount(int n) => n == 1 ? '1 person' : '$n people';
+
+  /// Whether the room's button can do anything: a member needs permission to
+  /// share and someone to share with; anyone else can always try to join.
+  bool _canOpenRoom(RoomDestination dest) {
+    if (_openingRoom) return false;
+    if (!dest.isMember) return true;
+    return dest.canShare && dest.recipients.isNotEmpty;
+  }
+
+  /// Shown once the code is known to be a room's. Says plainly that this is a
+  /// group, who is in it, and what the button below will do — joining a room
+  /// is never silent.
+  Widget _roomCard(RoomDestination dest) {
+    final c = context.mini;
+    final room = dest.room;
+    final others = dest.recipients;
+    final left = room.timeLeft;
+
+    final String detail;
+    Color detailColor = c.inkSoft;
+    if (!dest.isMember) {
+      detail = 'You’re not in this room yet. Joining adds you as a member '
+          'that everyone in it can see. You’ll see who’s in it before '
+          'anything is sent.';
+    } else if (!dest.canShare) {
+      detail = 'The host has paused sharing for you in this room.';
+      detailColor = MiniColors.warn;
+    } else if (others.isEmpty) {
+      detail = 'No one else has joined this room yet, so there’s nobody to '
+          'send to.';
+      detailColor = MiniColors.warn;
+    } else {
+      detail = 'Everyone else in this room (${_peopleCount(others.length)}) '
+          'will get these files.';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: miniCard(context, radius: MiniRadius.control),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                MiniIconPlate(icon: MiniIcons.rooms, tint: c.accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        room.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MiniText.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: c.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          'Room',
+                          if (dest.isMember)
+                            '${dest.members.length} '
+                                'member${dest.members.length == 1 ? '' : 's'}',
+                          roomCardTimeLeft(left),
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: MiniText.small.copyWith(
+                          color:
+                              left.inMinutes < 10 ? MiniColors.warn : c.inkSoft,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+            if (others.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                _memberNamesLine(others),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: MiniText.small.copyWith(color: c.ink),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(detail, style: MiniText.small.copyWith(color: detailColor)),
+          ],
+        ),
       ),
     );
+  }
+
+  /// "Asha, Ravi, K7M2PQ and 2 more".
+  String _memberNamesLine(List<RoomMember> others) {
+    const shown = 3;
+    final names = others
+        .take(shown)
+        .map((m) => ContactAliases.aliasFor(m.userId) ?? m.displayName)
+        .join(', ');
+    final extra = others.length - shown;
+    return extra > 0 ? '$names and $extra more' : names;
+  }
+
+  /// Joins the room if needed, then hands the selected files to the room
+  /// send screen, which shows every member and does the sending.
+  Future<void> _openRoom() async {
+    final dest = _room;
+    if (dest == null || !_canOpenRoom(dest)) return;
+    final me = widget.identity.id;
+    final joining = !dest.isMember;
+    setState(() {
+      _openingRoom = true;
+      _error = null;
+    });
+    HapticFeedback.selectionClick();
+
+    String? failure;
+    try {
+      if (joining) {
+        await RoomService.joinResolvedRoom(room: dest.room, userId: me);
+      }
+      // Read after the join: this is the list the files will go to.
+      final fresh = await widget.resolver.refreshRoom(dest.room, me);
+      if (!mounted) return;
+      if (!fresh.isMember) {
+        failure = joining
+            ? 'Couldn’t join this room. Try again.'
+            : 'You are no longer a member of this room.';
+      } else if (!fresh.canShare || fresh.recipients.isEmpty) {
+        // The card explains which; the button is disabled for both.
+        setState(() => _room = fresh);
+      } else {
+        if (joining) unawaited(_loadMyRooms());
+        Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated, {
+          'kind': joining ? 'room_joined' : 'room_opened',
+          'file_count': _selectedFiles.length,
+        });
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => RoomSendScreen(
+              identity: widget.identity,
+              room: fresh.room,
+              recipients: fresh.recipients,
+              initialFiles: List<PlatformFile>.of(_selectedFiles),
+            ),
+          ),
+        );
+        return;
+      }
+    } on RoomFullException catch (e) {
+      failure = e.toString();
+    } on RoomExpiredException catch (e) {
+      failure = e.toString();
+    } on RoomClosedException catch (e) {
+      failure = e.toString();
+    } catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendFailed, e);
+      failure = NetworkErrors.isRetryableFailure(e)
+          ? 'Can’t reach MiniGo. Check your connection and try again.'
+          : 'Couldn’t open this room. Try again.';
+      if (mounted) {
+        unawaited(AppErrorHandler.maybeShowServiceOutage(context, e));
+      }
+    } finally {
+      if (mounted) setState(() => _openingRoom = false);
+    }
+    if (mounted && failure != null) setState(() => _error = failure);
   }
 
   Future<void> _validateCode() async {
@@ -573,10 +890,14 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     });
 
     try {
-      final recipient = await IdentityService.findUserByCode(code);
+      final destination = await widget.resolver.resolve(
+        code: code,
+        myUserId: widget.identity.id,
+        knownRooms: _myRooms,
+      );
       if (stale()) return;
 
-      if (recipient == null) {
+      if (destination == null) {
         // A dead saved code usually means that person's identity was reset
         // (reinstall, cleared data) and their code changed.
         final isSavedCode = RecentRecipients.all.any((r) => r.code == code);
@@ -585,9 +906,9 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         HapticFeedback.lightImpact();
         setState(() {
           _codeError = isSavedCode
-              ? 'No user found with code "$code". This saved code may be out '
+              ? 'No one found with code "$code". This saved code may be out '
                   'of date. Ask them for their current code.'
-              : 'No user found with code "$code"';
+              : 'No person or room found with code "$code"';
           _staleRecentCode = isSavedCode ? code : null;
           _validatingCode = false;
         });
@@ -596,12 +917,38 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
 
       setState(() {
         _validatingCode = false;
-        _codeValidated = true;
-        _validatedRecipientId = recipient['id'] as String;
-        _validatedRecipientKey = recipient['public_key'] as String?;
+        _clearDestination();
+        switch (destination) {
+          case PersonDestination():
+            _codeValidated = true;
+            _validatedRecipientId = destination.userId;
+            _validatedRecipientKey = destination.publicKey;
+            _validatedRecipientNickname = destination.nickname;
+          case RoomDestination():
+            _room = destination;
+        }
       });
       HapticFeedback.lightImpact();
-      Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated);
+      Analytics.instance.logEvent(AnalyticsEvents.sendCodeValidated, {
+        'kind': switch (destination) {
+          PersonDestination() => 'person',
+          RoomDestination(isMember: true) => 'room_member',
+          RoomDestination() => 'room_not_member',
+        },
+      });
+    } on RoomExpiredException {
+      Analytics.instance.logEvent(
+          AnalyticsEvents.sendCodeInvalid, {'reason': 'room_expired'});
+      if (stale()) return;
+      HapticFeedback.lightImpact();
+      reject('This is a room code, but the room has expired.');
+    } on RoomLookupThrottledException {
+      Analytics.instance.logEvent(
+          AnalyticsEvents.sendCodeInvalid, {'reason': 'room_lookup_throttled'});
+      if (stale()) return;
+      // Only reached once the code was found not to be a person's.
+      reject('No person found with code "$code". Too many codes have been '
+          'tried to check it as a room. Wait a few minutes and try again.');
     } on PostgrestException catch (e) {
       Analytics.instance.logError(AnalyticsEvents.sendCodeInvalid, e);
       if (mounted && seq == _validationSeq) {
@@ -738,7 +1085,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         // Remember this recipient so it can be suggested next time.
         unawaited(RecentRecipients.record(
           AppConstants.normalizeShortCode(_codeController.text),
-          label: ContactAliases.aliasFor(_validatedRecipientId),
+          label: _recipientDisplayName,
         ));
         Analytics.instance.logEvent(AnalyticsEvents.sendCompleted, {
           'file_count': result.completedFiles,
@@ -748,7 +1095,12 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
         if (!mounted) return;
         Navigator.pop(context);
       } else {
-        final failureMessage = _buildPartialFailureMessage(result);
+        // While the saved job is kept, sending the same selection again
+        // resumes this transfer and only retries the files that failed.
+        final failureMessage = result.canResume
+            ? '${_buildPartialFailureMessage(result)} '
+                'Swipe to send again to retry.'
+            : _buildPartialFailureMessage(result);
         Analytics.instance.logEvent(AnalyticsEvents.sendFailed, {
           'partial': true,
           'completed': result.completedFiles,
@@ -767,6 +1119,20 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _error = 'Transfer cancelled';
+          _sending = false;
+        });
+      }
+    } on TransferNotAcceptingUploadsException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.sendFailed, e);
+      if (mounted) {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _error = e.expired
+              ? 'This transfer expired before all files were sent. '
+                  'Files that arrived were removed with it. Send again to '
+                  'start a new transfer.'
+              : 'This transfer was already closed, so no more files can be '
+                  'added to it. Send again to start a new transfer.';
           _sending = false;
         });
       }
@@ -928,7 +1294,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
       return 'Could not read this file. Please pick it again.';
     }
     if (message.contains('Upload failed (401') ||
-        message.contains('Upload failed (403')) {
+        message.contains('Upload failed (403') ||
+        message.contains('R2 signing refused')) {
       return 'Upload permission failed. Please try again.';
     }
     if (message.toLowerCase().contains('protocol(413') ||
@@ -962,9 +1329,11 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final c = context.mini;
     return PopScope(
-      canPop: !_sending,
+      // Joining a room is one short request; leaving in the middle of it
+      // would hide whether the join happened.
+      canPop: !_sending && !_openingRoom,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmLeaveWhileSending();
+        if (!didPop && !_openingRoom) _confirmLeaveWhileSending();
       },
       child: Scaffold(
         backgroundColor: c.paper,
@@ -992,7 +1361,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                         // Stays editable after validation: onChanged resets the
                         // validated state, so the user can switch recipients
                         // without leaving the screen.
-                        enabled: !_sending,
+                        enabled: !_sending && !_openingRoom,
                         textCapitalization: TextCapitalization.characters,
                         maxLength: AppConstants.codeLength,
                         textAlign: TextAlign.center,
@@ -1008,7 +1377,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           color: c.ink,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Enter code',
+                          hintText: 'Person or room code',
                           hintStyle: MiniText.body.copyWith(
                             fontSize: 17,
                             color: c.inkFaint,
@@ -1025,16 +1394,12 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                             // Abandon any lookup still running for the old text.
                             _validationSeq++;
                             _validatingCode = false;
-                            if (_codeValidated) {
-                              _codeValidated = false;
-                              _validatedRecipientId = null;
-                              _validatedRecipientKey = null;
-                            }
+                            _clearDestination();
                           });
                         },
                       ),
                     ),
-                    if (!_codeValidated && !_sending)
+                    if (!_destinationResolved && !_sending)
                       SizedBox(
                         width: 40,
                         height: 44,
@@ -1053,15 +1418,16 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                       child: SizedBox(
                         height: 44,
                         child: FilledButton(
-                          onPressed:
-                              (_validatingCode || _sending || _codeValidated)
-                                  ? null
-                                  : _validateCode,
+                          onPressed: (_validatingCode ||
+                                  _sending ||
+                                  _destinationResolved)
+                              ? null
+                              : _validateCode,
                           style: FilledButton.styleFrom(
-                            backgroundColor: _codeValidated
+                            backgroundColor: _destinationResolved
                                 ? MiniColors.success
                                 : MiniColors.blue600,
-                            disabledBackgroundColor: _codeValidated
+                            disabledBackgroundColor: _destinationResolved
                                 ? MiniColors.success
                                 : MiniColors.blue600.withValues(alpha: 0.45),
                             minimumSize: const Size(0, 44),
@@ -1079,7 +1445,7 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                                   ),
                                 )
                               : Text(
-                                  _codeValidated ? 'Verified' : 'Check',
+                                  _destinationResolved ? 'Verified' : 'Check',
                                   style: GoogleFonts.outfit(
                                     color: Colors.white,
                                     fontSize: 14,
@@ -1095,7 +1461,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             ),
             // Recent recipients — pill chips under the code field, filtered by
             // what's typed so far. Tapping one fills and validates the code.
-            if (_recentSuggestions.isNotEmpty && !_codeValidated && !_sending)
+            if (_roomSuggestions.isNotEmpty) _roomSuggestionChips(),
+            if (_recentSuggestions.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
                 child: SizedBox(
@@ -1179,7 +1546,8 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-            if (_codeValidated) _recipientNameRow(),
+            if (_codeValidated) _personCard(),
+            if (_room != null) _roomCard(_room!),
 
             // The recipient published no X25519 key, so these files would go up
             // as plaintext. Say so before the send, not after.
@@ -1297,7 +1665,18 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
             ),
 
             // Send button
-            if (_codeValidated && _selectedFiles.isNotEmpty)
+            if (_room != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 34),
+                child: MiniButton(
+                  label: _room!.isMember
+                      ? 'Continue to room'
+                      : 'Join room & continue',
+                  loading: _openingRoom,
+                  onPressed: _canOpenRoom(_room!) ? _openRoom : null,
+                ),
+              )
+            else if (_codeValidated && _selectedFiles.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 34),
                 child: FractionallySizedBox(
@@ -1307,11 +1686,16 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
                           label: _buildSendingLabel(),
                           loading: true,
                           onPressed: null,
-                          leading: GestureDetector(
-                            onTap: _cancelUpload,
-                            child: Icon(MiniIcons.close,
-                                size: 16, color: c.inkFaint),
-                          ),
+                          // Once every file is delivered only the status
+                          // write and the push remain; a cancel can no longer
+                          // stop anything, so don't offer one.
+                          leading: _allFilesDelivered
+                              ? null
+                              : GestureDetector(
+                                  onTap: _cancelUpload,
+                                  child: Icon(MiniIcons.close,
+                                      size: 16, color: c.inkFaint),
+                                ),
                         )
                       : _SwipeToSendButton(onSend: _send),
                 ),
@@ -1351,9 +1735,17 @@ class _SendScreenState extends State<SendScreen> with WidgetsBindingObserver {
     if (leave == true && mounted) Navigator.pop(context);
   }
 
+  bool get _allFilesDelivered {
+    final states = _uploadStates;
+    return states != null &&
+        states.isNotEmpty &&
+        states.every((s) => s.status == FileUploadStatus.completed);
+  }
+
   String _buildSendingLabel() {
     final states = _uploadStates;
     if (states == null) return 'Preparing…';
+    if (_allFilesDelivered) return 'Finishing…';
     final done =
         states.where((s) => s.status == FileUploadStatus.completed).length;
     return 'Sending $done / ${states.length}';
@@ -1431,6 +1823,35 @@ class _GhostAction extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Round initial for a resolved person.
+class _DestinationAvatar extends StatelessWidget {
+  final String label;
+  final Color tint;
+  const _DestinationAvatar({required this.label, required this.tint});
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = label.trim();
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: context.isDarkMini ? 0.20 : 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase(),
+        style: GoogleFonts.outfit(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: tint,
         ),
       ),
     );

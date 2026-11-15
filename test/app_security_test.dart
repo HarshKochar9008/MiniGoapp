@@ -95,15 +95,14 @@ void main() {
       expect(gradle,
           contains('applicationId = "${RaspConfig.androidPackageName}"'));
 
-      final pbxproj = File('ios/Runner.xcodeproj/project.pbxproj')
-          .readAsStringSync();
+      final pbxproj =
+          File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
       for (final id in RaspConfig.iosBundleIds) {
         expect(pbxproj, contains('PRODUCT_BUNDLE_IDENTIFIER = $id;'));
       }
     });
 
-    test('Android pins the upload certificate and trusts App Distribution',
-        () {
+    test('Android pins the upload certificate and trusts App Distribution', () {
       // Constructing the config runs freeRASP's own format checks.
       final android = RaspConfig.build()!.androidConfig!;
       expect(android.packageName, 'com.Zen.app');

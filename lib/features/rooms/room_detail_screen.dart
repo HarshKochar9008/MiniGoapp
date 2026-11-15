@@ -3,17 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/native/native_share.dart';
+import '../../core/time/server_clock.dart';
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_code_reel.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../contacts/contact_alias_sheet.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
+import 'room_lifecycle.dart';
+import 'room_realtime_link.dart';
 import 'room_send_screen.dart';
 import 'room_service.dart';
 import '../../Minigo/theme/mini_icons.dart';
@@ -31,95 +33,179 @@ class RoomDetailScreen extends StatefulWidget {
   State<RoomDetailScreen> createState() => _RoomDetailScreenState();
 }
 
-class _RoomDetailScreenState extends State<RoomDetailScreen> {
+class _RoomDetailScreenState extends State<RoomDetailScreen>
+    with WidgetsBindingObserver {
   List<RoomMember> _members = [];
   bool _loading = true;
-  bool _leaving = false;
+
+  /// Last member-list load failed (shown with a retry that reloads).
   String? _error;
+
+  /// At least one member-list load succeeded, so [_members] is the server's
+  /// answer rather than the empty placeholder.
+  bool _loadedOnce = false;
+
+  /// Leave / close in flight, and its own failure — kept apart from [_error]
+  /// so retrying a failed leave retries the leave, not a reload.
+  bool _leaving = false;
+  String? _leaveError;
+
+  /// The room row was deleted while this screen was open (host closed it, or
+  /// the expiry sweep removed it). Handled once.
+  bool _ended = false;
+
+  /// The send screen pushed from here, while it is open.
+  Route<void>? _sendRoute;
 
   bool get _isOwner => widget.room.isOwnedBy(widget.identity.id);
 
-  /// Whether the host allows me to share files (hosts always can).
-  bool get _iCanShare {
-    final mine = _members.where((m) => m.userId == widget.identity.id);
-    return mine.isEmpty || mine.first.canShare;
-  }
+  /// Server time says the room is past its `expires_at`. Until the sweep
+  /// deletes it the room still exists, but nobody can join, share, or change
+  /// permissions in it.
+  bool get _isExpired => widget.room.isExpired;
+
+  /// Whether I'm in the member list the server returned. Not being in it
+  /// means I left or was removed elsewhere.
+  bool get _isMember =>
+      !_loadedOnce || _members.any((m) => m.userId == widget.identity.id);
+
+  /// Whether the host allows me to share files. Not being in the list means
+  /// no: the server refuses room sends from non-members.
+  bool get _iCanShare => canShareInRoom(_members, widget.identity.id);
 
   Timer? _expiryTicker;
-  RealtimeChannel? _channel;
+  Timer? _expiryAlarm;
+  RoomRealtimeLink? _link;
   Timer? _liveReloadDebounce;
+  final _reloads = LiveReloadGate();
+
+  /// Host only: people blocked here who have since left (they can't be
+  /// unblocked with a switch — they have no member row).
+  List<RoomBlockedUser> _blocked = [];
+  final _unblockPending = <String>{};
+
+  bool _presenceCheckInFlight = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ContactAliases.ensureLoaded();
     ContactAliases.revision.addListener(_onAliasesChanged);
-    // Keep the countdown fresh
+    // Keep the countdown fresh, and flip to the expired state on time rather
+    // than up to one tick late.
     _expiryTicker = Timer.periodic(
       const Duration(seconds: 30),
-      (_) => mounted ? setState(() {}) : null,
+      (_) => _onExpiryTick(),
     );
+    final left = widget.room.timeLeft;
+    if (left > Duration.zero) {
+      _expiryAlarm = Timer(left + const Duration(seconds: 1), _onExpiryTick);
+    }
     _loadMembers();
-    _channel = RoomService.subscribeToRoom(
-      roomId: widget.room.id,
-      onMembersChanged: _onLiveChange,
-      onRoomDeleted: _onRoomDisbanded,
-    );
+    final roomId = widget.room.id;
+    _link = RoomRealtimeLink(
+      connect: (onStatus) => RoomService.subscribeToRoom(
+        roomId: roomId,
+        onMembersChanged: _onLiveChange,
+        onRoomDeleted: _onRoomDisbanded,
+        onStatus: onStatus,
+      ),
+      // Live again after a drop: member changes — or the room's deletion —
+      // sent meanwhile were lost. The reload catches both (see
+      // _checkPresence).
+      onResync: _requestReload,
+    )..start();
+  }
+
+  /// Back from the background: the socket may have been down the whole
+  /// time, the room may have expired or been deleted meanwhile, and the
+  /// device clock may have been changed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    unawaited(ServerClock.instance.refresh());
+    setState(() {}); // re-evaluate expiry now, not at the next tick
+    _requestReload();
+  }
+
+  /// A silent reload now, or — if one is in flight — right after it.
+  void _requestReload() {
+    if (mounted && _reloads.requestReload()) _loadMembers(silent: true);
   }
 
   void _onAliasesChanged() {
     if (mounted) setState(() {});
   }
 
-  /// Collapses bursts of member events into one silent reload.
-  void _onLiveChange() {
-    _liveReloadDebounce?.cancel();
-    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
-      if (mounted && !_loading) _loadMembers(silent: true);
-    });
+  void _onExpiryTick() {
+    if (!mounted) return;
+    setState(() {});
+    if (_isExpired) {
+      _expiryTicker?.cancel();
+      _expiryAlarm?.cancel();
+    }
   }
 
-  /// The host disbanded the room while we were looking at it.
-  void _onRoomDisbanded() {
-    if (!mounted || _leaving) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This room was closed by the host.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+  /// Collapses bursts of member events into one silent reload. An event that
+  /// lands during a load is queued, not dropped.
+  void _onLiveChange() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(
+      const Duration(milliseconds: 400),
+      _requestReload,
     );
-    // A bare pop() would close whatever is on top — the send screen, a
-    // dialog, the QR sheet — and leave this dead room showing underneath.
-    // Everything above this route belongs to the room, so close it all.
+  }
+
+  /// The room row was deleted while we were looking at it — by the host, or
+  /// by the expiry sweep. Server time tells the two apart.
+  void _onRoomDisbanded() {
+    if (!mounted || _leaving || _ended) return;
+    _ended = true;
     final route = ModalRoute.of(context);
     if (route == null || !route.isActive) return;
     final navigator = Navigator.of(context);
+
+    // The send screen stops its own send and says why; popping it (which
+    // ignores its PopScope) would throw away the per-member results. Take
+    // this dead room out from under it instead, so its Done lands on the
+    // rooms list.
+    final sendRoute = _sendRoute;
+    if (sendRoute != null && sendRoute.isActive) {
+      navigator.removeRoute(route);
+      return;
+    }
+
+    final reason = roomEndReason(
+      expiresAt: widget.room.expiresAt,
+      serverNow: ServerClock.instance.now(),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(roomEndMessage(reason, isOwner: _isOwner)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    // A bare pop() would close whatever is on top — a dialog, the QR sheet —
+    // and leave this dead room showing underneath. Everything above this
+    // route belongs to the room, so close it all.
     navigator.popUntil((r) => r == route);
     navigator.pop();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _expiryTicker?.cancel();
+    _expiryAlarm?.cancel();
     _liveReloadDebounce?.cancel();
-    if (_channel != null) RoomService.unsubscribe(_channel!);
+    _link?.dispose();
     ContactAliases.revision.removeListener(_onAliasesChanged);
     super.dispose();
   }
 
-  String get _expiryLabel {
-    if (widget.room.isExpired) return 'Room expired';
-    final left = widget.room.timeLeft;
-    if (left.inMinutes < 1) return 'Expires in under a minute';
-    if (left.inHours >= 1) {
-      final mins = left.inMinutes % 60;
-      return 'Expires in ${left.inHours} h${mins > 0 ? ' $mins min' : ''}';
-    }
-    return 'Expires in ${left.inMinutes} min';
-  }
-
   Color get _expiryTint {
-    if (widget.room.isExpired) return MiniColors.danger;
+    if (_isExpired) return MiniColors.danger;
     return widget.room.timeLeft.inMinutes < 10
         ? MiniColors.warn
         : context.mini.inkFaint;
@@ -127,57 +213,160 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
 
   void _showQr() {
     HapticFeedback.selectionClick();
-    QrCodeSheet.show(context, widget.room.code, forRoom: true);
-  }
-
-  void _openRoomSend() {
-    HapticFeedback.selectionClick();
-    final recipients =
-        _members.where((m) => m.userId != widget.identity.id).toList();
-    Navigator.push(
+    QrCodeSheet.show(
       context,
-      MaterialPageRoute(
-        builder: (_) => RoomSendScreen(
-          identity: widget.identity,
-          room: widget.room,
-          recipients: recipients,
-        ),
-      ),
+      widget.room.code,
+      forRoom: true,
+      shareText: _shareMessage,
+      shareSubject: _shareSubject,
     );
   }
 
+  Future<void> _openRoomSend() async {
+    HapticFeedback.selectionClick();
+    final recipients =
+        _members.where((m) => m.userId != widget.identity.id).toList();
+    final route = MaterialPageRoute<void>(
+      builder: (_) => RoomSendScreen(
+        identity: widget.identity,
+        room: widget.room,
+        recipients: recipients,
+      ),
+    );
+    _sendRoute = route;
+    await Navigator.push(context, route);
+    if (identical(_sendRoute, route)) _sendRoute = null;
+  }
+
   Future<void> _loadMembers({bool silent = false}) async {
+    final generation = _reloads.begin();
     if (!silent) {
       setState(() {
         _loading = true;
         _error = null;
       });
     }
+    // The host's blocked-and-left list rides along; it never throws.
+    final blocksFuture = _isOwner && !_isExpired
+        ? _fetchBlocks()
+        : Future<List<RoomBlockedUser>?>.value(const []);
     try {
       final members = await RoomService.listMembers(widget.room.id);
-      if (!mounted) return;
+      final blocks = await blocksFuture;
+      if (!mounted || !_reloads.isCurrent(generation)) return;
       setState(() {
-        _members = members;
+        // A permission write still in flight keeps its optimistic value; its
+        // own realtime event reloads again once it lands.
+        _members = [
+          for (final m in members)
+            _sharePending.containsKey(m.userId)
+                ? m.withCanShare(_sharePending[m.userId]!)
+                : m,
+        ];
+        if (blocks != null) _blocked = blocks;
         _loading = false;
+        _loadedOnce = true;
         _error = null;
       });
+      // Not in my own room's member list: I left elsewhere, was removed, or
+      // the room is gone — the last one may be a deletion this screen never
+      // heard about (socket down, app in background).
+      if (!members.any((m) => m.userId == widget.identity.id)) {
+        unawaited(_checkPresence());
+      }
     } catch (_) {
-      if (!mounted) return;
-      if (silent) return; // keep showing the last good list
+      if (!mounted || !_reloads.isCurrent(generation)) return;
+      // Keep showing the last good list — unless a foreground load is
+      // waiting on this one, which must not spin forever.
+      if (silent && !_loading) return;
       setState(() {
         _error = 'Could not load members. Check your connection.';
         _loading = false;
       });
+    } finally {
+      if (_reloads.end() && mounted) _loadMembers(silent: true);
     }
   }
 
-  /// Members with a can_share write in flight — a second tap waits it out, so
-  /// an older request's rollback can never undo a newer toggle.
-  final _sharePending = <String>{};
+  /// Null when the list is unavailable (RPC not deployed, offline): keep
+  /// showing the last one.
+  Future<List<RoomBlockedUser>?> _fetchBlocks() async {
+    try {
+      return await RoomService.listBlockedUsers(widget.room.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Asks the server whether this room still exists, after a reload found me
+  /// missing from it. A deleted room gets the same handling as its delete
+  /// event.
+  Future<void> _checkPresence() async {
+    if (_presenceCheckInFlight || _ended || _leaving) return;
+    _presenceCheckInFlight = true;
+    try {
+      final presence = await RoomService.roomPresence(widget.room.id);
+      if (!mounted) return;
+      // Without room_presence (20261113000005 not applied) "gone" and
+      // "removed" look alike: an empty list means the room is over for me
+      // either way.
+      if (presence == RoomPresence.gone ||
+          (presence == null && _members.isEmpty)) {
+        _onRoomDisbanded();
+      } else if (presence == RoomPresence.expired) {
+        setState(() {});
+      }
+    } catch (_) {
+      // Offline: the next reload asks again.
+    } finally {
+      _presenceCheckInFlight = false;
+    }
+  }
+
+  String _blockedName(RoomBlockedUser user) =>
+      ContactAliases.aliasFor(user.userId) ?? user.displayName;
+
+  Future<void> _unblock(RoomBlockedUser user) async {
+    if (!_isOwner || _isExpired || !_unblockPending.add(user.userId)) return;
+    HapticFeedback.selectionClick();
+    setState(() {});
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) =>
+        messenger.showSnackBar(SnackBar(content: Text(text)));
+    try {
+      await RoomService.unblockUser(
+        roomId: widget.room.id,
+        userId: user.userId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _blocked = _blocked.where((b) => b.userId != user.userId).toList();
+      });
+      say('${_blockedName(user)} can share again if they rejoin.');
+    } on RoomMemberPresentException {
+      // They rejoined meanwhile: the member switch is the way now.
+      say('${_blockedName(user)} is back in the room — use their switch.');
+      _requestReload();
+    } on RoomExpiredException {
+      say('This room has expired.');
+    } catch (_) {
+      say('Could not unblock. Check your connection.');
+    } finally {
+      _unblockPending.remove(user.userId);
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Members with a can_share write in flight, and the value being written —
+  /// a second tap waits it out, so an older request's rollback can never undo
+  /// a newer toggle.
+  final _sharePending = <String, bool>{};
 
   Future<void> _toggleMemberShare(RoomMember member, bool value) async {
+    if (!_isOwner || _isExpired) return;
     final idx = _members.indexWhere((m) => m.userId == member.userId);
-    if (idx == -1 || !_sharePending.add(member.userId)) return;
+    if (idx == -1 || _sharePending.containsKey(member.userId)) return;
+    _sharePending[member.userId] = value;
     HapticFeedback.selectionClick();
     setState(() => _members[idx] = member.withCanShare(value));
     try {
@@ -186,15 +375,19 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         userId: member.userId,
         canShare: value,
       );
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       // Look up again: a realtime reload may have replaced the list meanwhile.
       final now = _members.indexWhere((m) => m.userId == member.userId);
-      if (now != -1) {
-        setState(() => _members[now] = _members[now].withCanShare(!value));
-      }
+      setState(() {
+        if (now != -1) _members[now] = _members[now].withCanShare(!value);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update permission')),
+        SnackBar(
+          content: Text(e is RoomExpiredException
+              ? 'This room has expired.'
+              : 'Could not update permission'),
+        ),
       );
     } finally {
       _sharePending.remove(member.userId);
@@ -209,13 +402,15 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     );
   }
 
+  static const _shareSubject = 'MiniGo room invite';
+
+  String get _shareMessage =>
+      'Join my room "${widget.room.name}" on MiniGo with code: '
+      '${widget.room.code}';
+
   void _shareCode() {
     HapticFeedback.selectionClick();
-    NativeShareService.shareText(
-      'Join my room "${widget.room.name}" on MiniGo with code: '
-      '${widget.room.code}',
-      subject: 'MiniGo room invite',
-    );
+    NativeShareService.shareText(_shareMessage, subject: _shareSubject);
   }
 
   Future<void> _leaveRoom() async {
@@ -243,8 +438,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    await _performLeave();
+  }
 
-    setState(() => _leaving = true);
+  /// The leave itself, after confirmation. Also the retry for a failed one.
+  Future<void> _performLeave() async {
+    if (_leaving) return;
+    setState(() {
+      _leaving = true;
+      _leaveError = null;
+    });
     try {
       await RoomService.leaveRoom(
         room: widget.room,
@@ -257,7 +460,9 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
       if (!mounted) return;
       setState(() {
         _leaving = false;
-        _error = 'Could not leave the room. Check your connection.';
+        _leaveError = _isOwner
+            ? 'Could not close the room. Check your connection.'
+            : 'Could not leave the room. Check your connection.';
       });
     }
   }
@@ -265,6 +470,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    final expired = _isExpired;
+    final isMember = _isMember;
     return Scaffold(
       backgroundColor: c.paper,
       appBar: AppBar(
@@ -306,7 +513,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                             style: MiniText.code.copyWith(
                               fontSize: 30,
                               fontWeight: FontWeight.w600,
-                              color: c.ink,
+                              color: expired ? c.inkFaint : c.ink,
                               letterSpacing: 4,
                             ),
                           ),
@@ -326,7 +533,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                     size: 14, color: _expiryTint),
                                 const SizedBox(width: 5),
                                 Text(
-                                  _expiryLabel,
+                                  roomDetailExpiryLabel(widget.room.timeLeft),
                                   style: GoogleFonts.outfit(
                                     fontSize: 12,
                                     height: 1,
@@ -338,13 +545,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          // An expired code can't be joined: don't hand it out.
                           Row(
                             children: [
                               Expanded(
                                 child: _OutlineBtn(
                                   icon: MiniIcons.copy,
                                   label: 'Copy',
-                                  onTap: _copyCode,
+                                  onTap: expired ? null : _copyCode,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -352,7 +560,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 child: _OutlineBtn(
                                   icon: MiniIcons.qr,
                                   label: 'QR',
-                                  onTap: _showQr,
+                                  onTap: expired ? null : _showQr,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -360,7 +568,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 child: _OutlineBtn(
                                   icon: MiniIcons.share,
                                   label: 'Invite',
-                                  onTap: _shareCode,
+                                  onTap: expired ? null : _shareCode,
                                 ),
                               ),
                             ],
@@ -369,6 +577,22 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       ),
                     ),
                   ),
+                  if (expired) ...[
+                    const SizedBox(height: 12),
+                    StatusBanner(
+                      icon: MiniIcons.timer,
+                      text: 'This room has expired. Nobody can join or share '
+                          'files in it, and its files are being removed.',
+                      tint: MiniColors.danger,
+                    ),
+                  ] else if (!isMember) ...[
+                    const SizedBox(height: 12),
+                    StatusBanner(
+                      icon: MiniIcons.blocked,
+                      text: 'You are no longer a member of this room.',
+                      tint: MiniColors.warn,
+                    ),
+                  ],
                   const SizedBox(height: 8),
 
                   SectionHeader(
@@ -399,7 +623,11 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         isHost: member.userId == widget.room.ownerId,
                         showShareToggle:
                             _isOwner && member.userId != widget.identity.id,
-                        onShareToggle: (v) => _toggleMemberShare(member, v),
+                        // Visible but frozen once expired: the server refuses
+                        // permission changes in an expired room.
+                        onShareToggle: expired
+                            ? null
+                            : (v) => _toggleMemberShare(member, v),
                         onLongPress: member.userId == widget.identity.id
                             ? null
                             : () => ContactAliasSheet.show(
@@ -409,7 +637,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 ),
                       ),
                     ],
-                  if (_isOwner && _members.length > 1)
+                  if (_isOwner && _members.length > 1 && !expired)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
@@ -418,6 +646,28 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         style: MiniText.small,
                       ),
                     ),
+
+                  if (_isOwner && !expired && _blocked.isNotEmpty) ...[
+                    SectionHeader(
+                      title: 'Blocked',
+                      counter: '${_blocked.length}',
+                    ),
+                    for (final b in _blocked)
+                      _BlockedRow(
+                        name: _blockedName(b),
+                        code: b.shortCode,
+                        busy: _unblockPending.contains(b.userId),
+                        onUnblock: () => _unblock(b),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'They left while blocked, and stay blocked if they '
+                        'rejoin until you unblock them.',
+                        style: MiniText.small,
+                      ),
+                    ),
+                  ],
 
                   if (_error != null) ...[
                     const SizedBox(height: 12),
@@ -440,9 +690,16 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!widget.room.isExpired &&
-                    _members.length > 1 &&
-                    _iCanShare) ...[
+                if (_leaveError != null) ...[
+                  StatusBanner(
+                    icon: MiniIcons.error,
+                    text: '${_leaveError!} Tap to try again.',
+                    tint: MiniColors.danger,
+                    onTap: _leaving ? null : _performLeave,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (!expired && _members.length > 1 && _iCanShare) ...[
                   MiniButton(
                     label: 'Share files to room',
                     leading: Icon(
@@ -456,7 +713,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 ],
                 MiniButton(
                   label: _leaving
-                      ? 'Leaving…'
+                      ? (_isOwner ? 'Closing…' : 'Leaving…')
                       : _isOwner
                           ? 'Close room'
                           : 'Leave room',
@@ -584,16 +841,93 @@ class _MemberRow extends StatelessWidget {
   }
 }
 
+/// Someone the host blocked who has left: name, code, Unblock.
+class _BlockedRow extends StatelessWidget {
+  final String name;
+  final String code;
+  final bool busy;
+  final VoidCallback onUnblock;
+
+  const _BlockedRow({
+    required this.name,
+    required this.code,
+    required this.busy,
+    required this.onUnblock,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.mini;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: miniCard(context, radius: MiniRadius.tile),
+      child: Row(
+        children: [
+          Icon(MiniIcons.blocked, size: 18, color: c.inkFaint),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                    color: c.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fmtCode(code),
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w500,
+                    color: c.inkFaint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (busy)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: c.accent,
+                ),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: onUnblock,
+              child: const Text('Unblock'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OutlineBtn extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+
+  /// Null renders the button disabled.
+  final VoidCallback? onTap;
   const _OutlineBtn(
       {required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    final fg = onTap == null ? c.inkFaint : c.ink;
     return Material(
       color: c.sand,
       borderRadius: BorderRadius.circular(MiniRadius.control),
@@ -605,14 +939,14 @@ class _OutlineBtn extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: c.ink),
+              Icon(icon, size: 16, color: fg),
               const SizedBox(width: 7),
               Text(
                 label,
                 style: GoogleFonts.outfit(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w500,
-                  color: c.ink,
+                  color: fg,
                 ),
               ),
             ],

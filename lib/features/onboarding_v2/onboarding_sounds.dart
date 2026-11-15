@@ -45,6 +45,11 @@ abstract final class OnbSounds {
   static Timer? _spinStart;
   static Timer? _spinCut;
 
+  /// Bumped by every spin cue. A fade-in started for an older one gives up:
+  /// it awaits several platform calls, and a stop arriving in between used
+  /// to find the loop not yet playing, skip it, and let it start after.
+  static int _spinGen = 0;
+
   static final _context = AudioContext(
     iOS: AudioContextIOS(category: AVAudioSessionCategory.ambient),
     android: const AudioContextAndroid(
@@ -72,13 +77,16 @@ abstract final class OnbSounds {
       case OnbSoundCue.reelsSpin:
         _spinCut?.cancel();
         _spinStart?.cancel();
-        _spinStart = Timer(_spinDelay, () => _fadeIn(_Sfx.spin));
+        final gen = ++_spinGen;
+        _spinStart = Timer(_spinDelay, () => _fadeIn(_Sfx.spin, gen));
       case OnbSoundCue.reelsLand:
+        _spinGen++;
         _spinStart?.cancel();
         await _start(_Sfx.land);
         _spinCut?.cancel();
         _spinCut = Timer(_handoff, () => _stop(_Sfx.spin));
       case OnbSoundCue.reelsStop:
+        _spinGen++;
         _spinStart?.cancel();
         await _fadeOut(_Sfx.spin);
       case OnbSoundCue.codeReveal:
@@ -87,6 +95,7 @@ abstract final class OnbSounds {
   }
 
   static Future<void> dispose() async {
+    _spinGen++;
     _spinStart?.cancel();
     _spinCut?.cancel();
     final players = [..._players.values];
@@ -111,14 +120,22 @@ abstract final class OnbSounds {
   }
 
   /// Plays from the start, swelling in rather than starting at full volume.
-  static Future<void> _fadeIn(_Sfx sfx) async {
+  static Future<void> _fadeIn(_Sfx sfx, int gen) async {
     try {
       final player = await _load(sfx);
+      if (gen != _spinGen) return;
       await player.stop();
       await player.setVolume(0.4);
+      if (gen != _spinGen) return;
       await player.resume();
       for (final volume in const [0.7, 1.0]) {
         await Future<void>.delayed(const Duration(milliseconds: 40));
+        if (gen != _spinGen) {
+          // Stopped or landed while this was starting up.
+          await player.stop();
+          await player.setVolume(1);
+          return;
+        }
         await player.setVolume(volume);
       }
     } catch (e) {

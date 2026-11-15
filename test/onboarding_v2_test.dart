@@ -28,6 +28,7 @@ class FakeServices extends OnbServices {
   int notificationRequests = 0;
   final sounds = <OnbSoundCue>[];
   String? savedNickname;
+  String? nicknameForLater;
   bool completed = false;
   Set<OnbPain>? savedRelates;
 
@@ -58,6 +59,10 @@ class FakeServices extends OnbServices {
 
   @override
   Future<void> saveNickname(String nickname) async => savedNickname = nickname;
+
+  @override
+  Future<void> saveNicknameForLater(String nickname) async =>
+      nicknameForLater = nickname;
 
   @override
   Future<void> markComplete() async => completed = true;
@@ -123,6 +128,7 @@ void main() {
     Size size = const Size(360, 740),
     bool reduceMotion = true,
     double textScale = 1,
+    bool isReplay = false,
   }) async {
     tester.view.physicalSize = size * 3;
     tester.view.devicePixelRatio = 3;
@@ -140,6 +146,7 @@ void main() {
               onComplete: onComplete,
               services: services,
               showProPaywall: paywall,
+              isReplay: isReplay,
             ),
           ),
         ),
@@ -365,6 +372,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('leaving without a code keeps the nickname for later',
+      (tester) async {
+    final services = FakeServices(failures: 99);
+    await pumpFlow(tester, services, onComplete: () {});
+    await answerQuestions(tester, agreeNone);
+    await tester.enterText(find.byType(TextField), 'Alex');
+    await tapText(tester, 'Looks good');
+    await pullLever(tester);
+    await tapText(tester, 'Continue without a code');
+
+    expect(services.nicknameForLater, 'Alex');
+    expect(services.savedNickname, isNull);
+  });
+
   testWidgets('no swipe statement is cut off at large text sizes',
       (tester) async {
     await pumpFlow(tester, FakeServices(),
@@ -410,6 +431,59 @@ void main() {
       OnbSoundCue.codeReveal,
     ]);
     expect(tester.takeException(), isNull);
+  });
+
+  /// With motion on: welcome → deck (all "Not me") → solution, stopping just
+  /// after the last card is thrown when [throughSolution] is false.
+  Future<void> reachWithMotion(WidgetTester t,
+      {bool throughSolution = true}) async {
+    await advance(t, 1800);
+    await tapText(t, 'Get started', settle: 1400);
+    for (var i = 0; i < onbStatements.length - 1; i++) {
+      await tapText(t, 'Not me', settle: 500);
+    }
+    if (!throughSolution) {
+      await t.tap(find.text('Not me').last);
+      return;
+    }
+    await tapText(t, 'Not me', settle: 500);
+    await advance(t, 1600);
+    await tapText(t, 'Set me up', settle: 1400);
+  }
+
+  testWidgets('a double tap while a step animates out never skips the code',
+      (tester) async {
+    final services = FakeServices();
+    await pumpFlow(tester, services, onComplete: () {}, reduceMotion: false);
+    await reachWithMotion(tester);
+
+    // The second tap lands while the nickname screen is still sliding out.
+    // It used to advance again from the craft step, onto a card with no code.
+    final skip = find.text('Skip for now');
+    await tester.tap(skip.last);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(skip.last, warnIfMissed: false);
+    await advance(tester, 1400);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Pull the lever'), findsOneWidget);
+    expect(find.text('Make your share card'), findsNothing);
+  });
+
+  testWidgets('going back right after the last card stays on welcome',
+      (tester) async {
+    final services = FakeServices();
+    await pumpFlow(tester, services, onComplete: () {}, reduceMotion: false);
+    await reachWithMotion(tester, throughSolution: false);
+
+    // Inside the deck's pause before it reports "done".
+    await advance(tester, 400);
+    await tester.tap(find.byTooltip('Back'));
+    await advance(tester, 1600);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Get started'), findsOneWidget);
+    expect(find.text('Sound familiar?'), findsNothing);
   });
 
   testWidgets('coming back from the card shows the code already crafted',
@@ -477,6 +551,31 @@ void main() {
     await tapText(tester, 'Skip');
     expect(done, isTrue);
     expect(services.notificationRequests, 1);
+    expect(services.savedRelates, isEmpty);
+  });
+
+  testWidgets('skipping a replay keeps the answers saved last time',
+      (tester) async {
+    final services = FakeServices();
+    var done = false;
+    await pumpFlow(tester, services,
+        onComplete: () => done = true, isReplay: true);
+    await tapText(tester, 'Skip');
+    expect(done, isTrue);
+    expect(services.savedRelates, isNull);
+  });
+
+  testWidgets('a replay that finishes the deck saves the new answers',
+      (tester) async {
+    final services = FakeServices();
+    await pumpFlow(tester, services, onComplete: () {}, isReplay: true);
+    await answerQuestions(tester, agreeOddCards);
+    await tapText(tester, 'Skip for now');
+    await pullLever(tester);
+    await tapText(tester, 'Make my share card');
+    await tapText(tester, 'Use this card');
+    await tapText(tester, 'Continue');
+    expect(services.savedRelates, {OnbPain.swapNumbers, OnbPain.groupChat});
   });
 
   testWidgets('the share-card step offers no Room, even to group sharers',

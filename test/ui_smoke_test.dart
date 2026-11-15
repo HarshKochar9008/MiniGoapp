@@ -280,9 +280,10 @@ void main() {
         {
           'id': 't1',
           'sender_id': 'me',
-          'created_at':
-              DateTime.now().toUtc().subtract(const Duration(minutes: 12))
-                  .toIso8601String(),
+          'created_at': DateTime.now()
+              .toUtc()
+              .subtract(const Duration(minutes: 12))
+              .toIso8601String(),
           '_files': [
             {'file_name': 'Q3-deck-final.pdf', 'file_size': 8000000},
             {'file_name': 'notes.txt', 'file_size': 400000},
@@ -291,7 +292,9 @@ void main() {
         {
           'id': 't2',
           'sender_id': 'someone-else',
-          'created_at': DateTime.now().toUtc().subtract(const Duration(days: 1))
+          'created_at': DateTime.now()
+              .toUtc()
+              .subtract(const Duration(days: 1))
               .toIso8601String(),
           '_files': [
             {'file_name': 'shoot-raws.zip', 'file_size': 240 * 1024 * 1024},

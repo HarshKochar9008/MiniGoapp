@@ -257,7 +257,6 @@ class _OnbCraftScreenState extends State<OnbCraftScreen> {
 
   /// The reveal has locked in: show the caption and the button.
   late bool _settled = widget.initialIdentity != null;
-  Timer? _settle;
 
   /// Identity creation starts as soon as the screen shows, so the pull
   /// usually lands without waiting on the network.
@@ -268,12 +267,6 @@ class _OnbCraftScreenState extends State<OnbCraftScreen> {
   void initState() {
     super.initState();
     if (widget.initialIdentity == null) _start();
-  }
-
-  @override
-  void dispose() {
-    _settle?.cancel();
-    super.dispose();
   }
 
   Future<UserIdentity> _start() {
@@ -320,13 +313,16 @@ class _OnbCraftScreenState extends State<OnbCraftScreen> {
     if (!mounted || _state == _Craft.revealed) return;
     onbThump();
     widget.onSound(OnbSoundCue.codeReveal);
-    setState(() => _state = _Craft.revealed);
-    if (onbReduceMotion(context)) {
+    setState(() {
+      _state = _Craft.revealed;
+      // With motion on, the stage reports when its tiles lock in.
+      if (onbReduceMotion(context)) _settled = true;
+    });
+  }
+
+  void _onSettled() {
+    if (mounted && _state == _Craft.revealed && !_settled) {
       setState(() => _settled = true);
-    } else {
-      _settle = Timer(OnbCodeStage.settleDelay, () {
-        if (mounted) setState(() => _settled = true);
-      });
     }
   }
 
@@ -345,6 +341,7 @@ class _OnbCraftScreenState extends State<OnbCraftScreen> {
             revealed: revealed,
             onPull: _onPull,
             onLanded: _onLanded,
+            onSettled: _onSettled,
           ),
           const SizedBox(height: 26),
           AnimatedSwitcher(

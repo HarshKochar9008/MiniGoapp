@@ -33,6 +33,10 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/// Transfers live this long after created_at. Mirrors TTL_HOURS in
+/// expire-transfers and AppConstants.transferTtlHours in the app.
+const TTL_HOURS = 24;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -222,7 +226,7 @@ Deno.serve(async (req) => {
   // receiver_id and sender_code are taken from the DB, NOT the request body.
   const { data: transfer, error: tErr } = await admin
     .from("transfers")
-    .select("id, sender_id, receiver_id")
+    .select("id, sender_id, receiver_id, status, created_at")
     .eq("id", transferId)
     .maybeSingle();
   if (tErr) {
@@ -235,6 +239,18 @@ Deno.serve(async (req) => {
   if (transfer.sender_id !== callerUserId) {
     // The caller is not the sender of this transfer — refuse.
     return json({ error: "Forbidden: not the sender of this transfer" }, 403);
+  }
+
+  // A push for an expired transfer only sends the receiver to files that are
+  // gone. Queued client retries can arrive long after the send (offline
+  // device), so this is checked here, not trusted to the caller.
+  const createdMs = Date.parse((transfer.created_at ?? "").toString());
+  const pastTtl = Number.isFinite(createdMs) &&
+    createdMs < Date.now() - TTL_HOURS * 3600 * 1000;
+  if (
+    (transfer.status ?? "").toString().toLowerCase() === "expired" || pastTtl
+  ) {
+    return json({ ok: true, skipped: "expired" });
   }
 
   const receiverId = transfer.receiver_id as string | null;

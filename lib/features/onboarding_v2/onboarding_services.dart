@@ -71,6 +71,11 @@ class OnbServices {
   Future<void> saveNickname(String nickname) =>
       IdentityService.setNickname(nickname);
 
+  /// For "Continue without a code": the identity the app creates later takes
+  /// this nickname.
+  Future<void> saveNicknameForLater(String nickname) =>
+      IdentityService.setNicknameForFirstIdentity(nickname);
+
   Future<void> markComplete() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);

@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/errors/app_error_handler.dart';
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
+import '../../core/time/server_clock.dart';
 import '../identity/identity_service.dart';
 import '../qr/qr_widgets.dart';
 import 'room_detail_screen.dart';
+import 'room_lifecycle.dart';
+import 'room_realtime_link.dart';
 import 'room_service.dart';
 import '../../Minigo/theme/mini_icons.dart';
 
@@ -23,40 +25,106 @@ class RoomsScreen extends StatefulWidget {
   State<RoomsScreen> createState() => _RoomsScreenState();
 }
 
-class _RoomsScreenState extends State<RoomsScreen> {
+class _RoomsScreenState extends State<RoomsScreen> with WidgetsBindingObserver {
   List<Room> _rooms = [];
   bool _loading = true;
   String? _error;
-  RealtimeChannel? _channel;
+  RoomRealtimeLink? _link;
   Timer? _liveReloadDebounce;
+
+  /// Re-renders the "Xm left" labels and drops rooms whose time is up, so
+  /// the list never shows a room the server has stopped serving.
+  Timer? _countdownTicker;
+  final _reloads = LiveReloadGate();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _subscribe();
     _loadRooms();
-    _channel = RoomService.subscribeToMyRooms(
-      userId: widget.identity.id,
-      onChange: _onLiveChange,
+    _countdownTicker = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _onCountdownTick(),
     );
+  }
+
+  /// The shell swaps the identity in place (IndexedStack keeps this state),
+  /// e.g. after a dead session re-registers. The list, the subscription and
+  /// any in-flight load all belong to the old identity.
+  @override
+  void didUpdateWidget(covariant RoomsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.identity.id == widget.identity.id) return;
+    _liveReloadDebounce?.cancel();
+    _reloads.invalidate();
+    _unsubscribe();
+    _rooms = [];
+    _subscribe();
+    _loadRooms();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _liveReloadDebounce?.cancel();
-    if (_channel != null) RoomService.unsubscribe(_channel!);
+    _countdownTicker?.cancel();
+    _unsubscribe();
     super.dispose();
   }
 
-  /// A burst of realtime events (e.g. several members joining) collapses
-  /// into one silent reload.
-  void _onLiveChange() {
-    _liveReloadDebounce?.cancel();
-    _liveReloadDebounce = Timer(const Duration(milliseconds: 400), () {
-      if (mounted && !_loading) _loadRooms(silent: true);
+  /// Back from the background: the socket may have been down the whole time,
+  /// and the device clock may have been changed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    unawaited(ServerClock.instance.refresh());
+    _requestReload();
+  }
+
+  void _subscribe() {
+    final userId = widget.identity.id;
+    _link = RoomRealtimeLink(
+      connect: (onStatus) => RoomService.subscribeToMyRooms(
+        userId: userId,
+        onChange: _onLiveChange,
+        onStatus: onStatus,
+      ),
+      // Live again after a drop: whatever changed meanwhile was not sent.
+      onResync: _requestReload,
+    )..start();
+  }
+
+  void _unsubscribe() {
+    _link?.dispose();
+    _link = null;
+  }
+
+  /// A silent reload now, or — if one is in flight — right after it.
+  void _requestReload() {
+    if (mounted && _reloads.requestReload()) _loadRooms(silent: true);
+  }
+
+  void _onCountdownTick() {
+    if (!mounted) return;
+    setState(() {
+      _rooms = _rooms.where((r) => !r.isExpired).toList();
     });
   }
 
+  /// A burst of realtime events (e.g. several members joining) collapses
+  /// into one silent reload. An event during a load is queued, not dropped:
+  /// that load may have read before the change.
+  void _onLiveChange() {
+    _liveReloadDebounce?.cancel();
+    _liveReloadDebounce = Timer(
+      const Duration(milliseconds: 400),
+      _requestReload,
+    );
+  }
+
   Future<void> _loadRooms({bool silent = false}) async {
+    final generation = _reloads.begin();
     if (!silent) {
       setState(() {
         _loading = true;
@@ -65,19 +133,23 @@ class _RoomsScreenState extends State<RoomsScreen> {
     }
     try {
       final rooms = await RoomService.listMyRooms(widget.identity.id);
-      if (!mounted) return;
+      if (!mounted || !_reloads.isCurrent(generation)) return;
       setState(() {
         _rooms = rooms;
         _loading = false;
         _error = null;
       });
     } catch (_) {
-      if (!mounted) return;
-      if (silent) return; // keep showing the last good list
+      if (!mounted || !_reloads.isCurrent(generation)) return;
+      // Keep showing the last good list — unless a foreground load is
+      // waiting on this one, which must not spin forever.
+      if (silent && !_loading) return;
       setState(() {
         _error = 'Could not load rooms. Check your connection.';
         _loading = false;
       });
+    } finally {
+      if (_reloads.end() && mounted) _loadRooms(silent: true);
     }
   }
 
@@ -138,8 +210,7 @@ class _RoomsScreenState extends State<RoomsScreen> {
                     ),
                   ),
                   IconButton(
-                    icon:
-                        Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
+                    icon: Icon(MiniIcons.refresh, color: c.inkSoft, size: 21),
                     onPressed: _loadRooms,
                   ),
                 ],
@@ -323,18 +394,10 @@ class _RoomCard extends StatelessWidget {
     required this.onTap,
   });
 
-  String _timeLeftLabel() {
-    if (room.isExpired) return 'Expired';
-    final left = room.timeLeft;
-    if (left.inHours > 0) {
-      return '${left.inHours}h ${left.inMinutes % 60}m left';
-    }
-    return '${left.inMinutes}m left';
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
+    final left = room.timeLeft;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(MiniRadius.card),
@@ -403,11 +466,11 @@ class _RoomCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      _timeLeftLabel(),
+                      roomCardTimeLeft(left),
                       style: GoogleFonts.outfit(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w500,
-                        color: !room.isExpired && room.timeLeft.inMinutes < 10
+                        color: left > Duration.zero && left.inMinutes < 10
                             ? MiniColors.warn
                             : c.inkFaint,
                       ),
@@ -748,7 +811,8 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
   }
 
   Future<void> _scanQr() async {
-    final code = await QrScannerSheet.show(context, title: "Scan the room's QR code");
+    final code =
+        await QrScannerSheet.show(context, title: "Scan the room's QR code");
     if (code == null || !mounted) return;
     _codeController.text = code;
     await _join();
@@ -791,6 +855,12 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
       setState(() {
         _joining = false;
         _error = 'This room has expired.';
+      });
+    } on RoomClosedException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _joining = false;
+        _error = e.toString();
       });
     } on RoomLookupThrottledException catch (e) {
       if (!mounted) return;
@@ -852,8 +922,7 @@ class _JoinRoomSheetState extends State<_JoinRoomSheet> {
             borderSide: BorderSide.none,
           ),
           suffixIcon: IconButton(
-            icon:
-                Icon(MiniIcons.scanQr, size: 20, color: c.inkSoft),
+            icon: Icon(MiniIcons.scanQr, size: 20, color: c.inkSoft),
             tooltip: 'Scan room QR',
             onPressed: _joining ? null : _scanQr,
           ),

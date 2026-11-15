@@ -11,10 +11,12 @@ import 'core/contacts/contact_aliases.dart';
 import 'core/errors/service_health.dart';
 import 'core/native/share_intent_bridge.dart';
 import 'core/navigation/root_navigator.dart';
+import 'core/security/app_lock.dart';
 import 'core/widget_bridge.dart';
 import 'core/network/connection_status.dart';
 import 'core/network/network_errors.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/notifications/pending_push.dart';
 import 'core/offline/offline_sync_coordinator.dart';
 import 'core/offline/pending_backend_jobs.dart';
 import 'core/security/security_gate.dart';
@@ -56,7 +58,7 @@ class MiniGoApp extends StatelessWidget {
           MiniText.palette =
               Theme.of(context).extension<MiniThemeExtension>() ??
                   MiniThemeExtension.light;
-          return SecurityGate(child: child!);
+          return SecurityGate(child: AppLockGate(child: child!));
         },
         home: const _AppEntry(),
       ),
@@ -105,7 +107,15 @@ class _AppEntryState extends State<_AppEntry> {
     }
 
     if (!_onboardingComplete!) {
-      void done() => setState(() => _onboardingComplete = true);
+      void done() {
+        // main.dart only sets notifications up for installs that were
+        // already onboarded. Listeners (foreground messages, taps, token
+        // refresh) are needed in this session too; the permission prompt
+        // stays with onboarding, so a "Skip for now" still holds.
+        unawaited(NotificationService.initializeWithoutPrompt());
+        setState(() => _onboardingComplete = true);
+      }
+
       return _variant == OnboardingVariant.questionnaire
           ? OnboardingFlowV2(onComplete: done)
           : OnboardingScreen(onComplete: done);
@@ -134,6 +144,27 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _autoRetryAttempts = 0;
   VoidCallback? _connectivityListener;
   bool _consumingSharedFiles = false;
+
+  /// The user id the per-user services (FCM token, offline drain) currently
+  /// run for. Only ever a verified identity: a provisional one may belong to
+  /// a retired row or a replaced session, and nothing may write to the
+  /// server on its behalf.
+  String? _servicesUserId;
+
+  /// The user id analytics, the home-screen widget and notification-tap
+  /// delivery were last set up for (provisional identities included).
+  String? _localUserId;
+
+  /// Re-verification of a provisional identity: on resume, when the network
+  /// comes back, and on a backoff timer in between.
+  Timer? _reverifyTimer;
+  static const Duration _reverifyFirstDelay = Duration(seconds: 10);
+  static const Duration _reverifyMaxDelay = Duration(minutes: 2);
+  Duration _reverifyDelay = _reverifyFirstDelay;
+  bool _reverifying = false;
+
+  /// An app reset is replacing this shell: stop reacting to anything.
+  bool _detached = false;
 
   /// If another app shared files to us (share sheet), open the Send flow
   /// with those files pre-selected.
@@ -195,9 +226,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     required bool willAutoRetry,
     BackendHealth health = BackendHealth.unknown,
   }) {
+    // Only claimed when the backend itself answered with a server error.
     if (health == BackendHealth.serviceDown) {
       return 'MiniGo is down right now. It’s not your connection. Try again '
           'in a few minutes.';
+    }
+    if (health == BackendHealth.offline) {
+      return willAutoRetry
+          ? 'No internet connection. Check your Wi‑Fi or mobile data. '
+              'Retrying…'
+          : 'No internet connection. Check your Wi‑Fi or mobile data, then '
+              'tap Retry.';
     }
     if (_isNetworkLookupFailure(error)) {
       if (willAutoRetry) {
@@ -215,70 +254,196 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     ConnectionStatus.instance.ensureStarted();
     _connectivityListener = () {
+      if (_detached || !mounted) return;
       if (!ConnectionStatus.instance.online.value) return;
-      if (_identity == null && _error != null && !_loading && mounted) {
+      if (_identity == null && _error != null && !_loading) {
         _loadIdentity();
+      } else if (_identity != null) {
+        unawaited(_reverifyIfProvisional());
       }
     };
     ConnectionStatus.instance.online.addListener(_connectivityListener!);
     IdentityService.identityNotifier.addListener(_onIdentityChanged);
     unawaited(ContactAliases.ensureLoaded());
-    NotificationService.handleLaunchAndPendingNavigation();
     _loadIdentity();
   }
 
-  /// Keeps the shell's identity snapshot in sync when it changes elsewhere
-  /// (e.g. nickname edited in Settings) so Home and other tabs update live.
+  /// Follows identity changes made elsewhere: a nickname edited in Settings,
+  /// verification finishing, the identity being replaced by a new one, or
+  /// dropped altogether.
   void _onIdentityChanged() {
+    if (!mounted || _detached) return;
     final updated = IdentityService.identityNotifier.value;
-    if (!mounted || updated == null || _identity == null) return;
-    if (updated.id != _identity!.id ||
-        updated.nickname != _identity!.nickname ||
-        updated.shortCode != _identity!.shortCode) {
-      setState(() => _identity = updated);
+    if (updated == null) {
+      if (IdentityService.isResetting) {
+        _detach();
+        return;
+      }
+      // Dropped (its row turned out retired, or its session replaced): stop
+      // acting for it and set up again, which picks up the replacement.
+      if (_identity != null && !_loading) {
+        _stopUserServices();
+        _localUserId = null;
+        PendingIncomingTransfer.disableDelivery(this);
+        setState(() {
+          _identity = null;
+          _widgetAction = null;
+        });
+        _loadIdentity();
+      }
+      return;
+    }
+    // While nothing is shown yet, _loadIdentity applies its own result.
+    if (_identity == null) return;
+    _applyIdentity(updated);
+  }
+
+  /// Shows [identity] and brings the per-user side effects in line with it
+  /// and with how far it's trusted.
+  void _applyIdentity(UserIdentity identity) {
+    final current = _identity;
+    if (current == null ||
+        current.id != identity.id ||
+        current.nickname != identity.nickname ||
+        current.shortCode != identity.shortCode) {
+      setState(() => _identity = identity);
+    }
+    if (_servicesUserId != null && _servicesUserId != identity.id) {
+      // A different user now: nothing may keep acting for the old one.
+      _stopUserServices();
+    }
+    _setUpLocalFor(identity);
+    if (IdentityService.isVerified &&
+        IdentityService.identityNotifier.value?.id == identity.id) {
+      _reverifyTimer?.cancel();
+      _reverifyDelay = _reverifyFirstDelay;
+      _startUserServices(identity);
+    } else {
+      _scheduleReverify();
+    }
+  }
+
+  /// Device-local setup for whoever is shown: crash/analytics attribution,
+  /// the home-screen widget, and opening tapped notifications.
+  void _setUpLocalFor(UserIdentity identity) {
+    if (_localUserId == identity.id) return;
+    _localUserId = identity.id;
+    Analytics.instance.identify(identity.id, shortCode: identity.shortCode);
+    unawaited(WidgetBridge.refresh());
+    PendingIncomingTransfer.enableDelivery(this);
+    NotificationService.handleLaunchAndPendingNavigation();
+  }
+
+  /// Server-facing services for a verified identity. Idempotent per user.
+  void _startUserServices(UserIdentity identity) {
+    if (_servicesUserId == identity.id) return;
+    _servicesUserId = identity.id;
+    ServiceHealth.instance.markHealthy();
+    NotificationService.setUserId(identity.id);
+    // Not awaited: it queues itself for retry on failure, and the shell
+    // shouldn't sit on a token fetch + DB round trip.
+    unawaited(NotificationService.syncFcmToken(identity.id));
+    // start() drains straight away when online.
+    OfflineSyncCoordinator.instance.start(userId: identity.id);
+    unawaited(PendingBackendJobs.refreshPendingCount());
+    unawaited(IdentityService.flushPendingRetirements());
+  }
+
+  void _stopUserServices() {
+    if (_servicesUserId == null) return;
+    _servicesUserId = null;
+    OfflineSyncCoordinator.instance.stop();
+    NotificationService.setUserId(null);
+  }
+
+  void _detach() {
+    _detached = true;
+    _networkRetryTimer?.cancel();
+    _reverifyTimer?.cancel();
+    _stopUserServices();
+    PendingIncomingTransfer.disableDelivery(this);
+  }
+
+  void _scheduleReverify() {
+    if (_detached || (_reverifyTimer?.isActive ?? false)) return;
+    final delay = _reverifyDelay;
+    _reverifyTimer = Timer(delay, () => unawaited(_reverifyIfProvisional()));
+    final doubled = delay * 2;
+    _reverifyDelay = doubled > _reverifyMaxDelay ? _reverifyMaxDelay : doubled;
+  }
+
+  /// Checks a provisional identity against the server. The outcome also
+  /// reaches [_onIdentityChanged], which is what applies it if this call's
+  /// own timeout fires first.
+  Future<void> _reverifyIfProvisional() async {
+    if (_reverifying || _detached || !mounted) return;
+    if (_identity == null || IdentityService.isVerified) return;
+    _reverifyTimer?.cancel();
+    _reverifying = true;
+    try {
+      final identity = await IdentityService.initialize()
+          .timeout(const Duration(seconds: 20));
+      if (!mounted || _detached || _identity == null) return;
+      _applyIdentity(identity);
+    } catch (_) {
+      if (!mounted || _detached) return;
+      // Dropped identities are handled by _onIdentityChanged.
+      if (_identity != null && !IdentityService.isVerified) {
+        _scheduleReverify();
+      }
+    } finally {
+      _reverifying = false;
     }
   }
 
   @override
   void dispose() {
-    OfflineSyncCoordinator.instance.stop();
+    _stopUserServices();
+    PendingIncomingTransfer.disableDelivery(this);
     IdentityService.identityNotifier.removeListener(_onIdentityChanged);
     if (_connectivityListener != null) {
       ConnectionStatus.instance.online.removeListener(_connectivityListener!);
     }
     _networkRetryTimer?.cancel();
+    _reverifyTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      unawaited(ConnectionStatus.instance.refresh());
-      if (_identity == null && _error != null && !_loading) {
-        _loadIdentity();
-      } else if (_identity != null) {
-        NotificationService.syncFcmToken(_identity!.id);
-        unawaited(OfflineSyncCoordinator.instance.onAppResumed());
-        unawaited(_consumeSharedFiles());
-        unawaited(_consumeDeepLink());
-        WidgetBridge.getAndClearAction().then((rawAction) {
-          if (!mounted || rawAction == null) return;
-          HomeAutoAction? action;
-          if (rawAction == 'send') action = HomeAutoAction.openSend;
-          if (rawAction == 'qr') action = HomeAutoAction.showQr;
-          if (action != null) {
-            setState(() {
-              _currentIndex = 0;
-              _widgetAction = action;
-            });
-          }
+    if (state != AppLifecycleState.resumed || _detached) return;
+    unawaited(ConnectionStatus.instance.refresh());
+    final identity = _identity;
+    if (identity == null) {
+      if (_error != null && !_loading) _loadIdentity();
+      return;
+    }
+    if (_servicesUserId == identity.id) {
+      unawaited(NotificationService.syncFcmToken(identity.id));
+      unawaited(OfflineSyncCoordinator.instance.onAppResumed());
+      unawaited(IdentityService.flushPendingRetirements());
+    } else {
+      unawaited(_reverifyIfProvisional());
+    }
+    unawaited(_consumeSharedFiles());
+    unawaited(_consumeDeepLink());
+    WidgetBridge.getAndClearAction().then((rawAction) {
+      if (!mounted || rawAction == null) return;
+      HomeAutoAction? action;
+      if (rawAction == 'send') action = HomeAutoAction.openSend;
+      if (rawAction == 'qr') action = HomeAutoAction.showQr;
+      if (action != null) {
+        setState(() {
+          _currentIndex = 0;
+          _widgetAction = action;
         });
       }
-    }
+    });
   }
 
   Future<void> _loadIdentity({bool fromAutoRetry = false}) async {
+    if (_detached) return;
     _networkRetryTimer?.cancel();
     if (!fromAutoRetry) {
       _autoRetryAttempts = 0;
@@ -292,40 +457,34 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         // Startup init failed and was swallowed in main() — retry it here so
         // the Retry button can actually recover instead of failing forever.
         await initSupabase();
-        SupabaseConfig.startAuthListener();
       }
       final identity = await _initializeIdentityWithRetry();
-      if (mounted) {
-        ServiceHealth.instance.markHealthy();
-        Analytics.instance.identify(identity.id, shortCode: identity.shortCode);
-        Analytics.instance.logEvent(AnalyticsEvents.identityReady);
-        NotificationService.setUserId(identity.id);
-        // Not awaited: it queues itself for retry on failure, and the shell
-        // shouldn't sit on "Setting up…" behind a token fetch + DB round trip.
-        unawaited(NotificationService.syncFcmToken(identity.id));
-        NotificationService.handleLaunchAndPendingNavigation();
-        OfflineSyncCoordinator.instance.start(userId: identity.id);
-        unawaited(OfflineSyncCoordinator.instance.runPendingWork());
-        unawaited(PendingBackendJobs.refreshPendingCount());
-        unawaited(WidgetBridge.refresh());
-        final rawAction = await WidgetBridge.getAndClearAction();
+      if (!mounted || _detached) return;
+      final rawAction = await WidgetBridge.getAndClearAction();
+      if (!mounted || _detached) return;
+      HomeAutoAction? widgetAction;
+      if (rawAction == 'send') widgetAction = HomeAutoAction.openSend;
+      if (rawAction == 'qr') widgetAction = HomeAutoAction.showQr;
+      // The identity may have moved on while the widget was asked (e.g.
+      // verified, or replaced): show the latest.
+      final latest = IdentityService.identityNotifier.value ?? identity;
+      setState(() {
+        _identity = latest;
+        _loading = false;
+        _autoRetryAttempts = 0;
+        _widgetAction = widgetAction;
+        if (widgetAction != null) _currentIndex = 0;
+      });
+      _applyIdentity(latest);
+      Analytics.instance.logEvent(AnalyticsEvents.identityReady);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        HomeAutoAction? widgetAction;
-        if (rawAction == 'send') widgetAction = HomeAutoAction.openSend;
-        if (rawAction == 'qr') widgetAction = HomeAutoAction.showQr;
-        setState(() {
-          _identity = identity;
-          _loading = false;
-          _autoRetryAttempts = 0;
-          _widgetAction = widgetAction;
-          if (widgetAction != null) _currentIndex = 0;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          unawaited(_consumeSharedFiles());
-          unawaited(_consumeDeepLink());
-        });
-      }
+        unawaited(_consumeSharedFiles());
+        unawaited(_consumeDeepLink());
+      });
+    } on IdentityResetInProgressException {
+      // The reset relaunches the app; this shell is on its way out.
+      return;
     } on AuthFailedException catch (e) {
       if (mounted) {
         setState(() {
@@ -352,10 +511,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             networkFailure && _autoRetryAttempts < _maxAutoRetryAttempts;
         // Distinguish "your connection is down" from "our service is down"
         // so the error screen tells the user the truth.
-        final health = networkFailure
+        final health = networkFailure || NetworkErrors.isServerFailure(e)
             ? await ServiceHealth.instance.check()
             : BackendHealth.unknown;
-        if (!mounted) return;
+        if (!mounted || _detached) return;
         setState(() {
           _error = _buildStartupErrorMessage(
             e,
@@ -374,7 +533,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _scheduleAutoRetry() {
     _networkRetryTimer?.cancel();
     _networkRetryTimer = Timer(_networkRetryDelay, () {
-      if (!mounted || _loading) return;
+      if (!mounted || _loading || _detached) return;
       _autoRetryAttempts++;
       _loadIdentity(fromAutoRetry: true);
     });
@@ -395,7 +554,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    final identity = _identity;
+    if (_loading || (identity == null && _error == null)) {
       return Scaffold(
         backgroundColor: context.mini.paper,
         body: Center(
@@ -428,7 +588,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       );
     }
 
-    if (_error != null) {
+    if (identity == null) {
       return Scaffold(
         backgroundColor: context.mini.paper,
         body: Center(
@@ -479,14 +639,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     final tabs = [
       HomeScreen(
-        identity: _identity!,
+        identity: identity,
         autoAction: _widgetAction,
         onActionConsumed: () => setState(() => _widgetAction = null),
         onSeeAll: () => setState(() => _currentIndex = 2),
       ),
-      RoomsScreen(identity: _identity!),
-      HistoryScreen(identity: _identity!),
-      SettingsScreen(identity: _identity!),
+      RoomsScreen(identity: identity),
+      HistoryScreen(identity: identity),
+      SettingsScreen(identity: identity),
     ];
 
     return Scaffold(
@@ -498,9 +658,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         children: [
           const GlobalStatusBanner(),
           Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: tabs,
+            // Keyed by user: a replaced identity gets fresh tabs rather than
+            // ones still holding the old user's lists.
+            child: KeyedSubtree(
+              key: ValueKey(identity.id),
+              child: IndexedStack(
+                index: _currentIndex,
+                children: tabs,
+              ),
             ),
           ),
         ],
@@ -596,33 +761,39 @@ class _MiniNavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.mini;
     final tone = isActive ? c.accent : c.inkFaint;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(
-          color: isActive ? c.accentSoft : Colors.transparent,
-          borderRadius: BorderRadius.circular(MiniRadius.pill),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isActive ? activeIcon : icon, size: 22, color: tone),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 10.5,
-                height: 1.1,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                color: tone,
-                letterSpacing: -0.1,
+    // Announced as a tab that is (or isn't) the current one, not as a bare
+    // label: a screen reader otherwise gives no hint these can be pressed.
+    return Semantics(
+      button: true,
+      selected: isActive,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: isActive ? c.accentSoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(MiniRadius.pill),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(isActive ? activeIcon : icon, size: 22, color: tone),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 10.5,
+                  height: 1.1,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                  color: tone,
+                  letterSpacing: -0.1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

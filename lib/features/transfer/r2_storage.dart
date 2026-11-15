@@ -1,15 +1,37 @@
+import 'package:supabase_flutter/supabase_flutter.dart' show FunctionException;
+
 import '../../core/constants.dart';
 import '../../core/supabase_config.dart';
 
-/// Raised when a presigned R2 URL cannot be obtained — R2 secrets not set,
-/// edge function not deployed, or the caller is not authorized for the
-/// transfer. Callers treat this as "use the Supabase Storage path instead".
+/// R2 cannot be used right now — R2 secrets not set (503
+/// `r2_not_configured`), edge function not deployed, a 5xx, or a network
+/// failure. Callers treat this as "use the Supabase Storage path instead".
 class R2SigningException implements Exception {
   final String message;
   R2SigningException(this.message);
 
   @override
   String toString() => 'R2 signing failed: $message';
+}
+
+/// The signer answered and said no: 401 (session), 403 (not a party to this
+/// transfer), 409 (transfer no longer accepts uploads) or 410 (transfer
+/// expired). Deliberately NOT an [R2SigningException]: falling back to
+/// Supabase Storage here would route around the server's decision, because
+/// Supabase Storage was the path the refusal exists to close.
+class R2RefusedException implements Exception {
+  final int status;
+  final String message;
+  R2RefusedException(this.status, this.message);
+
+  /// 409 from r2-sign-upload: the transfer is completed or expired.
+  bool get notAcceptingUploads => status == 409;
+
+  /// 410 from r2-sign-download: the transfer has expired.
+  bool get expired => status == 410;
+
+  @override
+  String toString() => 'R2 signing refused ($status): $message';
 }
 
 /// Client for the Cloudflare R2 hybrid storage path.
@@ -22,6 +44,9 @@ class R2SigningException implements Exception {
 /// (`<transferId>/<fileName>`), so no schema change is needed.
 class R2Storage {
   static bool get enabled => AppConstants.useR2Storage;
+
+  /// Statuses the signers use to refuse a request outright.
+  static const refusalStatuses = {401, 403, 409, 410};
 
   /// Presigned PUT URL for one file of a transfer the caller is sending.
   static Future<String> getUploadUrl({
@@ -36,6 +61,22 @@ class R2Storage {
   /// Presigned GET URL for a stored file the caller may download.
   static Future<String> getDownloadUrl(String storagePath) =>
       _sign('r2-sign-download', {'storage_path': storagePath});
+
+  /// Maps a signer failure to refused vs unavailable. Pure; unit-tested.
+  static Exception classifyFailure(Object error, String functionName) {
+    if (error is FunctionException && refusalStatuses.contains(error.status)) {
+      final details = error.details;
+      final reason = details is Map && details['error'] != null
+          ? details['error'].toString()
+          : (error.reasonPhrase ?? 'refused');
+      return R2RefusedException(error.status, reason);
+    }
+    // 503 r2_not_configured, other 5xx, FunctionsFetchException (status 0)
+    // and plain network errors: R2 is unavailable, not refusing.
+    return R2SigningException(
+      '$functionName: ${error.toString().replaceAll('Exception: ', '')}',
+    );
+  }
 
   static Future<String> _sign(
     String functionName,
@@ -56,10 +97,7 @@ class R2Storage {
     } on R2SigningException {
       rethrow;
     } catch (e) {
-      // FunctionException (503 r2_not_configured, 401/403/409/410) and plain
-      // network failures all land here — every one of them means "this file
-      // cannot go through R2 right now".
-      throw R2SigningException(e.toString().replaceAll('Exception: ', ''));
+      throw classifyFailure(e, functionName);
     }
   }
 }

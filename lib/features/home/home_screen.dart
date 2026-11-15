@@ -83,19 +83,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  static const _shareSubject = 'MiniGo invite';
+
+  String get _shareMessage =>
+      'Send me files on MiniGo using my code: ${widget.identity.shortCode}';
+
   void _shareCode() {
     HapticFeedback.selectionClick();
     Analytics.instance.logEvent(AnalyticsEvents.codeShared, {'source': 'home'});
-    NativeShareService.shareText(
-      'Send me files on MiniGo using my code: ${widget.identity.shortCode}',
-      subject: 'MiniGo invite',
-    );
+    NativeShareService.shareText(_shareMessage, subject: _shareSubject);
   }
 
   void _showQr() {
     HapticFeedback.selectionClick();
     Analytics.instance.logEvent(AnalyticsEvents.qrShown);
-    QrCodeSheet.show(context, widget.identity.shortCode);
+    QrCodeSheet.show(
+      context,
+      widget.identity.shortCode,
+      shareText: _shareMessage,
+      shareSubject: _shareSubject,
+    );
   }
 
   /// Scan a friend's QR and jump straight into sending to them.
@@ -224,8 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(24, 26, 24, 24),
+                            padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
@@ -299,8 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(MiniIcons.info,
-                              size: 15, color: c.inkFaint),
+                          Icon(MiniIcons.info, size: 15, color: c.inkFaint),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -469,7 +474,6 @@ class _ActionTile extends StatelessWidget {
     );
   }
 }
-
 
 /// Newest few transfers, one line each. Hidden entirely when empty — a blank
 /// list on the home screen is noise, and History already has the full view.

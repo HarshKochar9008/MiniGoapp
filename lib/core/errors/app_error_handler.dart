@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../analytics/analytics.dart';
 import '../network/network_errors.dart';
@@ -14,7 +11,7 @@ import '../../Minigo/theme/mini_icons.dart';
 ///
 /// Instead of surfacing raw exception strings, it classifies the failure and
 /// shows the professional equivalent:
-///   * device offline      → "You're offline" snackbar
+///   * no internet path    → "No internet connection" snackbar
 ///   * backend unreachable → [ServiceUnavailableSheet] (retry / contact support)
 ///   * anything else       → friendly generic snackbar
 ///
@@ -26,8 +23,11 @@ class AppErrorHandler {
 
   static const String genericMessage =
       'Something went wrong. Please try again.';
+
+  /// Covers both "no network" and "a network without internet" (e.g. Wi‑Fi
+  /// waiting on a sign-in page): [BackendHealth.offline] means either.
   static const String offlineMessage =
-      'You\'re offline. Check your connection and try again.';
+      'No internet connection. Check your Wi‑Fi or mobile data and try again.';
 
   /// Logs [error] and shows the appropriate UI for it.
   static Future<void> handle(
@@ -51,7 +51,8 @@ class AppErrorHandler {
           return;
         case BackendHealth.healthy:
         case BackendHealth.unknown:
-          // Backend answered the probe — the failure was a transient blip.
+          // The backend answered the probe, or the probe couldn't tell whose
+          // fault it is: either way, claim neither.
           showErrorSnackBar(
             context,
             friendlyFallback ?? 'Connection dropped. Try again.',
@@ -79,25 +80,8 @@ class AppErrorHandler {
 
   /// True when [error] points at the network or our backend rather than a
   /// user-fixable or app-level problem.
-  static bool isBackendFailure(Object error) {
-    if (error is TimeoutException) return true;
-    if (NetworkErrors.isRetryableFailure(error)) return true;
-    if (error is PostgrestException) {
-      return _isServerErrorCode(error.code);
-    }
-    if (error is StorageException) {
-      return _isServerErrorCode(error.statusCode);
-    }
-    if (error is AuthException) {
-      return _isServerErrorCode(error.statusCode);
-    }
-    return false;
-  }
-
-  static bool _isServerErrorCode(String? code) {
-    final parsed = int.tryParse(code ?? '');
-    return parsed != null && parsed >= 500;
-  }
+  static bool isBackendFailure(Object error) =>
+      NetworkErrors.isTransient(error);
 
   /// Themed floating error snackbar — the standard way to show a short,
   /// user-friendly failure message.

@@ -36,6 +36,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _loading = true;
   String? _error;
   RealtimeChannel? _channel;
+
+  /// The user's own sent transfers; [_channel] only sees received ones.
+  RealtimeChannel? _sentChannel;
   int _currentPage = 0;
   bool _hasMore = true;
   _HistoryFilter _filter = _HistoryFilter.all;
@@ -56,7 +59,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   /// Last status seen per transfer. The sender rewrites `upload_progress`
   /// with every percent of an upload and each write is an UPDATE event, so
   /// only a status change is worth reloading for.
-  final Map<String, String> _knownStatus = {};
+  final Map<String, TransferStatus> _knownStatus = {};
   Timer? _liveReloadDebounce;
 
   /// A background reload failed, so the list may show an old status.
@@ -118,32 +121,53 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ContactAliases.revision.removeListener(_onAliasesChanged);
     ConnectionStatus.instance.online.removeListener(_onConnectionChanged);
     if (_channel != null) TransferService.unsubscribe(_channel!);
+    if (_sentChannel != null) TransferService.unsubscribe(_sentChannel!);
     super.dispose();
   }
 
+  /// Records [record]'s effective status and reports whether the list should
+  /// reload: a new row, or a status change. Upload-progress writes are
+  /// UPDATEs too (several a second while a file uploads) and are ignored.
+  bool _noteStatus(Map<String, dynamic> record, PostgresChangeEvent event) {
+    final id = (record['id'] ?? '').toString();
+    // Same TTL rule as the fetched list, so the two can be compared.
+    final status = TransferStatus.effectiveOf(record);
+    final previous = _knownStatus[id] ?? _listedStatus(id);
+    _knownStatus[id] = status;
+    return event == PostgresChangeEvent.insert || previous != status;
+  }
+
   void _subscribeToRealtime() {
+    // Sent transfers: a send settling (completed / partial / failed), a
+    // resume putting it back to pending, or the sweep expiring it. Same
+    // debounced silent reload as received ones; no snackbar — the Send
+    // screen already told the sender.
+    _sentChannel = TransferService.subscribeToOutgoing(
+      userId: widget.identity.id,
+      onTransferChange: (record, event) {
+        if (!mounted) return;
+        if (_noteStatus(record, event)) _scheduleLiveReload();
+      },
+    );
     _channel = TransferService.subscribeToIncoming(
       userId: widget.identity.id,
       onTransferChange: (record, event) {
         if (!mounted) return;
-        final id = (record['id'] ?? '').toString();
-        final status = record['status'] as String? ?? 'pending';
-        final previous = _knownStatus[id] ?? _listedStatus(id);
-        _knownStatus[id] = status;
-        if (event == PostgresChangeEvent.update && previous == status) return;
+        final status = TransferStatus.effectiveOf(record);
+        if (!_noteStatus(record, event)) return;
         _scheduleLiveReload();
         if (event == PostgresChangeEvent.insert) {
-          final msg = status == 'completed'
+          final msg = status == TransferStatus.completed
               ? 'Files ready to download'
               : 'Incoming transfer…';
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(msg)));
           return;
         }
-        if (status == 'completed' || status == 'partial') {
+        if (status.hasDeliveredFiles) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-              status == 'completed'
+              status == TransferStatus.completed
                   ? 'Files ready to download'
                   : 'Some files are ready to download',
             ),
@@ -153,9 +177,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  String? _listedStatus(String id) {
+  TransferStatus? _listedStatus(String id) {
     for (final t in _transfers ?? const <Map<String, dynamic>>[]) {
-      if ((t['id'] ?? '').toString() == id) return t['status']?.toString();
+      if ((t['id'] ?? '').toString() == id) {
+        return TransferStatus.parse(t['status']);
+      }
     }
     return null;
   }
@@ -510,16 +536,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     final roomLabel = t['room_name']
                                             as String? ??
                                         (t['room_id'] != null ? 'room' : null);
+                                    // TTL-adjusted by TransferService.
                                     final status =
-                                        (t['status'] ?? 'pending').toString();
+                                        TransferStatus.parse(t['status']);
                                     final createdAt =
                                         (t['created_at'] ?? '').toString();
-                                    final isExpired = status == 'expired';
+                                    final isExpired =
+                                        status == TransferStatus.expired;
                                     final id = (t['id'] ?? '').toString();
-                                    final canDismiss = status == 'completed' ||
-                                        status == 'expired' ||
-                                        status == 'failed' ||
-                                        status == 'partial';
+                                    final canDismiss =
+                                        status.canHideFromHistory;
 
                                     final tile = Padding(
                                       padding: const EdgeInsets.fromLTRB(
@@ -699,7 +725,7 @@ class _HistoryTile extends StatelessWidget {
   final String direction;
   final String counterpartyCode;
   final String? counterpartyAlias;
-  final String status;
+  final TransferStatus status;
   final String timeAgo;
   final bool isExpired;
 
@@ -718,22 +744,12 @@ class _HistoryTile extends StatelessWidget {
     this.onEditAlias,
   });
 
-  Color get _tint {
-    switch (status) {
-      case 'completed':
-        return MiniColors.success;
-      case 'uploading':
-      case 'pending':
-        return MiniColors.warn;
-      case 'partial':
-      case 'failed':
-        return MiniColors.danger;
-      case 'expired':
-        return MiniColors.inkFaint;
-      default:
-        return MiniColors.inkFaint;
-    }
-  }
+  Color get _tint => switch (status) {
+        TransferStatus.completed => MiniColors.success,
+        TransferStatus.pending || TransferStatus.uploading => MiniColors.warn,
+        TransferStatus.partial || TransferStatus.failed => MiniColors.danger,
+        TransferStatus.expired => MiniColors.inkFaint,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -827,7 +843,7 @@ class _HistoryTile extends StatelessWidget {
                       Text(
                         (isExpired
                                 ? 'Expired'
-                                : '${isOut ? 'Sent' : 'Received'} · $status') +
+                                : '${isOut ? 'Sent' : 'Received'} · ${status.dbValue}') +
                             (roomLabel != null ? ' · $roomLabel' : ''),
                         style: MiniText.small.copyWith(color: c.inkSoft),
                       ),

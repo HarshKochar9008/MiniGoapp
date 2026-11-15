@@ -84,6 +84,9 @@ class _OnbSwipeScreenState extends State<OnbSwipeScreen>
 
   void _onPanUpdate(DragUpdateDetails d) {
     if (_busy) return;
+    // A grab during the snap-back takes the card from where it is; left
+    // running, the spring would overwrite the drag on every frame.
+    if (_anim.isAnimating) _anim.stop();
     setState(() => _drag += d.delta);
     final past = _drag.dx.abs() > _threshold;
     if (past != _pastThreshold) {

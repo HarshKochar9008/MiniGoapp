@@ -35,8 +35,7 @@ class MyCardSheet extends StatefulWidget {
     if (!context.mounted) return;
     await showMiniSheet<void>(
       context,
-      builder: (_) =>
-          MyCardSheet(code: code, nickname: nickname, style: style),
+      builder: (_) => MyCardSheet(code: code, nickname: nickname, style: style),
     );
   }
 
@@ -111,8 +110,7 @@ class _MyCardSheetState extends State<MyCardSheet> {
           ),
           const SizedBox(height: 22),
           Text(
-            'Send it to whoever’s sending you files. They’ll need MiniGo '
-            'too — the card shows them how.',
+            'Send it to whoever’s sending you files. They’ll need MiniGo ',
             textAlign: TextAlign.center,
             style: MiniText.small.copyWith(color: c.inkSoft, height: 1.45),
           ),

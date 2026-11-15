@@ -1,18 +1,21 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/network/connection_status.dart';
+import '../../core/time/server_clock.dart';
 import '../../Minigo/theme/mini_theme.dart';
 import '../../Minigo/widgets/mini_widgets.dart';
 import '../identity/identity_service.dart';
 import '../transfer/transfer_service.dart';
+import 'room_lifecycle.dart';
+import 'room_realtime_link.dart';
 import 'room_service.dart';
 import '../../Minigo/theme/mini_icons.dart';
 
@@ -24,6 +27,35 @@ class _MemberSendState {
   int completedFiles = 0;
   String? error;
   _MemberSendState(this.member);
+
+  void reset() {
+    status = _MemberSendStatus.waiting;
+    completedFiles = 0;
+    error = null;
+  }
+
+  void fail(String? message) {
+    status = _MemberSendStatus.failed;
+    error = message;
+  }
+}
+
+/// What the screen is doing. Exactly one at a time; every transition goes
+/// through [_RoomSendScreenState._run].
+enum _SendPhase {
+  /// Choosing files.
+  idle,
+
+  /// Send tapped: checking the connection, looking up keys, asking about
+  /// members without one. Nothing uploaded yet.
+  preparing,
+
+  /// Uploading, one member after another.
+  sending,
+
+  /// The run is over and the per-member results are showing. Failed members
+  /// can be retried.
+  finished,
 }
 
 /// Sends the selected files to every other room member as individual
@@ -36,59 +68,198 @@ class RoomSendScreen extends StatefulWidget {
   /// Room members excluding the sender.
   final List<RoomMember> recipients;
 
+  /// Files to pre-select, e.g. handed over by the Send screen when a typed
+  /// code turned out to be this room's (a share from the gallery).
+  final List<PlatformFile> initialFiles;
+
   const RoomSendScreen({
     super.key,
     required this.identity,
     required this.room,
     required this.recipients,
+    this.initialFiles = const [],
   });
 
   @override
   State<RoomSendScreen> createState() => _RoomSendScreenState();
 }
 
-class _RoomSendScreenState extends State<RoomSendScreen> {
+class _RoomSendScreenState extends State<RoomSendScreen>
+    with WidgetsBindingObserver {
   List<PlatformFile> _selectedFiles = [];
   late final List<_MemberSendState> _memberStates;
-  bool _sending = false;
-  bool _sent = false;
+  _SendPhase _phase = _SendPhase.idle;
   String? _error;
-  RealtimeChannel? _channel;
+  RoomRealtimeLink? _link;
+  bool _presenceCheckInFlight = false;
 
-  /// Live mirror of my can_share flag; the server enforces it on send, this
-  /// just keeps the UI honest the moment the host flips the toggle.
+  /// Live mirror of my membership and can_share flag; the server enforces
+  /// both on send, this just keeps the UI honest the moment they change.
   bool _canShare = true;
+  bool _isMember = true;
+  int _permissionGeneration = 0;
+
+  /// Set once the room has ended (expired, or deleted by the host or the
+  /// sweep). Terminal: nothing more can be sent from this screen.
+  RoomEndReason? _roomEnd;
+
+  /// Cancels the upload in flight. One per run; cancelled when the room ends
+  /// mid-send or the screen goes away, so no upload outlives the screen and
+  /// keeps holding TransferService's one-send-at-a-time lock.
+  TransferCancellationToken? _cancelToken;
+  Timer? _expiryAlarm;
+
+  bool get _busy =>
+      _phase == _SendPhase.preparing || _phase == _SendPhase.sending;
+
+  String? get _roomEndMessage => _roomEnd == null
+      ? null
+      : roomEndMessage(_roomEnd!,
+          isOwner: widget.room.isOwnedBy(widget.identity.id));
+
+  int get _failedCount =>
+      _memberStates.where((s) => s.status == _MemberSendStatus.failed).length;
+
+  bool get _canRetry =>
+      _phase == _SendPhase.finished &&
+      _failedCount > 0 &&
+      _roomEnd == null &&
+      _canShare &&
+      _selectedFiles.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _memberStates = widget.recipients.map((m) => _MemberSendState(m)).toList();
-    _channel = RoomService.subscribeToRoom(
-      roomId: widget.room.id,
-      onMembersChanged: _refreshMyPermission,
-    );
+    _applyInitialFiles();
+    if (widget.room.isExpired) {
+      _roomEnd = RoomEndReason.expired;
+    } else {
+      _expiryAlarm = Timer(
+        widget.room.timeLeft + const Duration(seconds: 1),
+        () => _onRoomEnded(RoomEndReason.expired),
+      );
+    }
+    WidgetsBinding.instance.addObserver(this);
+    final roomId = widget.room.id;
+    _link = RoomRealtimeLink(
+      connect: (onStatus) => RoomService.subscribeToRoom(
+        roomId: roomId,
+        onMembersChanged: _refreshMyPermission,
+        onRoomDeleted: _onRoomGone,
+        onStatus: onStatus,
+      ),
+      // Live again after a drop: a block, a removal or the room's deletion
+      // may have happened meanwhile.
+      onResync: _refreshMyPermission,
+    )..start();
     _refreshMyPermission();
   }
 
+  /// Same limits [_pickFiles] applies, for files that arrive pre-selected.
+  void _applyInitialFiles() {
+    if (widget.initialFiles.isEmpty) return;
+    final seenNames = <String>{};
+    final valid = <PlatformFile>[];
+    String? error;
+    for (final f in widget.initialFiles) {
+      if (f.path == null || !seenNames.add(f.name)) continue;
+      if ((f.lengthSync() ?? 0) > AppConstants.maxFileSizeBytes) {
+        error = '${f.name} exceeds '
+            '${AppConstants.maxFileSizeBytes ~/ 1024 ~/ 1024} MB limit '
+            'and was skipped';
+        continue;
+      }
+      if (valid.length >= AppConstants.maxFilesPerTransfer) {
+        error =
+            'Only the first ${AppConstants.maxFilesPerTransfer} files were added';
+        break;
+      }
+      valid.add(f);
+    }
+    _selectedFiles = valid;
+    _error = error;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) _refreshMyPermission();
+  }
+
+  /// The room row is gone; server time says whether the host closed it or
+  /// the sweep removed it after expiry.
+  void _onRoomGone() => _onRoomEnded(roomEndReason(
+        expiresAt: widget.room.expiresAt,
+        serverNow: ServerClock.instance.now(),
+      ));
+
   @override
   void dispose() {
-    if (_channel != null) RoomService.unsubscribe(_channel!);
+    // The screen can go away mid-send (app navigation, or the room screen
+    // closing everything above it); its upload must stop with it.
+    _cancelToken?.cancel();
+    _expiryAlarm?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _link?.dispose();
     super.dispose();
   }
 
+  /// The room expired or was deleted. Stops a send in progress via its
+  /// token — the server refuses every remaining member anyway, and an upload
+  /// that finished after the room ended would only be swept — and keeps the
+  /// per-member results on screen with the reason.
+  void _onRoomEnded(RoomEndReason reason) {
+    if (!mounted || _roomEnd != null) return;
+    _expiryAlarm?.cancel();
+    setState(() => _roomEnd = reason);
+    _cancelToken?.cancel();
+  }
+
   Future<void> _refreshMyPermission() async {
+    final generation = ++_permissionGeneration;
     try {
       final members = await RoomService.listMembers(widget.room.id);
-      if (!mounted) return;
-      final mine = members.where((m) => m.userId == widget.identity.id);
-      final allowed = mine.isEmpty || mine.first.canShare;
-      if (allowed != _canShare) setState(() => _canShare = allowed);
+      // Only the most recently started check may apply its answer.
+      if (!mounted || generation != _permissionGeneration) return;
+      final me = widget.identity.id;
+      final isMember = members.any((m) => m.userId == me);
+      final allowed = canShareInRoom(members, me);
+      if (allowed != _canShare || isMember != _isMember) {
+        setState(() {
+          _canShare = allowed;
+          _isMember = isMember;
+        });
+      }
+      if (!isMember) unawaited(_checkPresence(listWasEmpty: members.isEmpty));
     } catch (_) {
       // Keep the last known state; the server still enforces on send.
     }
   }
 
+  /// I'm missing from the member list: was the room deleted (a delete event
+  /// this screen may have missed while disconnected) or did it expire?
+  Future<void> _checkPresence({required bool listWasEmpty}) async {
+    if (_presenceCheckInFlight || _roomEnd != null) return;
+    _presenceCheckInFlight = true;
+    try {
+      final presence = await RoomService.roomPresence(widget.room.id);
+      if (!mounted) return;
+      // Without room_presence (20261113000005 not applied) an empty list is
+      // the room ending for me either way.
+      if (presence == RoomPresence.gone || (presence == null && listWasEmpty)) {
+        _onRoomGone();
+      } else if (presence == RoomPresence.expired) {
+        _onRoomEnded(RoomEndReason.expired);
+      }
+    } catch (_) {
+      // Offline: the next refresh asks again.
+    } finally {
+      _presenceCheckInFlight = false;
+    }
+  }
+
   Future<void> _pickFiles() async {
+    if (_phase != _SendPhase.idle || _roomEnd != null) return;
     try {
       final result = await FilePicker.pickFiles(type: FileType.any);
       if (!mounted) return;
@@ -131,80 +302,94 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
     }
   }
 
-  Future<void> _send() async {
-    if (_selectedFiles.isEmpty || _sending) return;
-    if (!_canShare) {
-      setState(
-          () => _error = 'The host has paused sharing for you in this room.');
+  void _send() => _run(_memberStates);
+
+  void _retryFailed() => _run(_memberStates
+      .where((s) => s.status == _MemberSendStatus.failed)
+      .toList());
+
+  /// One send run to [targets]: preparing → sending → finished. Any early
+  /// exit before the first upload returns to the phase the run started from.
+  Future<void> _run(List<_MemberSendState> targets) async {
+    if (_busy || _selectedFiles.isEmpty || targets.isEmpty) return;
+    final startedFrom = _phase;
+
+    String? refusal;
+    if (_roomEnd != null) {
+      refusal = _roomEndMessage;
+    } else if (!_isMember) {
+      refusal = 'You are no longer a member of this room.';
+    } else if (!_canShare) {
+      refusal = 'The host has paused sharing for you in this room.';
+    }
+    if (refusal != null) {
+      setState(() => _error = refusal);
       return;
     }
-    if (widget.room.isExpired) {
-      setState(() => _error = 'This room has expired.');
-      return;
-    }
+
+    // Busy before the first await: a second tap during the connection check
+    // used to start a second loop over the same members.
+    setState(() {
+      _phase = _SendPhase.preparing;
+      _error = null;
+    });
+    HapticFeedback.lightImpact();
+
     if (!await ConnectionStatus.instance.refresh()) {
       if (!mounted) return;
       setState(() {
+        _phase = startedFrom;
         _error = 'No internet connection. Try again when you are online.';
       });
       return;
     }
 
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
-    HapticFeedback.lightImpact();
-
-    // Resolve every member's E2E public key up front. Doing it here rather
+    // Resolve every target's E2E public key up front. Doing it here rather
     // than inside the send loop means the "these members can't be encrypted
     // for" warning is one decision, not a dialog interrupting each upload.
     //
-    // A lookup that *throws* fails that member — it must not fall back to a
+    // A lookup that *fails* fails that member — it must not fall back to a
     // plaintext upload, because a keyed recipient expects ciphertext only.
     // A lookup that succeeds with no key is a different case: that member is
     // genuinely unencryptable, and the user is asked about it below.
     final memberKeys = <String, String?>{};
-    final lookupFailed = <String>{};
-    for (final state in _memberStates) {
-      try {
-        final recip =
-            await IdentityService.findUserByCode(state.member.shortCode);
-        final key = (recip?['public_key'] as String?)?.trim();
-        memberKeys[state.member.userId] =
-            (key == null || key.isEmpty) ? null : key;
-      } catch (_) {
-        lookupFailed.add(state.member.userId);
-      }
-    }
+    final lookupFailed = await _resolveKeys(targets, memberKeys);
     if (!mounted) return;
 
-    final unencryptable = _memberStates
+    final unencryptable = targets
         .where((s) =>
-            !lookupFailed.contains(s.member.userId) &&
+            !lookupFailed.containsKey(s.member.userId) &&
             memberKeys[s.member.userId] == null)
         .toList();
-    if (unencryptable.isNotEmpty) {
+    if (unencryptable.isNotEmpty && _roomEnd == null) {
       final proceed = await _confirmSendWithoutEncryption(
         unencryptable.map((s) => _memberName(s.member)).toList(),
       );
       if (!mounted) return;
       if (proceed != true) {
-        setState(() => _sending = false);
+        setState(() => _phase = startedFrom);
         return;
       }
     }
 
-    var failures = 0;
-    for (final state in _memberStates) {
-      if (!mounted) return;
+    final token = TransferCancellationToken();
+    _cancelToken = token;
+    setState(() {
+      _phase = _SendPhase.sending;
+      for (final s in targets) {
+        s.reset();
+      }
+    });
 
-      if (lookupFailed.contains(state.member.userId)) {
-        failures++;
-        setState(() {
-          state.status = _MemberSendStatus.failed;
-          state.error = 'Could not check this member\'s encryption key';
-        });
+    for (final state in targets) {
+      if (!mounted) return;
+      // The room ended (or the server refused the whole room) — the rest are
+      // marked below, not attempted.
+      if (_roomEnd != null || token.isCancelled) break;
+
+      final keyFailure = lookupFailed[state.member.userId];
+      if (keyFailure != null) {
+        setState(() => state.fail(keyFailure));
         continue;
       }
 
@@ -221,6 +406,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
           files: _selectedFiles,
           roomId: widget.room.id,
           roomName: widget.room.name,
+          cancellationToken: token,
           onProgress: (states) {
             if (!mounted) return;
             setState(() {
@@ -232,52 +418,64 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
         );
         if (!mounted) return;
         setState(() {
-          state.status = result.success
-              ? _MemberSendStatus.done
-              : _MemberSendStatus.failed;
           state.completedFiles = result.completedFiles;
-          if (!result.success) {
-            state.error = 'Some files failed';
-            failures++;
+          if (result.success) {
+            state.status = _MemberSendStatus.done;
+          } else {
+            state.fail(_roomEndMessage ?? 'Some files failed');
           }
         });
       } catch (e) {
-        final raw = e.toString();
-        final refusal = _roomRefusal(raw);
-        // The server refused the transfer row itself, so the job saved for
-        // resuming it describes a send that can never go through.
-        if (refusal != null) await TransferService.clearPendingUploadJob();
+        // A room transfer that expired mid-upload expired with its room
+        // (the sweep expires them together), so it ends the run too.
+        final roomRefusal = classifyRoomSendRefusal(e) ??
+            (e is TransferNotAcceptingUploadsException && e.expired
+                ? RoomSendRefusal.roomEnded
+                : null);
+        // (sendFiles clears its saved resume job itself on a room refusal.)
         if (!mounted) return;
-        failures++;
-        setState(() {
-          state.status = _MemberSendStatus.failed;
-          state.error = refusal ?? raw.replaceAll('Exception: ', '');
-        });
-        // Permission is per-sender, not per-recipient — no point retrying
-        // the remaining members if the host has blocked us. Fail them too,
-        // so none is left on "Waiting" under the summary.
-        if (raw.contains('room_share_denied')) {
-          final skipped = _memberStates
-              .where((s) => s.status == _MemberSendStatus.waiting)
-              .toList();
-          failures += skipped.length;
-          setState(() {
-            for (final s in skipped) {
-              s.status = _MemberSendStatus.failed;
-              s.error = refusal;
-            }
-          });
-          break;
+        if (roomRefusal == RoomSendRefusal.roomEnded) {
+          _onRoomEnded(roomEndReason(
+            expiresAt: widget.room.expiresAt,
+            serverNow: ServerClock.instance.now(),
+          ));
         }
+        setState(() {
+          if (roomRefusal == RoomSendRefusal.shareDenied) {
+            // Blocked, or no longer a member; the check below says which.
+            _canShare = false;
+          }
+          state.fail(_roomEndMessage ??
+              roomRefusal?.message ??
+              e.toString().replaceAll('Exception: ', ''));
+        });
+        if (roomRefusal == RoomSendRefusal.shareDenied) {
+          unawaited(_refreshMyPermission());
+        }
+        // A room-wide refusal applies to every remaining member: stop here
+        // rather than collect the same refusal from each of them.
+        if (roomRefusal?.isRoomWide == true) break;
       }
     }
 
     if (!mounted) return;
     HapticFeedback.heavyImpact();
     setState(() {
-      _sending = false;
-      _sent = true;
-      if (failures > 0) {
+      // Nobody may be left on "Waiting" under the summary.
+      final skippedReason = _roomEndMessage ??
+          (_canShare ? 'Not sent' : RoomSendRefusal.shareDenied.message);
+      for (final s in targets) {
+        if (s.status == _MemberSendStatus.waiting ||
+            s.status == _MemberSendStatus.sending) {
+          s.fail(skippedReason);
+        }
+      }
+      _cancelToken = null;
+      _phase = _SendPhase.finished;
+      final failures = _failedCount;
+      if (_roomEnd != null) {
+        _error = '${_roomEndMessage!} Sending stopped.';
+      } else if (failures > 0) {
         _error = failures == _memberStates.length
             ? 'Sending failed for all members.'
             : 'Sent, but $failures member(s) failed.';
@@ -285,17 +483,64 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
     });
   }
 
-  /// What to show when the server refuses a room transfer (the errors raised
-  /// by the `transfers_check_room` trigger), or null for any other failure.
-  static String? _roomRefusal(String raw) {
-    if (raw.contains('room_share_denied')) {
-      return 'Sharing is not available in this room right now';
+  /// Fills [keys] with each target's public key (null: none published) and
+  /// returns the targets that can't be sent to, with the reason.
+  ///
+  /// One `room_member_public_keys` call, matched by user id — the id the
+  /// transfer is addressed to. Only when that RPC isn't deployed yet does it
+  /// fall back to the old per-member lookup by short code.
+  Future<Map<String, String>> _resolveKeys(
+    List<_MemberSendState> targets,
+    Map<String, String?> keys,
+  ) async {
+    final failed = <String, String>{};
+    final List<Map<String, dynamic>>? rows;
+    try {
+      rows = await RoomService.memberPublicKeyRows(widget.room.id);
+    } catch (e) {
+      if (!mounted) return failed;
+      final refusal = classifyRoomSendRefusal(e);
+      if (refusal == RoomSendRefusal.roomEnded) {
+        _onRoomGone();
+      } else if (refusal == RoomSendRefusal.shareDenied) {
+        // The server no longer counts me as a member.
+        setState(() => _canShare = false);
+        unawaited(_refreshMyPermission());
+      }
+      final reason = _roomEndMessage ??
+          refusal?.message ??
+          'Could not check encryption keys';
+      for (final s in targets) {
+        failed[s.member.userId] = reason;
+      }
+      return failed;
     }
-    if (raw.contains('room_recipient_not_member')) {
-      return 'No longer in this room';
+
+    if (rows != null) {
+      final resolved = resolveRoomMemberKeys(
+        targets.map((s) => s.member.userId),
+        rows,
+      );
+      keys.addAll(resolved.keys);
+      for (final id in resolved.notMembers) {
+        failed[id] = RoomSendRefusal.recipientNotMember.message;
+      }
+      return failed;
     }
-    if (raw.contains('room_expired')) return 'This room has expired';
-    return null;
+
+    // Before 20261113000005: one lookup per member, by code.
+    for (final state in targets) {
+      try {
+        final recip =
+            await IdentityService.findUserByCode(state.member.shortCode);
+        final key = (recip?['public_key'] as String?)?.trim();
+        keys[state.member.userId] = (key == null || key.isEmpty) ? null : key;
+      } catch (_) {
+        failed[state.member.userId] =
+            'Could not check this member\'s encryption key';
+      }
+    }
+    return failed;
   }
 
   /// Asked once when one or more members published no X25519 public key, so
@@ -348,20 +593,55 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
   int get _totalSize =>
       _selectedFiles.fold<int>(0, (sum, f) => sum + (f.lengthSync() ?? 0));
 
+  /// Bottom actions for the current phase.
+  Widget _buildActions() {
+    if (_busy) {
+      return MiniButton(
+        label: _phase == _SendPhase.preparing ? 'Preparing…' : 'Sending…',
+        loading: true,
+      );
+    }
+    if (_phase == _SendPhase.finished || _roomEnd != null) {
+      final done = MiniButton(
+        label: 'Done',
+        style: _canRetry ? MiniBtnStyle.secondary : MiniBtnStyle.primary,
+        onPressed: () => Navigator.pop(context),
+      );
+      if (!_canRetry) return done;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          MiniButton(
+            label: 'Retry failed ($_failedCount)',
+            onPressed: _retryFailed,
+          ),
+          const SizedBox(height: 10),
+          done,
+        ],
+      );
+    }
+    return MiniButton(
+      label: 'Send to ${_memberStates.length} member(s)',
+      onPressed:
+          _selectedFiles.isEmpty || !_canShare || !_isMember ? null : _send,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
     // System back must be blocked too, not just the AppBar close: popping
-    // mid-send silently abandons the loop between members, so some members
-    // get the files and the rest never do.
+    // mid-send abandons the loop between members, so some members get the
+    // files and the rest never do. (Navigator.pop ignores this; dispose
+    // cancels the upload in that case.)
+    final editable = _phase == _SendPhase.idle && _roomEnd == null;
     return PopScope(
-      canPop: !_sending,
+      canPop: !_busy,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _sending) {
+        if (!didPop && _busy) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content:
-                  Text('Wait for the send to finish.'),
+              content: Text('Wait for the send to finish.'),
             ),
           );
         }
@@ -371,7 +651,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(MiniIcons.close),
-            onPressed: _sending ? null : () => Navigator.pop(context),
+            onPressed: _busy ? null : () => Navigator.pop(context),
           ),
           title: Text('Share to "${widget.room.name}"'),
         ),
@@ -402,7 +682,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                             ],
                           ),
                         ),
-                        if (!_sending && !_sent && _selectedFiles.isNotEmpty)
+                        if (editable && _selectedFiles.isNotEmpty)
                           Material(
                             color: c.inkSoft.withValues(
                                 alpha: context.isDarkMini ? 0.16 : 0.10),
@@ -433,7 +713,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
 
                     if (_selectedFiles.isEmpty)
                       GestureDetector(
-                        onTap: _pickFiles,
+                        onTap: editable ? _pickFiles : null,
                         child: Container(
                           height: 160,
                           decoration: miniCard(context),
@@ -473,7 +753,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                                 _selectedFiles[i].lengthSync() ?? 0),
                             mimeCategory: MiniFileRow.categoryFromFileName(
                                 _selectedFiles[i].name),
-                            trailing: _sending || _sent
+                            trailing: !editable
                                 ? null
                                 : GestureDetector(
                                     onTap: () => setState(() {
@@ -509,7 +789,22 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                         ),
                       ),
 
-                    if (!_canShare && !_sent) ...[
+                    if (_roomEnd != null && !_busy) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: MiniIcons.timer,
+                        text: '${_roomEndMessage!} Nothing more can be sent '
+                            'to it.',
+                        tint: MiniColors.warn,
+                      ),
+                    ] else if (!_isMember && !_busy) ...[
+                      const SizedBox(height: 8),
+                      StatusBanner(
+                        icon: MiniIcons.blocked,
+                        text: 'You are no longer a member of this room.',
+                        tint: MiniColors.warn,
+                      ),
+                    ] else if (!_canShare && !_busy) ...[
                       const SizedBox(height: 8),
                       StatusBanner(
                         icon: MiniIcons.blocked,
@@ -528,7 +823,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
                       ),
                     ],
 
-                    if (_sending) ...[
+                    if (_phase == _SendPhase.sending) ...[
                       const SizedBox(height: 8),
                       Text('Keep the app open while uploading.',
                           style: MiniText.small),
@@ -540,21 +835,7 @@ class _RoomSendScreenState extends State<RoomSendScreen> {
             Container(
               color: c.paper,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: _sent
-                  ? MiniButton(
-                      label: 'Done',
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  : MiniButton(
-                      label: _sending
-                          ? 'Sending…'
-                          : 'Send to ${_memberStates.length} member(s)',
-                      loading: _sending,
-                      onPressed:
-                          _selectedFiles.isEmpty || _sending || !_canShare
-                              ? null
-                              : _send,
-                    ),
+              child: _buildActions(),
             ),
           ],
         ),

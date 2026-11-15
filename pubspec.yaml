@@ -1,6 +1,11 @@
 name: minigo
 description: Real-time mobile file sharing app (Android/iOS only).
 publish_to: 'none'
+# Launch version. The part before + is the version users see; the number
+# after + (Android versionCode, iOS CFBundleVersion) must go up for every
+# Play or App Store upload, because both stores reject a number they've
+# already received. tool/distribute_android.sh passes its own build number,
+# so App Distribution builds don't use these up.
 version: 1.0.0+1
 
 environment:
@@ -12,6 +17,9 @@ dependencies:
 
   # Backend
   supabase_flutter: ^2.3.4
+  # Already resolved through supabase_flutter; named here because
+  # lib/core/network/request_timeout_client.dart imports it directly.
+  http: ^1.2.0
 
   # File picking & handling
   file_picker: ^13.3.2
@@ -70,6 +78,7 @@ dependencies:
   # Runtime self-protection: tampering, hooking, root/jailbreak and install
   # source checks (lib/core/security/)
   freerasp: ^8.2.4
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

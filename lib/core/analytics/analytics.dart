@@ -35,6 +35,16 @@ class Analytics {
     } catch (_) {}
   }
 
+  /// Forgets the identified user (app reset): later events and crash reports
+  /// must not be attributed to an identity this device no longer holds.
+  void clearIdentity() {
+    _userId = null;
+    try {
+      FirebaseCrashlytics.instance.setUserIdentifier('');
+      FirebaseCrashlytics.instance.setCustomKey('short_code', '');
+    } catch (_) {}
+  }
+
   void logEvent(String name, [Map<String, Object?> props = const {}]) {
     final enriched = <String, Object?>{
       if (_userId != null) 'uid': _userId,

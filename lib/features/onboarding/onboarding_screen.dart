@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
@@ -40,7 +41,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     try {
       final trimmedNick = _nickname?.trim();
       if (trimmedNick != null && trimmedNick.isNotEmpty) {
-        await IdentityService.setNickname(trimmedNick);
+        try {
+          await IdentityService.setNickname(trimmedNick);
+        } catch (e) {
+          // No identity to save it on (offline): the one the app creates
+          // later takes it. Not worth blocking onboarding over either way.
+          if (kDebugMode) debugPrint('onboarding: nickname save failed: $e');
+          try {
+            await IdentityService.setNicknameForFirstIdentity(trimmedNick);
+          } catch (_) {}
+        }
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('onboarding_complete', true);
@@ -51,7 +61,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _next() => setState(() => _step++);
+  /// Moves on from [from] only while it is still the current step. The
+  /// permissions step awaits the OS before calling back, so a second tap (or
+  /// Allow then Skip) used to advance twice — past code creation, onto a code
+  /// screen with no code.
+  void _advanceFrom(int from) {
+    if (!mounted || _step != from) return;
+    setState(() => _step++);
+  }
 
   @override
   void dispose() {
@@ -63,11 +80,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     switch (_step) {
       case 0:
-        return _OnbWelcome(onNext: _next, onSkip: _finish);
+        return _OnbWelcome(onNext: () => _advanceFrom(0), onSkip: _finish);
       case 1:
         return _OnbNickname(
-          onNext: _next,
-          onSkip: _next,
+          onNext: () => _advanceFrom(1),
+          onSkip: () {
+            if (_step != 1) return;
+            // Skipping drops what was typed; it isn't saved at the end.
+            _nickname = null;
+            _nicknameController.clear();
+            _advanceFrom(1);
+          },
           onNicknameChanged: (nick) => _nickname = nick,
           controller: _nicknameController,
         );
@@ -76,19 +99,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           onAllow: () async {
             // Asks for notifications and sets up push in one go.
             await NotificationService.initialize();
-            if (mounted) _next();
+            _advanceFrom(2);
           },
-          onSkip: _next,
+          onSkip: () => _advanceFrom(2),
         );
       case 3:
         return _OnbGenerate(
           onReady: (code) {
+            if (_step != 3) return;
             _shortCode = code;
-            _next();
+            _advanceFrom(3);
           },
         );
       case 4:
-        return _OnbCode(code: _shortCode, onNext: _next);
+        return _OnbCode(code: _shortCode, onNext: () => _advanceFrom(4));
       case 5:
         return _OnbReady(onDone: _finish);
       default:

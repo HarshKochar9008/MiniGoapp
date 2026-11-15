@@ -172,8 +172,10 @@ class CodeChip extends StatelessWidget {
   }
 }
 
-/// Reusable button — primary (ink) / secondary (raised) / ghost / danger.
-enum MiniBtnStyle { primary, secondary, ghost, danger }
+/// Reusable button — primary (ink) / secondary (raised) / ghost / danger /
+/// accent (filled blue) / tonal (flat neutral fill, for the quieter half of a
+/// side-by-side pair).
+enum MiniBtnStyle { primary, secondary, ghost, danger, accent, tonal }
 
 class MiniButton extends StatelessWidget {
   final String label;
@@ -215,6 +217,13 @@ class MiniButton extends StatelessWidget {
       case MiniBtnStyle.danger:
         bg = MiniColors.danger.withValues(alpha: 0.12);
         fg = MiniColors.danger;
+      case MiniBtnStyle.accent:
+        // The static blue: white on it reads in both themes.
+        bg = MiniColors.blue600;
+        fg = Colors.white;
+      case MiniBtnStyle.tonal:
+        bg = c.sand;
+        fg = c.ink;
     }
     return Opacity(
       opacity: disabled ? 0.45 : 1,

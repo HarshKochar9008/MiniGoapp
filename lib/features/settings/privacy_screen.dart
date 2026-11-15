@@ -10,6 +10,7 @@ import '../../core/constants.dart';
 import '../../core/contacts/contact_aliases.dart';
 import '../../core/contacts/recent_recipients.dart';
 import '../../core/crypto/e2e_crypto.dart';
+import '../../core/security/app_lock.dart';
 import '../../core/storage/local_cache.dart';
 import '../../core/supabase_config.dart';
 import '../../core/theme.dart';
@@ -38,6 +39,8 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
   PendingUploadJob? _pendingUpload;
   bool _pendingLoaded = false;
   _KeyStatus? _keyStatus;
+  bool? _appLockOn;
+  bool _appLockAvailable = false;
 
   @override
   void initState() {
@@ -45,6 +48,29 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
     _refreshCache();
     _refreshPendingUpload();
     _refreshKeyStatus();
+    _refreshAppLock();
+  }
+
+  Future<void> _refreshAppLock() async {
+    final available = await AppLock.isAvailable();
+    if (!mounted) return;
+    setState(() {
+      _appLockAvailable = available;
+      _appLockOn = AppLock.isEnabled;
+    });
+  }
+
+  /// Turning the lock on or off both need the user to pass the check first,
+  /// so someone holding an unlocked phone cannot switch it off.
+  Future<void> _toggleAppLock() async {
+    final on = _appLockOn ?? false;
+    final ok = await AppLock.authenticate(
+      reason: on ? 'Turn off App lock' : 'Turn on App lock',
+    );
+    if (!ok) return;
+    await AppLock.setEnabled(!on);
+    if (!mounted) return;
+    setState(() => _appLockOn = !on);
   }
 
   Future<void> _refreshCache() async {
@@ -775,6 +801,18 @@ class _PrivacyScreenState extends State<PrivacyScreen> {
           subtitle: 'No email, phone number, or password',
           value: 'Anonymous',
           onTap: _showAccountSecurity,
+        ),
+        MiniSettingsRow(
+          icon: MiniIcons.biometric,
+          title: 'App lock',
+          subtitle: _appLockAvailable
+              ? 'Ask for your fingerprint, Face ID or passcode to open MiniGo'
+              : 'Set a screen lock on this phone to turn this on',
+          value: _appLockOn == null ? null : (_appLockOn! ? 'On' : 'Off'),
+          valueColor: _appLockOn == true ? MiniColors.success : null,
+          accessory: MiniRowAccessory.none,
+          enabled: _appLockAvailable,
+          onTap: _toggleAppLock,
         ),
         MiniSettingsRow(
           icon: MiniIcons.device,

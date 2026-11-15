@@ -50,6 +50,11 @@ class E2ECrypto {
   /// Plaintext chunk size for the streaming file cipher (1 MiB).
   static const chunkSize = 1 << 20;
 
+  /// Largest chunk size accepted on decrypt. `enc_chunk_size` is written by
+  /// the sender and each chunk is read into memory whole, so an unchecked
+  /// value lets a hostile sender make the receiver buffer the entire file.
+  static const maxChunkSize = 4 << 20;
+
   /// GCM authentication tag length in bytes.
   static const _tagLen = 16;
 
@@ -263,6 +268,12 @@ class E2ECrypto {
     String algo = algoTag,
     int plaintextChunkSize = chunkSize,
   }) async {
+    if (plaintextChunkSize <= 0 || plaintextChunkSize > maxChunkSize) {
+      throw const E2EDecryptException(
+        'These files use an encryption layout this version does not '
+        'support.',
+      );
+    }
     switch (algo) {
       case algoTagV2:
         return _decryptV2(

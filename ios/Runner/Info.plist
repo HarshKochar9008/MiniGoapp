@@ -52,8 +52,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
@@ -66,12 +64,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>MiniGo uses Face ID to unlock the app when App lock is on.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>MiniGo uses the camera to scan recipient QR codes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>MiniGo needs access to save received images and videos to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>MiniGo needs access to your photo library to save received media files.</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

@@ -11,6 +11,8 @@ import 'package:minigo/core/contacts/contact_aliases.dart';
 import 'package:minigo/core/contacts/recent_recipients.dart';
 import 'package:minigo/core/theme.dart';
 import 'package:minigo/features/identity/identity_service.dart';
+import 'package:minigo/features/onboarding_v2/onboarding_experiment.dart';
+import 'package:minigo/features/onboarding_v2/onboarding_flow.dart';
 import 'package:minigo/features/onboarding_v2/onboarding_services.dart';
 import 'package:minigo/features/settings/about_screen.dart';
 import 'package:minigo/features/settings/app_facts.dart';
@@ -219,7 +221,7 @@ void main() {
         AppConstants.prefShortCode: identity.shortCode,
       });
       await pumpScreen(tester, const SettingsScreen(identity: identity));
-      await openRow(tester, 'Reset local data and sign out');
+      await openRow(tester, 'Reset app and deactivate code');
 
       expect(find.text('Reset app data?'), findsOneWidget);
 
@@ -230,6 +232,34 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString(AppConstants.prefShortCode), identity.shortCode);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('skipping a walkthrough replay returns to Settings',
+        (tester) async {
+      // The questionnaire flow blocks route pops and answers a blocked one
+      // by calling its close callback, so closing with maybePop never left
+      // the walkthrough (and looped on the first step).
+      SharedPreferences.setMockInitialValues({
+        OnboardingExperiment.prefKey: OnboardingVariant.questionnaire.name,
+      });
+      await pumpScreen(tester, const SettingsScreen(identity: identity));
+      await tester.scrollUntilVisible(find.text('App walkthrough'), 250,
+          scrollable: page());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('App walkthrough'));
+      // The flow animates forever; step the clock instead of settling.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.byType(OnboardingFlowV2), findsOneWidget);
+
+      await tester.tap(find.text('Skip'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.byType(OnboardingFlowV2), findsNothing);
+      expect(find.text('App walkthrough'), findsOneWidget);
     });
 
     testWidgets('My card shows the card styled in onboarding', (tester) async {

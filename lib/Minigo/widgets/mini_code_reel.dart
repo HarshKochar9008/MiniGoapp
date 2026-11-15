@@ -126,8 +126,17 @@ class _MiniCodeReelState extends State<MiniCodeReel>
 
   @override
   void dispose() {
+    _disposeReels();
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// Each CurvedAnimation registers a status listener on [_ctrl]; replacing
+  /// the list on every relayout without disposing them piled listeners up.
+  void _disposeReels() {
+    for (final reel in _reels) {
+      if (reel is CurvedAnimation) reel.dispose();
+    }
   }
 
   /// Lay the reels out along one controller so they share a clock.
@@ -142,6 +151,7 @@ class _MiniCodeReelState extends State<MiniCodeReel>
 
     if (n == 0 || totalMs <= 0) {
       _ends = List<double>.filled(n, 1);
+      _disposeReels();
       _reels = List<Animation<double>>.filled(n, kAlwaysCompleteAnimation);
       _landed = List<bool>.filled(n, true);
       return;
@@ -157,6 +167,7 @@ class _MiniCodeReelState extends State<MiniCodeReel>
         ((delayMs + spinMs + staggerMs * i) / totalMs)
             .clamp(begin + 0.001, 1.0),
     ];
+    _disposeReels();
     _reels = [
       for (final end in _ends)
         CurvedAnimation(

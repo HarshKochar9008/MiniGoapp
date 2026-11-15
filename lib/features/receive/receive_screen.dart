@@ -42,8 +42,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   List<Map<String, dynamic>>? _files;
   bool _loading = true;
   String? _loadError;
-  String? _transferStatus;
+
+  /// Stored `transfers.status` and `created_at`, as last read. Null until
+  /// the first read lands. Use [_status], which applies the client TTL.
+  TransferStatus? _storedStatus;
+  Object? _createdAt;
   List<FileUploadProgress>? _senderLiveStates;
+
+  /// Bumped by every transfer-row read that starts AND every realtime row
+  /// applied, so a slow read can never overwrite a newer status.
+  int _metaGen = 0;
   RealtimeChannel? _detailChannel;
   final Map<String, _FileDownloadState> _dlStates = {};
   final Map<String, TransferCancellationToken> _downloadTokens = {};
@@ -57,13 +65,19 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   Timer? _filesReloadDebounce;
   int _filesGen = 0;
 
-  bool get _transferTerminal {
-    final s = _transferStatus;
-    return s == 'completed' ||
-        s == 'partial' ||
-        s == 'failed' ||
-        s == 'expired';
+  /// The transfer's effective status — expired once its TTL has passed,
+  /// even before the server sweep stamps it — or null before the first read.
+  TransferStatus? get _status {
+    final stored = _storedStatus;
+    if (stored == null) return null;
+    return TransferStatus.effective(stored.dbValue, _createdAt);
   }
+
+  /// The sender's run has ended (for now); live progress is hidden.
+  bool get _transferSettled => _status?.isSettled ?? false;
+
+  /// Downloads are refused: the files are gone, or about to be.
+  bool get _transferExpired => _status == TransferStatus.expired;
 
   @override
   void initState() {
@@ -105,13 +119,25 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     super.dispose();
   }
 
-  void _applyTransferSnapshot(Map<String, dynamic> row) {
+  /// Applies a transfer row. Returns whether a known effective status
+  /// changed (the first read isn't a change: initState loads files anyway).
+  bool _applyTransferSnapshot(Map<String, dynamic> row) {
+    final before = _status;
     final parsed =
         TransferService.parseUploadProgressPayload(row['upload_progress']);
     setState(() {
-      _transferStatus = (row['status'] ?? 'pending').toString();
+      _storedStatus = TransferStatus.parse(row['status']);
+      _createdAt = row['created_at'] ?? _createdAt;
       _senderLiveStates = parsed;
     });
+    return before != null && _status != before;
+  }
+
+  /// The server (or the TTL) says the transfer has expired.
+  void _markExpired() {
+    if (!mounted || _transferExpired) return;
+    _metaGen++;
+    setState(() => _storedStatus = TransferStatus.expired);
   }
 
   void _subscribeToDetail() {
@@ -123,12 +149,14 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       receiverId: uid,
       onTransferRow: (r) {
         if (!mounted) return;
-        final wasTerminal = _transferTerminal;
-        _applyTransferSnapshot(r);
+        // Newer than any read still in flight: that read must not land.
+        _metaGen++;
+        final changed = _applyTransferSnapshot(r);
         // Inserts committed before the channel joined (or while the app was
-        // backgrounded) never arrive; the final status is the last chance to
-        // pick those files up.
-        if (!wasTerminal && _transferTerminal) _scheduleFilesReload();
+        // backgrounded) never arrive; any status change — a run settling, or
+        // a resume putting it back to pending — is the chance to pick those
+        // files up.
+        if (changed) _scheduleFilesReload();
       },
       onTransferFileInserted: (_) {
         if (!mounted) return;
@@ -140,12 +168,15 @@ class _ReceiveScreenState extends State<ReceiveScreen>
   Future<void> _loadTransferMeta() async {
     final uid = SupabaseConfig.client.auth.currentUser?.id;
     if (uid == null || !mounted) return;
+    final gen = ++_metaGen;
     try {
       final row = await TransferService.getTransferForReceiver(
         transferId: widget.transferId,
         receiverId: uid,
       );
-      if (mounted && row != null) _applyTransferSnapshot(row);
+      // A realtime update (or a newer read) landed meanwhile: it is newer.
+      if (!mounted || row == null || gen != _metaGen) return;
+      if (_applyTransferSnapshot(row)) _scheduleFilesReload();
     } catch (_) {
       // Status and live progress are extras; the file list has its own error
       // state, and the channel above still delivers the next status change.
@@ -361,9 +392,23 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     final requiredBytes = _pendingDownloads().bytes;
     if (requiredBytes <= 0) return true;
 
-    final freeSpaceGb = await DiskSpacePlus().getFreeDiskSpace ?? 0.0;
-    final freeSpaceBytes = (freeSpaceGb * 1024 * 1024 * 1024).toInt();
+    final freeSpaceBytes = await _freeSpaceBytes();
+    // Unknown free space doesn't block: the download itself fails cleanly
+    // if the disk really is full.
+    if (freeSpaceBytes == null) return true;
     return freeSpaceBytes >= (requiredBytes + _storageSafetyBufferBytes);
+  }
+
+  /// Free space in bytes, or null when the platform can't say.
+  /// disk_space_plus reports megabytes.
+  Future<int?> _freeSpaceBytes() async {
+    try {
+      final freeMb = await DiskSpacePlus().getFreeDiskSpace;
+      if (freeMb == null || freeMb <= 0) return null;
+      return (freeMb * 1024 * 1024).toInt();
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildPowerSaveBanner() {
@@ -425,6 +470,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     if (_persistedDownloads.contains(fileId)) return;
     final existingState = _dlStates[fileId];
     if (existingState?.status == _DownloadStatus.completed) return;
+    if (_transferExpired) {
+      _showExpiredSnack();
+      return;
+    }
 
     final rawSize = file['file_size'];
     final fileSize = rawSize is int ? rawSize : int.tryParse('$rawSize') ?? 0;
@@ -434,17 +483,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     if (!powerApproved) {
       if (mounted) {
         setState(() => _dlStates[fileId] = const _FileDownloadState(
-              status: _DownloadStatus.failed,
-              error: 'Download postponed due to battery saver mode',
+              status: _DownloadStatus.postponed,
+              error: 'Postponed while battery saver is on',
             ));
       }
       return;
     }
 
-    final freeSpaceGb = await DiskSpacePlus().getFreeDiskSpace ?? 0.0;
-    final freeSpaceBytes = (freeSpaceGb * 1024 * 1024 * 1024).toInt();
+    final freeSpaceBytes = await _freeSpaceBytes();
     if (fileSize > 0 &&
-        freeSpaceBytes > 0 &&
+        freeSpaceBytes != null &&
         freeSpaceBytes < (fileSize + _storageSafetyBufferBytes)) {
       if (mounted) {
         setState(() => _dlStates[fileId] = _FileDownloadState(
@@ -456,6 +504,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       return;
     }
     if (!mounted) return;
+    // The dialogs above can sit open across the TTL, or a realtime update.
+    if (_transferExpired) {
+      _showExpiredSnack();
+      return;
+    }
 
     setState(() => _dlStates[fileId] = const _FileDownloadState(
           status: _DownloadStatus.downloading,
@@ -498,6 +551,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       final integrity = await TransferService.verifySha256(
         downloadedFile,
         expectedHash,
+        cancellationToken: cancellationToken,
       );
       if (integrity == IntegrityCheck.mismatch) {
         if (mounted) {
@@ -520,6 +574,9 @@ class _ReceiveScreenState extends State<ReceiveScreen>
             ));
       }
 
+      // Last point a cancel can still win: once saved, the file is the
+      // user's, and it is recorded as downloaded.
+      if (cancellationToken.isCancelled) throw TransferCancelledException();
       final saved = await saveFileToDevice(downloadedFile, fileName);
       keepTempFile = saved.open == downloadedFile.path;
 
@@ -564,9 +621,16 @@ class _ReceiveScreenState extends State<ReceiveScreen>
       Analytics.instance.logEvent(AnalyticsEvents.downloadCancelled);
       if (mounted) {
         setState(() => _dlStates[fileId] = const _FileDownloadState(
-              status: _DownloadStatus.failed,
+              status: _DownloadStatus.cancelled,
               error: 'Download cancelled',
             ));
+      }
+    } on TransferExpiredException catch (e) {
+      Analytics.instance.logError(AnalyticsEvents.downloadFailed, e);
+      if (mounted) {
+        setState(() => _dlStates.remove(fileId));
+        _markExpired();
+        _showExpiredSnack();
       }
     } on PermissionDeniedException catch (e) {
       Analytics.instance.logError(AnalyticsEvents.downloadFailed, e);
@@ -598,15 +662,28 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     _downloadTokens[fileId]?.cancel();
   }
 
+  void _showExpiredSnack() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('This transfer has expired. Its files are no longer '
+            'available.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildReceiveBody() {
     final c = context.mini;
     final files = _files ?? const <Map<String, dynamic>>[];
     final hasFiles = files.isNotEmpty;
     final live = _senderLiveStates;
-    final showLive = !_transferTerminal && live != null && live.isNotEmpty;
+    final showLive =
+        (_status?.showLiveProgress ?? false) && live != null && live.isNotEmpty;
+    final expired = _transferExpired;
 
     if (!hasFiles && !showLive) {
-      final waiting = !_transferTerminal;
+      final waiting = !_transferSettled;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -616,9 +693,11 @@ class _ReceiveScreenState extends State<ReceiveScreen>
               Icon(MiniIcons.pending, size: 40, color: c.inkFaint),
               const SizedBox(height: 16),
               Text(
-                waiting
-                    ? 'Waiting for the sender…'
-                    : 'No files in this transfer',
+                expired
+                    ? 'This transfer has expired'
+                    : waiting
+                        ? 'Waiting for the sender…'
+                        : 'No files in this transfer',
                 textAlign: TextAlign.center,
                 style: MiniText.bodySoft,
               ),
@@ -631,6 +710,15 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
+        if (expired) ...[
+          StatusBanner(
+            icon: MiniIcons.timer,
+            text: 'This transfer has expired. Its files are no longer '
+                'available to download.',
+            tint: MiniColors.warn,
+          ),
+          const SizedBox(height: 12),
+        ],
         if (showLive) ...[
           Text('Sender upload', style: MiniText.label),
           const SizedBox(height: 10),
@@ -654,6 +742,7 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                 fileName: file['file_name'] as String,
                 fileSize: _formatSize(file['file_size']),
                 state: dlState,
+                expired: expired,
                 onDownload: () => _downloadFile(file),
                 onCancel: () => _cancelDownload(fileId),
                 onOpen: dlState?.openTarget == null
@@ -687,6 +776,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
 
   Future<void> _downloadAll() async {
     if (_files == null || _files!.isEmpty || _downloadingAll) return;
+    if (_transferExpired) {
+      _showExpiredSnack();
+      return;
+    }
     _downloadingAll = true;
     try {
       await _downloadAllPending();
@@ -724,6 +817,8 @@ class _ReceiveScreenState extends State<ReceiveScreen>
     }
 
     for (final file in _files!) {
+      // Expired mid-walk (TTL, realtime, or a refused file): stop here.
+      if (!mounted || _transferExpired) return;
       final fileId = file['id'] as String;
       final state = _dlStates[fileId];
       if (state == null || state.status != _DownloadStatus.completed) {
@@ -786,7 +881,10 @@ class _ReceiveScreenState extends State<ReceiveScreen>
                         ],
                       ),
                     ),
-                    if (_files != null && _files!.isNotEmpty && !allCompleted)
+                    if (_files != null &&
+                        _files!.isNotEmpty &&
+                        !allCompleted &&
+                        !_transferExpired)
                       Material(
                         color: c.accentSoft,
                         borderRadius: BorderRadius.circular(MiniRadius.pill),
@@ -911,6 +1009,21 @@ enum _DownloadStatus {
   saving,
   completed,
   failed,
+
+  /// Stopped by the user; can be started again. Not an error.
+  cancelled,
+
+  /// Declined at a pre-check (battery saver); can be started again.
+  postponed,
+}
+
+extension on _DownloadStatus {
+  /// Idle-like: the tile offers a download.
+  bool get canStart =>
+      this == _DownloadStatus.idle ||
+      this == _DownloadStatus.failed ||
+      this == _DownloadStatus.cancelled ||
+      this == _DownloadStatus.postponed;
 }
 
 class _FileDownloadState {
@@ -935,6 +1048,9 @@ class _FileDownloadTile extends StatelessWidget {
   final String fileName;
   final String fileSize;
   final _FileDownloadState? state;
+
+  /// The transfer expired: a file not already saved can't be fetched.
+  final bool expired;
   final VoidCallback onDownload;
   final VoidCallback onCancel;
   final VoidCallback? onOpen;
@@ -945,6 +1061,7 @@ class _FileDownloadTile extends StatelessWidget {
     required this.state,
     required this.onDownload,
     required this.onCancel,
+    this.expired = false,
     this.onOpen,
   });
 
@@ -1062,6 +1179,30 @@ class _FileDownloadTile extends StatelessWidget {
               ),
             ),
           ],
+          if ((status == _DownloadStatus.cancelled ||
+                  status == _DownloadStatus.postponed) &&
+              state?.error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              state!.error!,
+              style: GoogleFonts.outfit(
+                color: c.inkSoft,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          if (expired && status.canStart) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Expired',
+              style: GoogleFonts.outfit(
+                color: c.inkSoft,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1104,6 +1245,12 @@ class _FileDownloadTile extends StatelessWidget {
     switch (status) {
       case _DownloadStatus.idle:
       case _DownloadStatus.failed:
+      case _DownloadStatus.cancelled:
+      case _DownloadStatus.postponed:
+        if (expired) {
+          return const Icon(MiniIcons.timer,
+              color: MiniColors.inkFaint, size: 20);
+        }
         return GestureDetector(
           onTap: onDownload,
           child: Container(

@@ -86,6 +86,10 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
   // Setup results.
   UserIdentity? _identity;
 
+  /// The swipe deck was finished on this pass. A Settings replay that is
+  /// skipped before that keeps the answers saved last time.
+  bool _deckDone = false;
+
   List<OnbStep> get _path => [
         OnbStep.welcome,
         OnbStep.swipe,
@@ -115,19 +119,31 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
 
   // ── navigation ──────────────────────────────────────────────────────────
 
+  /// Steps that show the user's code, so they can't be entered without one.
+  static const _needsIdentity = {OnbStep.card, OnbStep.share, OnbStep.paywall};
+
   void _goTo(OnbStep step, {bool forward = true}) {
     if (!mounted || step == _step) return;
+    if (_identity == null && _needsIdentity.contains(step)) return;
     setState(() {
       _forward = forward;
       _step = step;
       // The deck starts over on every visit, so its answers do too —
       // otherwise a card rejected on the second pass would still count.
-      if (step == OnbStep.swipe) _relates.clear();
+      if (step == OnbStep.swipe) {
+        _relates.clear();
+        _deckDone = false;
+      }
     });
     _logStep();
   }
 
-  void _next() {
+  /// Advances from [from] only while it is still the current step. Screens
+  /// call back late — a double tap, the swipe deck's delayed "done", a tap on
+  /// a screen that is still animating out — and advancing from whatever step
+  /// is current by then skips a step, or reaches the card with no code yet.
+  void _nextFrom(OnbStep from) {
+    if (!mounted || from != _step) return;
     final path = _path;
     final i = path.indexOf(_step);
     if (i < 0 || i + 1 >= path.length) {
@@ -180,15 +196,25 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
     _finishing = true;
     try {
       final nick = _nickname.text.trim();
-      if (_identity != null && nick.isNotEmpty && nick != _identity!.nickname) {
+      // A replay has the app's identity even when this pass crafted none.
+      final identity = _identity ?? IdentityService.identityNotifier.value;
+      if (nick.isNotEmpty && nick != identity?.nickname) {
         try {
-          await widget.services.saveNickname(nick);
+          if (identity == null) {
+            // "Continue without a code": the app creates the identity once
+            // online, and it takes this name.
+            await widget.services.saveNicknameForLater(nick);
+          } else {
+            await widget.services.saveNickname(nick);
+          }
         } catch (e) {
           // Not worth blocking onboarding over; it can be set in Settings.
           if (kDebugMode) debugPrint('onboarding: nickname save failed: $e');
         }
       }
-      await widget.services.saveAnswers(relates: _relates);
+      if (_deckDone || !widget.isReplay) {
+        await widget.services.saveAnswers(relates: _relates);
+      }
       await widget.services.markComplete();
       // There is no priming screen: the system prompt (and push setup, which
       // main.dart leaves to onboarding on first launch) comes once they land
@@ -271,23 +297,39 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
   // ── build ───────────────────────────────────────────────────────────────
 
   Widget _screen() {
-    switch (_step) {
+    // Every callback is bound to the step that built it, so a late call from
+    // a screen that is no longer current does nothing (see [_nextFrom]).
+    final step = _step;
+    void next() => _nextFrom(step);
+    VoidCallback onlyHere(VoidCallback fn) => () {
+          if (mounted && _step == step) fn();
+        };
+
+    switch (step) {
       case OnbStep.welcome:
-        return OnbWelcomeScreen(onNext: _next);
+        return OnbWelcomeScreen(onNext: next);
       case OnbStep.swipe:
-        return OnbSwipeScreen(onAnswer: _swipeAnswer, onDone: _next);
+        return OnbSwipeScreen(
+          onAnswer: (s, relates) {
+            if (_step == step) _swipeAnswer(s, relates);
+          },
+          onDone: () {
+            if (_step == step) _deckDone = true;
+            next();
+          },
+        );
       case OnbStep.solution:
-        return OnbSolutionScreen(rows: _solutionRows, onNext: _next);
+        return OnbSolutionScreen(rows: _solutionRows, onNext: next);
       case OnbStep.nickname:
         return OnbNicknameScreen(
           controller: _nickname,
           tone: onbCardTones[_tone],
           line: onbCardLines[_line],
-          onNext: _next,
-          onSkip: () {
+          onNext: next,
+          onSkip: onlyHere(() {
             _nickname.clear();
-            _next();
-          },
+            next();
+          }),
         );
       case OnbStep.generate:
         return OnbCraftScreen(
@@ -297,10 +339,11 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
           onPulled: () =>
               Analytics.instance.logEvent(AnalyticsEvents.onbLeverPulled),
           onSound: (cue) => unawaited(widget.services.playSound(cue)),
-          onNext: _next,
-          onSkip: _skip,
+          onNext: next,
+          onSkip: onlyHere(() => unawaited(_skip())),
         );
       case OnbStep.card:
+        // _goTo never enters this step without an identity.
         return OnbCardScreen(
           code: _identity!.shortCode,
           nickname: _nicknameOrNull,
@@ -308,15 +351,15 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
           lineIndex: _line,
           onTone: (i) => setState(() => _tone = i),
           onLine: (i) => setState(() => _line = i),
-          onUseCard: () {
+          onUseCard: onlyHere(() {
             Analytics.instance.logEvent(AnalyticsEvents.onbCardStyled, {
               'tone': onbCardTones[_tone].name,
               'line': _line,
             });
             unawaited(
                 widget.services.saveCardStyle((tone: _tone, line: _line)));
-            _next();
-          },
+            next();
+          }),
         );
       case OnbStep.share:
         return OnbShareScreen(
@@ -326,11 +369,11 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
           nickname: _nicknameOrNull,
           share: _shareCard,
           onCopy: _copyCode,
-          onContinue: _next,
+          onContinue: next,
         );
       case OnbStep.paywall:
         return OnbPaywallScreen(
-          onContinueFree: _finish,
+          onContinueFree: onlyHere(() => unawaited(_finish())),
           onCta: (plan) => Analytics.instance
               .logEvent(AnalyticsEvents.onbPaywallCta, {'plan': plan}),
         );
@@ -393,11 +436,16 @@ class _OnboardingFlowV2State extends State<OnboardingFlowV2> {
                       final scale =
                           Tween<double>(begin: incoming ? 0.94 : 1.04, end: 1)
                               .animate(anim);
-                      return FadeTransition(
-                        opacity: anim,
-                        child: SlideTransition(
-                          position: slide,
-                          child: ScaleTransition(scale: scale, child: child),
+                      // The outgoing screen stays in the Stack for the whole
+                      // switch; it must not take taps meant for the new one.
+                      return IgnorePointer(
+                        ignoring: !incoming,
+                        child: FadeTransition(
+                          opacity: anim,
+                          child: SlideTransition(
+                            position: slide,
+                            child: ScaleTransition(scale: scale, child: child),
+                          ),
                         ),
                       );
                     },

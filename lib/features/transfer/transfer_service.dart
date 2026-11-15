@@ -24,6 +24,9 @@ import '../../core/utils/local_platform_file.dart';
 import '../../core/utils/safe_file_name.dart';
 import '../identity/identity_service.dart';
 import 'r2_storage.dart';
+import 'transfer_status.dart';
+
+export 'transfer_status.dart';
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -77,12 +80,46 @@ class TransferResult {
   final int totalFiles;
   final List<FileUploadProgress> fileStates;
 
+  /// The run didn't finish, and its saved job was kept: sending the same
+  /// files again (or the Send screen's resume prompt) continues this
+  /// transfer. False when finished, or when every undelivered file is gone
+  /// from the device.
+  final bool canResume;
+
   const TransferResult({
     required this.success,
     required this.completedFiles,
     required this.totalFiles,
     required this.fileStates,
+    this.canResume = false,
   });
+}
+
+/// One file of a transfer's whole set, as one send run sees it.
+class _PlannedFile {
+  final String name;
+  final int size;
+
+  /// Position in the transfer's original file list; names the storage object.
+  /// Null only for a file with no path at all, which can't be uploaded.
+  final int? slot;
+
+  /// The file on this device, or null when it is no longer selected/present.
+  final PlatformFile? local;
+
+  /// Where the saved job last saw this file (resume entries only).
+  final String? savedPath;
+
+  const _PlannedFile({
+    required this.name,
+    required this.size,
+    required this.slot,
+    required this.local,
+    this.savedPath,
+  });
+
+  String storagePath(String transferId) =>
+      '$transferId/${slot}_${TransferService.sanitizeFileName(name)}';
 }
 
 class PendingUploadJob {
@@ -97,6 +134,12 @@ class PendingUploadJob {
   /// Server `transfers.id` for this interrupted send; persisted so resume never
   /// creates a second row for the same pending job.
   final String? transferId;
+
+  /// Set when the send went through a room. Persisted so a resume that has
+  /// to create a fresh row keeps it a room transfer (the server checks the
+  /// room and derives the name; the client value only selects it).
+  final String? roomId;
+  final String? roomName;
   final List<PendingUploadFile> files;
   final DateTime createdAt;
 
@@ -108,6 +151,8 @@ class PendingUploadJob {
     this.receiverCode,
     this.receiverPublicKey,
     this.transferId,
+    this.roomId,
+    this.roomName,
   });
 
   List<PlatformFile> toPlatformFiles() {
@@ -125,12 +170,16 @@ class PendingUploadJob {
   Map<String, dynamic> toJson() {
     final tid = transferId?.trim();
     final key = receiverPublicKey?.trim();
+    final rid = roomId?.trim();
     return {
       'sender_id': senderId,
       'receiver_id': receiverId,
       'receiver_code': receiverCode,
       if (key != null && key.isNotEmpty) 'receiver_public_key': key,
       if (tid != null && tid.isNotEmpty) 'transfer_id': tid,
+      if (rid != null && rid.isNotEmpty) 'room_id': rid,
+      if (rid != null && rid.isNotEmpty && roomName != null)
+        'room_name': roomName,
       'created_at': createdAt.toIso8601String(),
       'files': files.map((f) => f.toJson()).toList(),
     };
@@ -153,6 +202,8 @@ class PendingUploadJob {
     final tidRaw = (json['transfer_id']?.toString() ?? '').trim();
     final transferId = tidRaw.isNotEmpty ? tidRaw : null;
     final keyRaw = (json['receiver_public_key']?.toString() ?? '').trim();
+    final roomRaw = (json['room_id']?.toString() ?? '').trim();
+    final roomNameRaw = json['room_name']?.toString();
 
     return PendingUploadJob(
       senderId: senderId,
@@ -160,6 +211,8 @@ class PendingUploadJob {
       receiverCode: (json['receiver_code'] as String?)?.trim(),
       receiverPublicKey: keyRaw.isNotEmpty ? keyRaw : null,
       transferId: transferId,
+      roomId: roomRaw.isNotEmpty ? roomRaw : null,
+      roomName: roomRaw.isNotEmpty ? roomNameRaw : null,
       createdAt: DateTime.tryParse((json['created_at'] ?? '').toString()) ??
           DateTime.now().toUtc(),
       files: files,
@@ -274,6 +327,41 @@ class RecipientNotEncryptableException implements Exception {
       'cannot be end-to-end encrypted.';
 }
 
+/// The server will not take more files for this transfer: it was completed or
+/// has expired (a room transfer expires with its room, which can be as soon
+/// as 30 minutes). Retrying cannot help, so the whole send stops.
+class TransferNotAcceptingUploadsException implements Exception {
+  /// True when the transfer is known to have expired (vs. completed).
+  final bool expired;
+  const TransferNotAcceptingUploadsException({this.expired = false});
+
+  @override
+  String toString() => expired
+      ? 'This transfer expired before all files were sent.'
+      : 'This transfer is already closed and cannot take more files.';
+}
+
+/// The transfer has expired, so its files can no longer be downloaded.
+/// Raised without retrying: the answer will not change.
+class TransferExpiredException implements Exception {
+  const TransferExpiredException();
+
+  @override
+  String toString() => 'This transfer has expired. Its files are no longer '
+      'available.';
+}
+
+/// The stored object is bigger than any file MiniGo sends. The size shown to
+/// the receiver is whatever the sender declared, so the real byte count is
+/// capped here. Raised without retrying: the object will not shrink.
+class DownloadTooLargeException implements Exception {
+  const DownloadTooLargeException();
+
+  @override
+  String toString() =>
+      'This file is larger than MiniGo allows, so the download was stopped.';
+}
+
 /// A second sendFiles started while one is in flight; they would fight over
 /// the single persisted pending-job slot and mark each other failed.
 class ConcurrentTransferException implements Exception {
@@ -352,6 +440,42 @@ class TransferCancelledException implements Exception {
   String toString() => message;
 }
 
+// ── Resume / status-write outcomes ───────────────────────────────────────────
+
+enum _ResumeVerdict {
+  /// Keep uploading into the saved transfer.
+  resumable,
+
+  /// The saved transfer already finished: nothing left to upload.
+  alreadyComplete,
+
+  /// Missing, not ours, or expired: start a new transfer, leave this row be.
+  gone,
+}
+
+class _ResumeSnapshot {
+  final _ResumeVerdict verdict;
+  final TransferStatus? status;
+  final Map<String, Map<String, dynamic>> rowsByPath;
+
+  const _ResumeSnapshot(
+    this.verdict, {
+    this.status,
+    this.rowsByPath = const {},
+  });
+}
+
+enum _StatusWrite {
+  /// The row moved to the new status.
+  applied,
+
+  /// The row is in a protected status; nothing changed.
+  refused,
+
+  /// The write itself failed (offline, trigger, schema).
+  failed,
+}
+
 // ── SHA-256 helper sink ──────────────────────────────────────────────────────
 
 class _DigestSink implements Sink<Digest> {
@@ -415,6 +539,11 @@ class _TransferProgressBroadcaster {
 class TransferService {
   static const _maxRetries = 3;
   static const _pendingUploadKey = 'pending_upload_job_v1';
+
+  /// Most bytes a download may write: the send limit plus room for the
+  /// cipher's per-chunk tags.
+  static const _maxDownloadBytes =
+      AppConstants.maxFileSizeBytes + 4 * 1024 * 1024;
 
   /// JSON snapshot written to [transfers.upload_progress] for receiver realtime UI.
   static List<Map<String, dynamic>> uploadProgressPayload(
@@ -554,8 +683,17 @@ class TransferService {
             fileName: storagePath.substring(slash + 1),
           );
         } on R2SigningException catch (e) {
-          // R2 not configured/deployed yet — use the Supabase path instead.
+          // R2 not configured/deployed yet, or unreachable — use the
+          // Supabase path instead.
           if (kDebugMode) debugPrint('R2 upload signing unavailable: $e');
+        } on R2RefusedException catch (e) {
+          // The signer said no. Never route around that through Supabase
+          // Storage: 409 means the transfer is completed or expired, which
+          // no retry fixes; 401/403 fail this attempt and retry normally.
+          if (e.notAcceptingUploads) {
+            throw const TransferNotAcceptingUploadsException();
+          }
+          rethrow;
         }
       }
       if (signedUrl != null) {
@@ -774,35 +912,64 @@ class TransferService {
     return AppConstants.normalizeShortCode(t);
   }
 
-  static bool _pendingJobMatchesSend(
+  /// Whether [validFiles] continues [pending], and if so where each file
+  /// sits in it. Returns null when this is a different send; otherwise
+  /// `slots[k]` is the index in `pending.files` of `validFiles[k]`.
+  ///
+  /// A resume may carry a SUBSET of the saved files, in any order — files
+  /// removed from the device since, or dropped from the selection. The slot,
+  /// not the position in the new selection, names the file's storage object
+  /// (`<transferId>/<slot>_<name>`), so a delivered file keeps matching its
+  /// `transfer_files` row and is never uploaded twice. A selection with any
+  /// file the saved job doesn't have is a different send.
+  ///
+  /// Pure; unit-tested.
+  @visibleForTesting
+  static List<int>? matchResumeSlots(
     PendingUploadJob? pending, {
     required String receiverId,
     required String? receiverCode,
     required List<PendingUploadFile> validFiles,
+    String? roomId,
   }) {
-    if (pending == null) return false;
-    if (pending.receiverId != receiverId) return false;
+    if (pending == null || validFiles.isEmpty) return null;
+    if (pending.receiverId != receiverId) return null;
+    // A room send never resumes some other send's transfer. A send with no
+    // room (the Send screen's resume) may continue a room job: the saved job
+    // is how it learns the room.
+    if (roomId != null && roomId != pending.roomId) return null;
     if (_receiverCodeKey(pending.receiverCode) !=
         _receiverCodeKey(receiverCode)) {
-      return false;
+      return null;
     }
-    if (pending.files.length != validFiles.length) return false;
-    for (var i = 0; i < validFiles.length; i++) {
-      final a = pending.files[i];
-      final b = validFiles[i];
-      if (a.name != b.name || a.size != b.size || a.path != b.path) {
-        return false;
+    final used = List<bool>.filled(pending.files.length, false);
+    final slots = <int>[];
+    for (final b in validFiles) {
+      var slot = -1;
+      for (var j = 0; j < pending.files.length; j++) {
+        final a = pending.files[j];
+        if (!used[j] &&
+            a.name == b.name &&
+            a.size == b.size &&
+            a.path == b.path) {
+          slot = j;
+          break;
+        }
       }
+      if (slot < 0) return null;
+      used[slot] = true;
+      slots.add(slot);
     }
-    return true;
+    return slots;
   }
 
-  /// Eligible rows already in `transfer_files` for this transfer, keyed by
-  /// `storage_path`, or `null` if this transfer must not be resumed. Not by
-  /// `file_name`: two names can sanitize to the same one, and the second file
-  /// would then look already uploaded.
-  static Future<Map<String, Map<String, dynamic>>?>
-      _loadTransferResumeSnapshot({
+  /// What an interrupted send's transfer row allows. Network errors propagate:
+  /// "couldn't check" must not be mistaken for any of these.
+  ///
+  /// [_ResumeVerdict.resumable] carries the rows already in `transfer_files`,
+  /// keyed by `storage_path` — not by `file_name`: two names can sanitize to
+  /// the same one, and the second file would then look already uploaded.
+  static Future<_ResumeSnapshot> _loadTransferResumeSnapshot({
     required SupabaseClient client,
     required String transferId,
     required String senderId,
@@ -810,14 +977,19 @@ class TransferService {
   }) async {
     final transfer = await client
         .from('transfers')
-        .select('sender_id,receiver_id,status')
+        .select('sender_id,receiver_id,status,created_at')
         .eq('id', transferId)
         .maybeSingle();
-    if (transfer == null) return null;
-    if (transfer['sender_id']?.toString() != senderId) return null;
-    if (transfer['receiver_id']?.toString() != receiverId) return null;
-    final st = (transfer['status'] ?? '').toString().toLowerCase();
-    if (st == 'completed' || st == 'expired') return null;
+    if (transfer == null ||
+        transfer['sender_id']?.toString() != senderId ||
+        transfer['receiver_id']?.toString() != receiverId) {
+      return const _ResumeSnapshot(_ResumeVerdict.gone);
+    }
+    final status =
+        TransferStatus.effectiveOf(Map<String, dynamic>.from(transfer));
+    if (status == TransferStatus.expired) {
+      return const _ResumeSnapshot(_ResumeVerdict.gone);
+    }
 
     final rows = await client
         .from('transfer_files')
@@ -829,14 +1001,55 @@ class TransferService {
       final path = (m['storage_path'] ?? '').toString();
       if (path.isNotEmpty) out[path] = m;
     }
-    return out;
+    return _ResumeSnapshot(
+      status == TransferStatus.completed
+          ? _ResumeVerdict.alreadyComplete
+          : _ResumeVerdict.resumable,
+      status: status,
+      rowsByPath: out,
+    );
   }
 
-  static Future<void> _abandonOrphanTransfer(
+  /// Settles a transfer whose saved send is being dropped (discarded, or
+  /// replaced by a different send). It becomes `partial` when the receiver
+  /// already has files from it, else `failed` — and only ever from a state
+  /// [TransferStatus.mayAbandon] allows, so a completed, partial or expired
+  /// transfer keeps its outcome. If the files can't be counted (offline), the
+  /// row is left alone: an honest `pending` until the TTL beats a false
+  /// `failed`.
+  static Future<void> _settleAbandonedTransfer(
     SupabaseClient client,
     String transferId,
   ) async {
-    await _safeUpdateTransferStatus(client, transferId, 'failed');
+    bool hasFiles;
+    try {
+      final rows = await client
+          .from('transfer_files')
+          .select('id')
+          .eq('transfer_id', transferId)
+          .limit(1);
+      hasFiles = rows.isNotEmpty;
+    } catch (_) {
+      return;
+    }
+    await _writeStatus(
+      client,
+      transferId,
+      hasFiles ? TransferStatus.partial : TransferStatus.failed,
+      protect: {
+        for (final s in TransferStatus.values)
+          if (!s.mayAbandon) s,
+      },
+    );
+  }
+
+  /// Room refusals raised by the `transfers_check_room` insert trigger. The
+  /// saved job describes a send that can never go through.
+  static bool _isRoomRefusal(Object e) {
+    final raw = e.toString();
+    return raw.contains('room_expired') ||
+        raw.contains('room_share_denied') ||
+        raw.contains('room_recipient_not_member');
   }
 
   // ── Send files ───────────────────────────────────────────────────────────
@@ -931,13 +1144,71 @@ class TransferService {
           ),
     ];
 
+    final validLocal = [
+      for (final f in files)
+        if (f.path != null) f,
+    ];
+
     final existingPending = await getPendingUploadJob(senderId: senderId);
-    final matches = _pendingJobMatchesSend(
+    final slots = matchResumeSlots(
       existingPending,
       receiverId: receiverId,
       receiverCode: receiverCode,
       validFiles: validFiles,
+      roomId: roomId,
     );
+    final matches = slots != null;
+
+    // One entry per file of the transfer's WHOLE set. Continuing a saved
+    // transfer, that is the saved job's list — possibly more than was
+    // selected this time (files since removed from the device): those
+    // entries have no local file, and still count towards the final status.
+    // The slot names the storage object, so it must be the file's position
+    // in the ORIGINAL list. A new transfer is just the current selection.
+    List<_PlannedFile> freshPlan() {
+      var slot = 0;
+      return [
+        for (var i = 0; i < files.length; i++)
+          _PlannedFile(
+            name: files[i].name,
+            size: sizes[i],
+            slot: files[i].path != null ? slot++ : null,
+            local: files[i],
+          ),
+      ];
+    }
+
+    List<_PlannedFile> resumePlan() {
+      final saved = existingPending!.files;
+      final localBySlot = <int, PlatformFile>{
+        for (var k = 0; k < slots!.length; k++) slots[k]: validLocal[k],
+      };
+      return [
+        for (var j = 0; j < saved.length; j++)
+          _PlannedFile(
+            name: saved[j].name,
+            size: saved[j].size,
+            slot: j,
+            local: localBySlot[j],
+            savedPath: saved[j].path,
+          ),
+      ];
+    }
+
+    // Provisional until the saved transfer is checked below: if it can't be
+    // continued, a new transfer carries only the current selection.
+    var plan = matches ? resumePlan() : freshPlan();
+    // The saved job keeps the ORIGINAL list, so a later resume maps to the
+    // same slots.
+    var jobFiles = matches ? existingPending!.files : validFiles;
+
+    // A resume started from the plain Send screen doesn't know the send went
+    // through a room; the saved job does.
+    final effectiveRoomId =
+        roomId ?? (matches ? existingPending?.roomId : null);
+    final effectiveRoomName = roomId != null
+        ? roomName
+        : (matches ? existingPending?.roomName : null);
 
     final pendingTid = existingPending?.transferId?.trim();
     final orphanTid = (!matches && pendingTid != null && pendingTid.isNotEmpty)
@@ -952,7 +1223,11 @@ class TransferService {
     final senderCode = IdentityService.identityNotifier.value?.shortCode;
 
     if (orphanTid != null) {
-      await _abandonOrphanTransfer(client, orphanTid);
+      // A different send replaces the saved one (another recipient, or a
+      // selection with files the saved job never had). Settle the old
+      // transfer — partial when the receiver already has files from it,
+      // never "failed" over them.
+      await _settleAbandonedTransfer(client, orphanTid);
     }
 
     final createdAtBase = (matches && existingPending != null)
@@ -962,86 +1237,119 @@ class TransferService {
         ? pendingTid
         : null;
 
-    await _storePendingUploadJob(
-      senderId: senderId,
-      receiverId: receiverId,
-      receiverCode: receiverCode,
-      receiverPublicKey: recipientPublicKey,
-      files: validFiles,
-      transferId: earlyTid,
-      createdAt: createdAtBase,
-    );
+    Future<void> saveJob(String? tid) => _storePendingUploadJob(
+          senderId: senderId,
+          receiverId: receiverId,
+          receiverCode: receiverCode,
+          receiverPublicKey: recipientPublicKey,
+          files: jobFiles,
+          transferId: tid,
+          createdAt: createdAtBase,
+          roomId: effectiveRoomId,
+          roomName: effectiveRoomName,
+        );
+
+    await saveJob(earlyTid);
+
+    Future<String> insertNewTransfer() async {
+      try {
+        final transfer = await _insertTransferRow({
+          'sender_id': senderId,
+          'receiver_id': receiverId,
+          'status': TransferStatus.pending.dbValue,
+          if (senderCode != null) 'sender_code': senderCode,
+          if (receiverCode != null) 'receiver_code': receiverCode,
+          if (effectiveRoomId != null) 'room_id': effectiveRoomId,
+          if (effectiveRoomName != null) 'room_name': effectiveRoomName,
+        });
+        return transfer['id'] as String;
+      } catch (e) {
+        // The room refused the row; the saved job can never go through.
+        if (_isRoomRefusal(e)) await clearPendingUploadJob();
+        rethrow;
+      }
+    }
 
     late final String transferId;
     Map<String, Map<String, dynamic>> resumeByStoragePath = {};
 
-    if (matches &&
-        existingPending?.transferId != null &&
-        existingPending!.transferId!.trim().isNotEmpty) {
-      final tid = existingPending.transferId!.trim();
+    if (earlyTid != null) {
       final snap = await _loadTransferResumeSnapshot(
         client: client,
-        transferId: tid,
+        transferId: earlyTid,
         senderId: senderId,
         receiverId: receiverId,
       );
-      if (snap != null) {
-        transferId = tid;
-        resumeByStoragePath = snap;
-      } else {
-        await _abandonOrphanTransfer(client, tid);
-        final transfer = await _insertTransferRow({
-          'sender_id': senderId,
-          'receiver_id': receiverId,
-          'status': 'pending',
-          if (senderCode != null) 'sender_code': senderCode,
-          if (receiverCode != null) 'receiver_code': receiverCode,
-          if (roomId != null) 'room_id': roomId,
-          if (roomName != null) 'room_name': roomName,
-        });
-        transferId = transfer['id'] as String;
+      switch (snap.verdict) {
+        case _ResumeVerdict.alreadyComplete:
+          // It finished before the app could clear the saved job (the final
+          // status write and the clear are separated by the push call).
+          // Nothing is left to upload, and a second transfer would only
+          // duplicate the files at the receiver.
+          await clearPendingUploadJob();
+          final done = [
+            for (final e in plan)
+              FileUploadProgress(
+                fileName: e.name,
+                fileSize: e.size,
+                status: FileUploadStatus.completed,
+                progress: 1.0,
+                sha256: e.slot == null
+                    ? null
+                    : _rowSha(snap.rowsByPath[e.storagePath(earlyTid)]),
+              ),
+          ];
+          onProgress(done);
+          return TransferResult(
+            success: true,
+            completedFiles: plan.length,
+            totalFiles: plan.length,
+            fileStates: done,
+          );
+        case _ResumeVerdict.resumable:
+          transferId = earlyTid;
+          resumeByStoragePath = snap.rowsByPath;
+          // Back to pending, so the receiver shows live progress again rather
+          // than the previous run's partial/failed outcome. Conditional: a
+          // transfer that was completed or expired meanwhile is left alone.
+          if (snap.status?.isSettled ?? false) {
+            await _writeStatus(client, transferId, TransferStatus.pending);
+          }
+        case _ResumeVerdict.gone:
+          // Deleted, not ours, or expired: its outcome stands. Start afresh
+          // with just what is selected now.
+          plan = freshPlan();
+          jobFiles = validFiles;
+          transferId = await insertNewTransfer();
       }
     } else {
-      final transfer = await _insertTransferRow({
-        'sender_id': senderId,
-        'receiver_id': receiverId,
-        'status': 'pending',
-        if (senderCode != null) 'sender_code': senderCode,
-        if (receiverCode != null) 'receiver_code': receiverCode,
-        if (roomId != null) 'room_id': roomId,
-        if (roomName != null) 'room_name': roomName,
-      });
-      transferId = transfer['id'] as String;
+      // No transfer to continue (a job saved before its row existed counts
+      // too): the new one is just the current selection.
+      plan = freshPlan();
+      jobFiles = validFiles;
+      transferId = await insertNewTransfer();
     }
 
-    await _storePendingUploadJob(
-      senderId: senderId,
-      receiverId: receiverId,
-      receiverCode: receiverCode,
-      receiverPublicKey: recipientPublicKey,
-      files: validFiles,
-      transferId: transferId,
-      createdAt: createdAtBase,
-    );
+    await saveJob(transferId);
 
     var states = [
-      for (var i = 0; i < files.length; i++)
-        FileUploadProgress(fileName: files[i].name, fileSize: sizes[i]),
+      for (final e in plan)
+        FileUploadProgress(fileName: e.name, fileSize: e.size),
     ];
 
-    for (var i = 0; i < files.length; i++) {
-      // Same path the upload loop below writes for file i.
-      final safeName = sanitizeFileName(files[i].name);
-      final row = resumeByStoragePath['$transferId/${i}_$safeName'];
+    for (var i = 0; i < plan.length; i++) {
+      // Same path the upload loop below writes for this file.
+      final slot = plan[i].slot;
+      if (slot == null) continue;
+      final row = resumeByStoragePath[plan[i].storagePath(transferId)];
       if (row != null) {
-        final sha = row['sha256_hash']?.toString();
         states = _updateState(
           states,
           i,
           states[i].copyWith(
             status: FileUploadStatus.completed,
             progress: 1.0,
-            sha256: (sha != null && sha.isNotEmpty) ? sha : states[i].sha256,
+            sha256: _rowSha(row) ?? states[i].sha256,
           ),
         );
       }
@@ -1059,8 +1367,17 @@ class TransferService {
       progressBroadcaster.notify(s);
     }
 
+    // Whenever a run stops early, delivered files decide partial vs failed:
+    // the receiver is never told "failed" about files it can download.
+    bool anyDelivered() =>
+        states.any((s) => s.status == FileUploadStatus.completed);
+
+    // Files that failed because they are no longer on the device. A run
+    // whose only undelivered files are these can't be helped by resuming.
+    final missing = <int>{};
+
     try {
-      for (var i = 0; i < files.length; i++) {
+      for (var i = 0; i < plan.length; i++) {
         if (cancellationToken?.isCancelled == true) {
           throw TransferCancelledException();
         }
@@ -1073,16 +1390,25 @@ class TransferService {
           continue;
         }
 
-        final file = files[i];
-        final filePath = file.path;
+        final entry = plan[i];
+        final filePath = entry.local?.path;
 
         if (filePath == null || !await File(filePath).exists()) {
+          missing.add(i);
+          // On a resume, a saved file that is still on disk but wasn't
+          // selected was left out on purpose; say so rather than "missing".
+          final saved = entry.savedPath;
+          final leftOut = entry.local == null &&
+              saved != null &&
+              await File(saved).exists();
           states = _updateState(
             states,
             i,
             states[i].copyWith(
               status: FileUploadStatus.failed,
-              error: 'File not accessible on disk',
+              error: leftOut
+                  ? 'Left out when this send was resumed'
+                  : 'File not accessible on disk',
             ),
           );
           report(states);
@@ -1090,14 +1416,15 @@ class TransferService {
         }
 
         final diskFile = File(filePath);
-        final safeName = sanitizeFileName(file.name);
+        final safeName = sanitizeFileName(entry.name);
         final mimeType =
-            lookupMimeType(file.name) ?? 'application/octet-stream';
-        // Index prefix keeps paths unique when two files share a name (or
+            lookupMimeType(entry.name) ?? 'application/octet-stream';
+        // Slot prefix keeps paths unique when two files share a name (or
         // sanitize to the same name) — otherwise the upsert upload of the
-        // second file overwrites the first object. Receivers read the path
-        // from transfer_files.storage_path, so the format is free to change.
-        final storagePath = '$transferId/${i}_$safeName';
+        // second file overwrites the first object — and stays the same across
+        // resumes of a subset, so a delivered file is recognised by its row.
+        // Receivers read the path from transfer_files.storage_path.
+        final storagePath = entry.storagePath(transferId);
 
         // ── Phase 1: SHA-256 ────────────────────────────────────────────
         states = _updateState(
@@ -1232,7 +1559,7 @@ class TransferService {
               await _insertTransferFile({
                 'transfer_id': transferId,
                 'file_name': safeName,
-                'file_size': sizes[i],
+                'file_size': entry.size,
                 'mime_type': mimeType,
                 'storage_path': storagePath,
                 'sha256_hash': hash,
@@ -1242,7 +1569,12 @@ class TransferService {
               uploaded = true;
               break;
             } catch (e) {
-              if (e is TransferCancelledException) rethrow;
+              // Stopping for good: cancelled, or the server closed the
+              // transfer. Neither improves on a retry.
+              if (e is TransferCancelledException ||
+                  e is TransferNotAcceptingUploadsException) {
+                rethrow;
+              }
               lastError = e.toString().replaceAll('Exception: ', '');
               // Schema-level failures are deterministic; retrying re-uploads
               // the whole file for the same result.
@@ -1285,19 +1617,25 @@ class TransferService {
 
       final allDone =
           states.every((s) => s.status == FileUploadStatus.completed);
-      final anyDone = states.any((s) => s.status == FileUploadStatus.completed);
+      final anyDone = anyDelivered();
 
       await progressBroadcaster.flushFinal(states);
-      await _safeUpdateTransferStatus(
+      final write = await _writeStatus(
         client,
         transferId,
         allDone
-            ? 'completed'
+            ? TransferStatus.completed
             : anyDone
-                ? 'partial'
-                : 'failed',
+                ? TransferStatus.partial
+                : TransferStatus.failed,
       );
-      if (anyDone) {
+      if (write == _StatusWrite.refused &&
+          await _isExpiredOnServer(client, transferId)) {
+        // Closed under us — typically its room expired mid-send, and the
+        // sweep deleted what had arrived. Handled by the clause below.
+        throw const TransferNotAcceptingUploadsException(expired: true);
+      }
+      if (anyDone && write != _StatusWrite.refused) {
         await _triggerIncomingTransferPush(
           transferId: transferId,
           senderId: senderId,
@@ -1305,34 +1643,111 @@ class TransferService {
         );
       }
 
-      // Every file has a reported outcome and the caller still holds the
-      // selection, so a partial run is retried from the UI, not from here.
-      await clearPendingUploadJob();
+      // The saved job stays while some undelivered file could still go: it
+      // holds this transfer's id, so the resume prompt — or sending the same
+      // files again — continues THIS transfer, skipping files already
+      // delivered, instead of creating a second one that duplicates them at
+      // the receiver. When every undelivered file is gone from the device,
+      // no resume can help: the transfer stays partial/failed, and the job
+      // is cleared rather than nagging forever.
+      var canResume = false;
+      for (var i = 0; i < states.length; i++) {
+        if (states[i].status != FileUploadStatus.completed &&
+            !missing.contains(i)) {
+          canResume = true;
+          break;
+        }
+      }
+      if (!canResume) {
+        await clearPendingUploadJob();
+      }
 
       return TransferResult(
         success: allDone,
         completedFiles: completedCount,
-        totalFiles: files.length,
+        totalFiles: plan.length,
         fileStates: states,
+        canResume: canResume,
       );
     } on TransferCancelledException {
+      final anyDone = anyDelivered();
       try {
         await progressBroadcaster.flushFinal(states);
       } catch (_) {}
-      await _safeUpdateTransferStatus(client, transferId, 'failed');
+      final write = await _writeStatus(
+        client,
+        transferId,
+        anyDone ? TransferStatus.partial : TransferStatus.failed,
+      );
+      if (anyDone && write == _StatusWrite.applied) {
+        // What arrived before the stop stays downloadable; tell the receiver.
+        // Not awaited: the user asked to stop, and the push retries itself.
+        unawaited(_triggerIncomingTransferPush(
+          transferId: transferId,
+          senderId: senderId,
+          receiverId: receiverId,
+        ));
+      }
       // Stopping was deliberate; resuming it on next launch would just nag.
       await clearPendingUploadJob();
       rethrow;
-    } catch (e) {
+    } on TransferNotAcceptingUploadsException {
       try {
         await progressBroadcaster.flushFinal(states);
       } catch (_) {}
-      await _safeUpdateTransferStatus(client, transferId, 'failed');
-      // The job deliberately survives here. An upload that died mid-flight —
-      // connection dropped, session expired, process about to go — is the one
-      // case the resume prompt in send_screen exists for, and clearing it in a
-      // `finally` meant that prompt only ever appeared after a force-kill.
+      // The server closed the transfer (completed or expired): a status write
+      // would be refused, and the saved job can never go through.
+      await clearPendingUploadJob();
       rethrow;
+    } catch (e) {
+      final anyDone = anyDelivered();
+      try {
+        await progressBroadcaster.flushFinal(states);
+      } catch (_) {}
+      final write = await _writeStatus(
+        client,
+        transferId,
+        anyDone ? TransferStatus.partial : TransferStatus.failed,
+      );
+      if (anyDone && write == _StatusWrite.applied) {
+        unawaited(_triggerIncomingTransferPush(
+          transferId: transferId,
+          senderId: senderId,
+          receiverId: receiverId,
+        ));
+      }
+      // The job deliberately survives. Per-file failures — dropped
+      // connections and stalls included — are absorbed by the loop above and
+      // end on the normal path, which also keeps the job when any file
+      // failed. What reaches here stopped the loop itself: a security
+      // restriction, a local I/O error, or the session going away. Either
+      // way the resume prompt in send_screen offers to continue this transfer.
+      rethrow;
+    }
+  }
+
+  static String? _rowSha(Map<String, dynamic>? row) {
+    final sha = row?['sha256_hash']?.toString();
+    return (sha != null && sha.isNotEmpty) ? sha : null;
+  }
+
+  /// Whether the transfer is (effectively) expired on the server, or gone.
+  /// Errors answer false: "couldn't check" is not "expired".
+  static Future<bool> _isExpiredOnServer(
+    SupabaseClient client,
+    String transferId,
+  ) async {
+    try {
+      final row = await client
+          .from('transfers')
+          .select('status,created_at')
+          .eq('id', transferId)
+          .maybeSingle();
+      if (row == null) return true;
+      return TransferStatus.effectiveOf(Map<String, dynamic>.from(row)) ==
+          TransferStatus.expired;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1347,6 +1762,8 @@ class TransferService {
     /// so a process kill still leaves enough state to offer resume/discards UI.
     String? transferId,
     DateTime? createdAt,
+    String? roomId,
+    String? roomName,
   }) async {
     if (files.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -1360,6 +1777,8 @@ class TransferService {
       transferId: (tid != null && tid.isNotEmpty) ? tid : null,
       createdAt: createdAt ?? DateTime.now().toUtc(),
       files: files,
+      roomId: roomId,
+      roomName: roomName,
     );
     await prefs.setString(_pendingUploadKey, jsonEncode(job.toJson()));
   }
@@ -1387,8 +1806,10 @@ class TransferService {
     await prefs.remove(_pendingUploadKey);
   }
 
-  /// Clears local pending send state and marks the server transfer as failed so
-  /// a discarded or obsolete job cannot leave a dangling `pending` transfer.
+  /// Clears local pending send state and settles the server transfer so a
+  /// discarded job cannot leave a dangling `pending` row: `partial` when the
+  /// receiver already has some of its files, else `failed`. A transfer that
+  /// already finished (completed, partial, expired) keeps its outcome.
   static Future<void> discardPendingUploadJob({
     required String senderId,
   }) async {
@@ -1397,43 +1818,70 @@ class TransferService {
     if (tid != null && tid.isNotEmpty) {
       try {
         await SupabaseConfig.ensureValidSession();
-        await _abandonOrphanTransfer(SupabaseConfig.client, tid);
+        await _settleAbandonedTransfer(SupabaseConfig.client, tid);
       } catch (_) {}
     }
     await clearPendingUploadJob();
   }
 
-  /// Updates the transfer status, handling the case where `status` is a
-  /// Postgres ENUM that may not contain all values (e.g. 'failed', 'partial').
-  /// Falls back to 'completed' or 'pending' if the desired value is rejected.
-  static Future<void> _safeUpdateTransferStatus(
+  /// The only way this client changes `transfers.status`. A conditional
+  /// update: it never overwrites a status in [protect] (default
+  /// [TransferStatus.protectedFrom] for [to]), so a final write can't leave
+  /// completed or expired, and an abandon can't clobber a real outcome. The
+  /// server trigger enforces the same rules; filtering here just means a
+  /// refused write is a no-op instead of an exception.
+  ///
+  /// Legacy schemas where `status` is a Postgres enum missing some labels
+  /// answer 22P02 for an unknown value in the filter or in [to]. Those retry
+  /// with only the core labels in the filter, then with 'pending' as the
+  /// value (the old fallback) — never with 'completed' unless asked.
+  ///
+  /// Never throws: status is metadata, and an error here used to skip the
+  /// pending-job cleanup and replace a cancel with a generic error.
+  static Future<_StatusWrite> _writeStatus(
     SupabaseClient client,
     String transferId,
-    String desiredStatus,
-  ) async {
-    try {
-      await client
+    TransferStatus to, {
+    Set<TransferStatus>? protect,
+  }) async {
+    assert(to != TransferStatus.expired && to != TransferStatus.uploading,
+        'expired is written by the server sweep only; uploading is legacy');
+    final guard = protect ?? TransferStatus.protectedFrom(to);
+
+    Future<_StatusWrite> attempt(
+      TransferStatus value,
+      Iterable<TransferStatus> notFrom,
+    ) async {
+      final rows = await client
           .from('transfers')
-          .update({'status': desiredStatus}).eq('id', transferId);
-    } on PostgrestException catch (e) {
-      // 22P02 = invalid_text_representation (enum value not found)
-      if (e.code == '22P02') {
-        // Try a safe fallback the enum is likely to have
-        final fallback =
-            (desiredStatus == 'completed') ? 'completed' : 'pending';
-        try {
-          await client
-              .from('transfers')
-              .update({'status': fallback}).eq('id', transferId);
-        } catch (_) {
-          // Status update is non-critical — the files are already uploaded
-        }
-      }
-      // For other errors, silently ignore — don't crash the transfer
+          .update({'status': value.dbValue})
+          .eq('id', transferId)
+          .not('status', 'in', [for (final s in notFrom) s.dbValue])
+          .select('id');
+      return rows.isEmpty ? _StatusWrite.refused : _StatusWrite.applied;
+    }
+
+    bool isEnumMiss(Object e) => e is PostgrestException && e.code == '22P02';
+
+    try {
+      return await attempt(to, guard);
+    } catch (e) {
+      if (!isEnumMiss(e)) return _StatusWrite.failed;
+    }
+    const core = {TransferStatus.completed, TransferStatus.expired};
+    final coreGuard = guard.intersection(core);
+    try {
+      return await attempt(to, coreGuard);
+    } catch (e) {
+      if (!isEnumMiss(e)) return _StatusWrite.failed;
+    }
+    if (to == TransferStatus.pending || to == TransferStatus.completed) {
+      return _StatusWrite.failed;
+    }
+    try {
+      return await attempt(TransferStatus.pending, coreGuard);
     } catch (_) {
-      // Network failures arrive unwrapped (ClientException/SocketException),
-      // not as PostgrestException. Letting them escape here skipped the
-      // pending-job cleanup and replaced a cancel with a generic error.
+      return _StatusWrite.failed;
     }
   }
 
@@ -1529,30 +1977,30 @@ class TransferService {
 
   /// Retries edge invokes that failed with a retryable network error after upload.
   static Future<void> flushPendingTransferPushNotifications() async {
-    final jobs = await PendingBackendJobs.loadTransferPushQueue();
+    // A snapshot, not the live queue: a push enqueued while this flush is
+    // invoking the edge function must survive it. Only the jobs processed
+    // here are removed afterwards, under the queue lock.
+    final jobs = await PendingBackendJobs.takeTransferPushSnapshot();
     if (jobs.isEmpty) return;
 
-    final remaining = <Map<String, String>>[];
+    final processed = <TransferPushJob>[];
     for (final job in jobs) {
-      final transferId = job['transfer_id']!;
-      final senderId = job['sender_id']!;
-      final receiverId = job['receiver_id']!;
       try {
         await _invokeSendTransferFcmEdge(
-          transferId: transferId,
-          senderId: senderId,
-          receiverId: receiverId,
+          transferId: job.transferId,
+          senderId: job.senderId,
+          receiverId: job.receiverId,
         );
+        processed.add(job);
       } catch (e) {
-        if (NetworkErrors.isRetryableFailure(e)) {
-          remaining.add(job);
-        }
+        // Non-retryable failures are dropped so the queue cannot wedge.
+        if (!NetworkErrors.isRetryableFailure(e)) processed.add(job);
         if (kDebugMode) {
-          debugPrint('Pending FCM invoke for $transferId: $e');
+          debugPrint('Pending FCM invoke for ${job.transferId}: $e');
         }
       }
     }
-    await PendingBackendJobs.saveTransferPushQueue(remaining);
+    await PendingBackendJobs.removeTransferPushJobs(processed);
   }
 
   static Future<void> _triggerIncomingTransferPush({
@@ -1671,21 +2119,28 @@ class TransferService {
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);
 
-    final transfers = List<Map<String, dynamic>>.from(result);
-
-    // Client-side TTL enforcement: mark expired transfers
-    final ttlCutoff = DateTime.now()
-        .toUtc()
-        .subtract(Duration(hours: AppConstants.transferTtlHours));
-
-    return transfers.map((t) {
-      final createdAt = DateTime.tryParse(t['created_at'] ?? '');
-      if (createdAt != null && createdAt.isBefore(ttlCutoff)) {
-        return {...t, 'status': 'expired'};
-      }
-      return t;
-    }).toList();
+    return _withEffectiveStatuses(result);
   }
+
+  /// Rewrites each row's `status` to its [TransferStatus.effectiveOf] value:
+  /// a transfer past its TTL reads as expired even before the server sweep
+  /// has stamped it. Every transfer fetch goes through this (incoming, sent,
+  /// recent, and the receiver's single-row read), so no two screens can
+  /// disagree about whether the same transfer has expired.
+  static List<Map<String, dynamic>> _withEffectiveStatuses(List<dynamic> rows) {
+    final now = DateTime.now();
+    return [
+      for (final raw in rows)
+        withEffectiveStatus(Map<String, dynamic>.from(raw), now: now),
+    ];
+  }
+
+  /// [_withEffectiveStatuses] for one row — also for realtime records.
+  static Map<String, dynamic> withEffectiveStatus(
+    Map<String, dynamic> row, {
+    DateTime? now,
+  }) =>
+      {...row, 'status': TransferStatus.effectiveOf(row, now: now).dbValue};
 
   // ── Sent transfers (history) ───────────────────────────────────────────
 
@@ -1704,7 +2159,7 @@ class TransferService {
         .order('created_at', ascending: false)
         .range(offset, offset + AppConstants.transfersPageSize - 1);
 
-    return List<Map<String, dynamic>>.from(result);
+    return _withEffectiveStatuses(result);
   }
 
   // ── Recent transfers, both directions (home screen summary) ────────────
@@ -1717,7 +2172,7 @@ class TransferService {
     int limit = 3,
   }) async {
     await SupabaseConfig.ensureValidSession();
-    final transfers = List<Map<String, dynamic>>.from(
+    final transfers = _withEffectiveStatuses(
       await SupabaseConfig.client
           .from('transfers')
           .select('id, sender_id, created_at, status')
@@ -1768,7 +2223,9 @@ class TransferService {
         .eq('id', transferId)
         .eq('receiver_id', receiverId)
         .maybeSingle();
-    return row == null ? null : Map<String, dynamic>.from(row);
+    return row == null
+        ? null
+        : withEffectiveStatus(Map<String, dynamic>.from(row));
   }
 
   // ── Streaming download (constant memory, collision-safe) ───────────────
@@ -1873,6 +2330,9 @@ class TransferService {
                 ? existingBytes + response.contentLength
                 : response.contentLength;
           }
+          if (totalBytes > _maxDownloadBytes) {
+            throw const DownloadTooLargeException();
+          }
 
           await for (final chunk in response) {
             if (cancellationToken?.isCancelled == true) {
@@ -1887,6 +2347,10 @@ class TransferService {
             watchdog.touch();
             sink!.add(chunk);
             receivedBytes += chunk.length;
+            // No (or a false) length header: stop at the cap regardless.
+            if (receivedBytes > _maxDownloadBytes) {
+              throw const DownloadTooLargeException();
+            }
             final safeTotal = totalBytes > 0 ? totalBytes : receivedBytes;
             onProgress(receivedBytes, safeTotal);
           }
@@ -1899,7 +2363,7 @@ class TransferService {
           // bytes and keep the private key out of it.
           AppSecurity.instance.ensureTransfersAllowed();
           if (!isEncrypted) return file;
-          return await _decryptDownloadedFile(
+          final plain = await _decryptDownloadedFile(
             cipherFile: file,
             fileName: fileName,
             encWrappedKey: encWrappedKey,
@@ -1907,14 +2371,32 @@ class TransferService {
             encChunkSize: encChunkSize,
             encAlgo: encAlgo,
           );
+          // Decryption can't be interrupted part-way, but a cancel that
+          // landed during it must still win: hand back nothing.
+          if (cancellationToken?.isCancelled == true) {
+            try {
+              if (await plain.exists()) await plain.delete();
+            } catch (_) {}
+            throw TransferCancelledException();
+          }
+          return plain;
         } catch (e) {
           await sink?.close();
           sink = null;
           // Wrong key or tampered ciphertext fails identically every time —
           // retrying only re-downloads the whole file to fail again.
           if (e is E2EDecryptException) rethrow;
-          if (e is SecurityRestrictedException) {
+          if (e is SecurityRestrictedException ||
+              e is DownloadTooLargeException) {
             if (await file.exists()) await file.delete();
+            rethrow;
+          }
+          // The signer refused. Never fall back to Supabase Storage around
+          // it. 410: expired — final, no retries. 403: not a party, or the
+          // row is gone — also final. 401 (session) retries below.
+          if (e is R2RefusedException && e.status != 401) {
+            if (await file.exists()) await file.delete();
+            if (e.expired) throw const TransferExpiredException();
             rethrow;
           }
           lastError = (watchdog.abortReason ?? e)
@@ -1968,7 +2450,8 @@ class TransferService {
   }) async {
     final authUid = SupabaseConfig.client.auth.currentUser?.id;
     if (authUid == null) {
-      throw const E2EDecryptException('Not signed in, so this file can’t be decrypted.');
+      throw const E2EDecryptException(
+          'Not signed in, so this file can’t be decrypted.');
     }
     if (encWrappedKey == null || encWrappedKey.isEmpty || encNonce == null) {
       throw const E2EDecryptException('Missing encryption metadata.');
@@ -2018,20 +2501,23 @@ class TransferService {
   /// [IntegrityCheck.noHashRecorded] forces the caller to decide.
   static Future<IntegrityCheck> verifySha256(
     File file,
-    String? expectedHash,
-  ) async {
+    String? expectedHash, {
+    TransferCancellationToken? cancellationToken,
+  }) async {
     final expected = expectedHash?.trim();
     if (expected == null || expected.isEmpty) {
       return IntegrityCheck.noHashRecorded;
     }
-    final actualHash = await computeSha256(file);
+    final actualHash =
+        await computeSha256(file, cancellationToken: cancellationToken);
     return actualHash == expected
         ? IntegrityCheck.verified
         : IntegrityCheck.mismatch;
   }
 
   /// Convenience: get a signed URL for browser/external download.
-  /// Prefers R2 when the hybrid path is enabled, with Supabase fallback.
+  /// Prefers R2 when the hybrid path is enabled, falling back to Supabase only
+  /// when R2 is unavailable — an [R2RefusedException] propagates.
   static Future<String> getDownloadUrl(String storagePath) async {
     if (R2Storage.enabled) {
       try {
@@ -2110,6 +2596,49 @@ class TransferService {
         },
       );
 
+      channel.subscribe();
+      return channel;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Subscribe to the caller's OWN sent transfers (`sender_id = userId`), so
+  /// History can show a send settling (pending → completed / partial /
+  /// failed, or expired by the sweep) without a manual refresh. Each upload
+  /// progress write is also an UPDATE here; callers react to status changes
+  /// only. Its own channel topic, like [subscribeToIncoming].
+  static RealtimeChannel? subscribeToOutgoing({
+    required String userId,
+    required void Function(
+      Map<String, dynamic> newRecord,
+      PostgresChangeEvent event,
+    ) onTransferChange,
+  }) {
+    try {
+      final channel =
+          SupabaseConfig.client.channel('outgoing-$userId-${++_channelSeq}');
+      for (final event in const [
+        PostgresChangeEvent.insert,
+        PostgresChangeEvent.update,
+      ]) {
+        channel.onPostgresChanges(
+          event: event,
+          schema: 'public',
+          table: 'transfers',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'sender_id',
+            value: userId,
+          ),
+          callback: (PostgresChangePayload payload) {
+            onTransferChange(
+              Map<String, dynamic>.from(payload.newRecord),
+              event,
+            );
+          },
+        );
+      }
       channel.subscribe();
       return channel;
     } catch (_) {

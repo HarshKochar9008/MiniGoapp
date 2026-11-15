@@ -226,9 +226,19 @@ class _OnbSlotMachineState extends State<OnbSlotMachine>
     _firstSpin?.cancel();
     final code = widget.code;
     if (reduce) {
+      // Mid-spin, _rest() completes _spin, and its status listener would
+      // call onLanded right here, during build, where the parent's setState
+      // asserts. Report the landing after the frame instead.
+      final wasSpinning = _spinning;
+      _spinning = false;
       _stopRolling();
       _spin.stop();
       if (code != null) _rest(code);
+      if (wasSpinning && code != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onLanded?.call();
+        });
+      }
     } else if (code != null && !_interactive) {
       _firstSpin = Timer(widget.firstSpinDelay, () {
         if (mounted) _spinTo(code);
@@ -261,7 +271,7 @@ class _OnbSlotMachineState extends State<OnbSlotMachine>
         _spinTo(code);
       }
     } else if (!widget.rolling && old.rolling && code == null) {
-      _stopRolling();
+      _stopRolling(snap: true);
     }
     _syncNudge();
   }
@@ -305,9 +315,18 @@ class _OnbSlotMachineState extends State<OnbSlotMachine>
     _roller.start();
   }
 
-  void _stopRolling() {
+  /// [snap] moves each reel on to the next whole glyph: a roll stopped by a
+  /// failed craft otherwise froze with every window showing half of two.
+  void _stopRolling({bool snap = false}) {
     if (_roller.isActive) _roller.stop();
     _reelState.rollSpeed = 0;
+    if (snap) {
+      for (var i = 0; i < _reels; i++) {
+        _reelState.from[i] = _reelState.position(i, _spin.value).ceilToDouble();
+        _reelState.travel[i] = 0;
+      }
+      _rollRepaint.value++;
+    }
   }
 
   void _onRoll(Duration elapsed) {
@@ -402,7 +421,10 @@ class _OnbSlotMachineState extends State<OnbSlotMachine>
 
   void _onDragStart(DragStartDetails _) {
     if (!_canPull) return;
+    // Nulled too: _syncNudge restarts the idle nudge with `??=`, so a
+    // cancelled-but-set timer kept it off for good after a short tug.
     _nudgeTimer?.cancel();
+    _nudgeTimer = null;
     _lever.stop();
     _dragging = true;
   }

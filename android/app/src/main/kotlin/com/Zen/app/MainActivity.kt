@@ -14,7 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -22,7 +22,9 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 
-class MainActivity : FlutterActivity() {
+// FlutterFragmentActivity (not FlutterActivity) is required by local_auth,
+// which shows the fingerprint prompt.
+class MainActivity : FlutterFragmentActivity() {
     private val shareChannel = "minigo/native_share"
     private val widgetChannel = "minigo/widget"
     private val shareIntentChannel = "minigo/share_intent"
@@ -207,7 +209,7 @@ class MainActivity : FlutterActivity() {
                     @Suppress("DEPRECATION")
                     intent.getParcelableExtra(Intent.EXTRA_STREAM)
                 }
-                if (uri != null) pendingSharedUris.add(uri)
+                if (uri != null && isShareableUri(uri)) pendingSharedUris.add(uri)
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris: List<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -216,9 +218,24 @@ class MainActivity : FlutterActivity() {
                     @Suppress("DEPRECATION")
                     intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
                 }
-                if (uris != null) pendingSharedUris.addAll(uris)
+                if (uris != null) pendingSharedUris.addAll(uris.filter(::isShareableUri))
             }
         }
+    }
+
+    /// Whether a URI handed to the share target may be read and queued for
+    /// sending. The sender controls EXTRA_STREAM completely, and we open it
+    /// with our own identity, so anything we can read is reachable through it:
+    /// a `file://` path into our private data (preferences, the cache of
+    /// received files), or a `content://` URI on one of our own providers.
+    /// Either would line up the app's own files to be sent to whoever the
+    /// user picks next. Real senders share `content://` URIs from their own
+    /// providers (`file://` has thrown FileUriExposedException since API 24).
+    private fun isShareableUri(uri: Uri): Boolean {
+        if (uri.scheme != "content") return false
+        // Strip a "user@" prefix (cross-profile URIs) before comparing.
+        val authority = uri.authority?.substringAfterLast('@') ?: return false
+        return authority != packageName && !authority.startsWith("$packageName.")
     }
 
     /// Content URIs from other apps are only readable while our grant lasts,

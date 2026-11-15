@@ -14,6 +14,7 @@ import 'app.dart';
 import 'core/analytics/analytics.dart';
 import 'core/notifications/fcm_background.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/security/app_lock.dart';
 import 'core/security/app_security.dart';
 import 'core/supabase_config.dart';
 import 'core/theme.dart';
@@ -21,6 +22,14 @@ import 'core/theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Every screen is laid out for an upright phone, and several cannot be
+  // used on their side (the onboarding lever, the bottom nav). The manifest
+  // and Info.plist say the same; this covers whatever they don't. Not
+  // awaited: the first frame must not wait on a platform round trip.
+  unawaited(
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]),
+  );
 
   // The fonts ship in assets/google_fonts/: never download them, so first
   // launch costs no data and text renders offline or where Google is blocked.
@@ -66,6 +75,9 @@ void main() async {
     await ThemeController.load();
   } catch (_) {}
 
+  // Before the first frame, so an app with the lock on never shows behind it.
+  await AppLock.initialize();
+
   runApp(const MiniGoApp());
   unawaited(_initializeServices());
 }
@@ -73,12 +85,13 @@ void main() async {
 Future<void> _initializeServices() async {
   try {
     // First run: the onboarding permissions step asks, with context, instead
-    // of an OS prompt landing on top of the welcome screen.
+    // of an OS prompt landing on top of the welcome screen. A first run that
+    // finishes onboarding sets notifications up from there (see _AppEntry).
+    // The auth listener is not waited on here: initSupabase() starts it.
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('onboarding_complete') ?? false) {
       await NotificationService.initialize();
     }
-    SupabaseConfig.startAuthListener();
   } catch (e) {
     if (kDebugMode) debugPrint('Background service initialization failed: $e');
   }

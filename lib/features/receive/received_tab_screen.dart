@@ -34,8 +34,9 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
   Timer? _liveReloadDebounce;
   int _loadGen = 0;
 
-  /// Last status seen per transfer, so progress-only UPDATEs are ignored.
-  final Map<String, String> _knownStatus = {};
+  /// Last effective status seen per transfer, so progress-only UPDATEs are
+  /// ignored.
+  final Map<String, TransferStatus> _knownStatus = {};
 
   @override
   void initState() {
@@ -91,7 +92,8 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
         // uploading; each write is an UPDATE. Only a status change can alter
         // this list, so the rest must not trigger a reload.
         final id = (record['id'] ?? '').toString();
-        final status = record['status'] as String? ?? 'pending';
+        // Same TTL rule as the fetched list, so the two can be compared.
+        final status = TransferStatus.effectiveOf(record);
         final previous = _knownStatus[id] ?? _listedStatus(id);
         _knownStatus[id] = status;
         if (event == PostgresChangeEvent.update && previous == status) return;
@@ -102,11 +104,11 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
           );
           return;
         }
-        if (status == 'completed' || status == 'partial') {
+        if (status.hasDeliveredFiles) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                status == 'completed'
+                status == TransferStatus.completed
                     ? 'Files ready to download'
                     : 'Some files are ready to download',
               ),
@@ -139,9 +141,11 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
     _subscribeToRealtime();
   }
 
-  String? _listedStatus(String id) {
+  TransferStatus? _listedStatus(String id) {
     for (final t in _transfers ?? const <Map<String, dynamic>>[]) {
-      if ((t['id'] ?? '').toString() == id) return t['status']?.toString();
+      if ((t['id'] ?? '').toString() == id) {
+        return TransferStatus.parse(t['status']);
+      }
     }
     return null;
   }
@@ -175,8 +179,10 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
       );
       // An older load finishing last must not overwrite a newer list.
       if (mounted && gen == _loadGen) {
+        // Statuses arrive already TTL-adjusted (TransferService fetches).
         final active = transfers
-            .where((t) => (t['status'] ?? 'pending') != 'expired')
+            .where((t) =>
+                TransferStatus.parse(t['status']) != TransferStatus.expired)
             .toList();
         setState(() {
           _transfers = active;
@@ -330,7 +336,7 @@ class _ReceivedTabScreenState extends State<ReceivedTabScreen>
                                       '???';
                                   final senderId = t['sender_id'] as String?;
                                   final status =
-                                      (t['status'] ?? 'pending') as String;
+                                      TransferStatus.parse(t['status']);
                                   final createdAt =
                                       (t['created_at'] ?? '') as String;
 
@@ -430,7 +436,7 @@ class _ReceivedTile extends StatelessWidget {
 
   /// Set when this transfer was shared through a room.
   final String? roomName;
-  final String status;
+  final TransferStatus status;
   final String timeAgo;
   final VoidCallback onTap;
   final VoidCallback? onEditAlias;
@@ -445,42 +451,27 @@ class _ReceivedTile extends StatelessWidget {
     this.onEditAlias,
   });
 
-  Color get _tint {
-    switch (status) {
-      case 'completed':
-        return MiniColors.success;
-      case 'uploading':
-      case 'pending':
-        return MiniColors.warn;
-      case 'partial':
-      case 'failed':
-        return MiniColors.danger;
-      default:
-        return MiniColors.inkFaint;
-    }
-  }
+  Color get _tint => switch (status) {
+        TransferStatus.completed => MiniColors.success,
+        TransferStatus.pending || TransferStatus.uploading => MiniColors.warn,
+        TransferStatus.partial || TransferStatus.failed => MiniColors.danger,
+        TransferStatus.expired => MiniColors.inkFaint,
+      };
 
-  String get _label {
-    switch (status) {
-      case 'completed':
-        return 'Ready to download';
-      case 'uploading':
-        return 'Uploading…';
-      case 'pending':
-        return 'Pending';
-      case 'partial':
-        return 'Partial';
-      case 'failed':
-        return 'Failed';
-      default:
-        return status;
-    }
-  }
+  String get _label => switch (status) {
+        TransferStatus.completed => 'Ready to download',
+        TransferStatus.uploading => 'Uploading…',
+        TransferStatus.pending => 'Pending',
+        TransferStatus.partial => 'Partial',
+        TransferStatus.failed => 'Failed',
+        TransferStatus.expired => 'Expired',
+      };
 
   @override
   Widget build(BuildContext context) {
     final c = context.mini;
-    final plateTint = status == 'completed' ? MiniColors.success : c.accent;
+    final plateTint =
+        status == TransferStatus.completed ? MiniColors.success : c.accent;
     return Container(
       decoration: miniCard(context, radius: MiniRadius.tile),
       clipBehavior: Clip.antiAlias,
@@ -491,7 +482,7 @@ class _ReceivedTile extends StatelessWidget {
           child: Row(
             children: [
               MiniIconPlate(
-                icon: status == 'completed'
+                icon: status == TransferStatus.completed
                     ? MiniIcons.downloaded
                     : MiniIcons.receive,
                 tint: plateTint,

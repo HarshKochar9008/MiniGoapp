@@ -85,9 +85,17 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
     );
 
     _arrival.addStatusListener((status) {
-      if (status == AnimationStatus.completed) widget.onArrived?.call();
+      if (status == AnimationStatus.completed && _arrivalPlaying) {
+        _arrivalPlaying = false;
+        widget.onArrived?.call();
+      }
     });
   }
+
+  /// Only a played arrival reports finishing. Jumping to the end (reduce
+  /// motion, or [MiniUfo.arrive] false) also completes the controller, which
+  /// fired [MiniUfo.onArrived] against its documented contract.
+  bool _arrivalPlaying = false;
 
   @override
   void didChangeDependencies() {
@@ -111,6 +119,7 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
 
   void _applyMotion() {
     if (_reduceMotion) {
+      _arrivalPlaying = false;
       _arrival.value = 1;
       _hover
         ..stop()
@@ -118,8 +127,12 @@ class _MiniUfoState extends State<MiniUfo> with TickerProviderStateMixin {
       return;
     }
     if (widget.arrive) {
-      if (!_arrival.isAnimating && _arrival.value < 1) _arrival.forward();
+      if (!_arrival.isAnimating && _arrival.value < 1) {
+        _arrivalPlaying = true;
+        _arrival.forward();
+      }
     } else {
+      _arrivalPlaying = false;
       _arrival.value = 1;
     }
     if (widget.hover) {

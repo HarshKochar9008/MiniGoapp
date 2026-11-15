@@ -43,13 +43,17 @@ class OfflineSyncCoordinator {
   String? _userId;
   VoidCallback? _onlineListener;
   Timer? _debounce;
-  bool _running = false;
+
+  /// The drain in progress, if any; see [runPendingWork].
+  Future<void>? _drain;
+  bool _rerunRequested = false;
   bool _lastOnline = true;
   DateTime? _lastPendingUploadSnackAt;
 
   void start({required String userId}) {
     stop();
     _userId = userId;
+    PendingBackendJobs.setActiveUser(userId);
     ConnectionStatus.instance.ensureStarted();
     _lastOnline = ConnectionStatus.instance.online.value;
 
@@ -75,6 +79,7 @@ class OfflineSyncCoordinator {
       _onlineListener = null;
     }
     _userId = null;
+    PendingBackendJobs.setActiveUser(null);
   }
 
   /// Called from lifecycle (e.g. app resumed) to refresh connectivity and drain.
@@ -96,23 +101,62 @@ class OfflineSyncCoordinator {
     });
   }
 
-  /// Runs queued backend jobs (FCM sync, transfer push retries). Safe to call often.
-  Future<void> runPendingWork() async {
+  /// Runs queued backend jobs (FCM sync, transfer push retries). Safe to call
+  /// often: a call that arrives while a drain is running doesn't start a
+  /// second one, and isn't dropped either — it schedules one more pass after
+  /// the current one (work queued mid-drain, e.g. by a send finishing, is
+  /// picked up), and returns the running drain's future.
+  Future<void> runPendingWork() {
+    final running = _drain;
+    if (running != null) {
+      _rerunRequested = true;
+      return running;
+    }
+    final drain = _drainLoop();
+    _drain = drain;
+    return drain;
+  }
+
+  /// Passes per drain, so a caller re-requesting in a loop can't spin it.
+  static const _maxPassesPerDrain = 3;
+
+  Future<void> _drainLoop() async {
+    try {
+      var passes = 0;
+      do {
+        _rerunRequested = false;
+        passes++;
+        await _runOnce();
+      } while (_rerunRequested && passes < _maxPassesPerDrain);
+    } finally {
+      _rerunRequested = false;
+      _drain = null;
+    }
+  }
+
+  Future<void> _runOnce() async {
     final userId = _userId;
     if (userId == null || userId.isEmpty) return;
-    if (_running) return;
-    _running = true;
     try {
       final pendingFcmUser = await PendingBackendJobs.peekPendingFcmUserId();
-      if (pendingFcmUser == userId) {
+      if (pendingFcmUser != null && pendingFcmUser != userId) {
+        // Left by another identity on this device; it can never be synced
+        // from this session, and must not keep the banner up.
+        await PendingBackendJobs.clearFcmTokenSyncPending();
+      } else if (pendingFcmUser == userId) {
         await NotificationService.syncFcmToken(userId);
+        // Still pending after a sync means it failed again — or Firebase gave
+        // no token, which syncFcmToken returns on without clearing. Count it,
+        // so the slot ages out instead of sticking forever.
+        if (await PendingBackendJobs.peekPendingFcmUserId() == userId) {
+          await PendingBackendJobs.noteFcmSyncAttemptFailed(userId);
+        }
       }
 
       await TransferService.flushPendingTransferPushNotifications();
 
       await _maybeNotifyPendingUpload(userId);
     } finally {
-      _running = false;
       // Always recompute so the UI banner reflects post-drain state, even on
       // partial failures where some jobs remain queued.
       await PendingBackendJobs.refreshPendingCount();
@@ -120,8 +164,11 @@ class OfflineSyncCoordinator {
   }
 
   Future<void> _maybeNotifyPendingUpload(String userId) async {
+    // A send that is uploading right now saved its job before starting; it is
+    // not "unfinished", and the prompt would offer to discard a live send.
+    if (TransferService.isSendInFlight) return;
     final pending = await TransferService.getPendingUploadJob(senderId: userId);
-    if (pending == null) return;
+    if (pending == null || TransferService.isSendInFlight) return;
 
     final now = DateTime.now();
     if (_lastPendingUploadSnackAt != null &&

@@ -1,6 +1,22 @@
 -- MiniGo security lockdown — run this whole file once in the Supabase SQL Editor
 -- (or: supabase db execute --file supabase/apply_security_lockdown.sql).
--- Idempotent and name-agnostic; safe to re-run. Lines kept short on purpose.
+-- Idempotent and name-agnostic. Lines kept short on purpose.
+--
+-- Covers the migrations up to 20261029000001 ONLY. It drops and recreates
+-- policies and functions that the 20261113* migrations later tighten (upload
+-- policies gated on transfer status, the room join trigger, the room_members
+-- delete policy), so running it after them would silently undo them. The
+-- guard below refuses to run in that case; apply supabase/migrations instead.
+-- The file must run as one statement batch (SQL Editor, db execute) for the
+-- guard to stop everything after it.
+do $$
+begin
+  if to_regprocedure('public.transfers_status_transition()') is not null then
+    raise exception
+      'apply_security_lockdown.sql is superseded: the 20261113 migrations '
+      'are applied and this script would undo them. Use supabase/migrations.';
+  end if;
+end $$;
 
 -- 1. columns
 alter table public.users add column if not exists public_key text;

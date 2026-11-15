@@ -8,8 +8,12 @@
  *     (config.toml sets `verify_jwt = true`; do NOT pass --no-verify-jwt).
  *   - The caller's JWT is resolved to their application user row, and a URL is
  *     only minted if that user is the SENDER of the transfer and the transfer
- *     is not completed or expired. transfer_id and file_name are validated,
- *     never trusted raw into the object key.
+ *     still accepts uploads: not completed, not expired, and not past its TTL
+ *     (the sweep stamps `expired` up to one interval late). transfer_id and
+ *     file_name are validated, never trusted raw into the object key.
+ *   - Refusals are 401/403/409. The app treats those as final for R2 and does
+ *     NOT fall back to Supabase Storage; only 503 r2_not_configured (and
+ *     network/5xx failures) mean "use the Supabase path".
  *
  * Secrets (Dashboard → Edge Functions → Secrets):
  *   R2_ACCOUNT_ID          Cloudflare account id
@@ -24,6 +28,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { AwsClient } from "https://esm.sh/aws4fetch@1.0.20";
 
 const URL_EXPIRES_SECONDS = 3600;
+/// Transfers live this long after created_at. Mirrors TTL_HOURS in
+/// expire-transfers and AppConstants.transferTtlHours in the app.
+const TTL_HOURS = 24;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -122,7 +129,7 @@ Deno.serve(async (req) => {
   // --- Authorize: caller must be the sender of a live transfer --------------
   const { data: transfer, error: tErr } = await admin
     .from("transfers")
-    .select("id, sender_id, status")
+    .select("id, sender_id, status, created_at")
     .eq("id", transferId)
     .maybeSingle();
   if (tErr) {
@@ -134,7 +141,10 @@ Deno.serve(async (req) => {
     return json({ error: "Forbidden" }, 403);
   }
   const status = (transfer.status ?? "").toString().toLowerCase();
-  if (status === "completed" || status === "expired") {
+  const createdMs = Date.parse((transfer.created_at ?? "").toString());
+  const pastTtl = Number.isFinite(createdMs) &&
+    createdMs < Date.now() - TTL_HOURS * 3600 * 1000;
+  if (status === "completed" || status === "expired" || pastTtl) {
     return json({ error: "Transfer is not accepting uploads" }, 409);
   }
 

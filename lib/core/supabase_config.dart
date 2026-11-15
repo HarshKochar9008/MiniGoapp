@@ -1,10 +1,23 @@
 import 'dart:async';
 
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'constants.dart';
+import 'network/request_timeout_client.dart';
 
-Future<void> initSupabase() async {
+Future<void>? _initSupabaseInFlight;
+
+/// Initializes the Supabase client and starts the auth listener. Safe to call
+/// from several places (startup, the shell's Retry, onboarding): concurrent
+/// callers share one attempt, and a failed attempt can be retried.
+Future<void> initSupabase() {
+  if (SupabaseConfig._initialized) return Future.value();
+  return _initSupabaseInFlight ??=
+      _initSupabase().whenComplete(() => _initSupabaseInFlight = null);
+}
+
+Future<void> _initSupabase() async {
   final url = AppConstants.supabaseUrl;
   final key = AppConstants.supabaseAnonKey;
   if (url.isEmpty || key.isEmpty) {
@@ -28,11 +41,11 @@ Future<void> initSupabase() async {
     );
   }
 
-  // Use the default platform HTTP client so Android 14+ uses the system
-  // certificate store (OkHttp) rather than Dart's IOClient, which avoids
-  // TLS handshake aborts on stricter Android TLS policies.
   await Supabase.initialize(
     url: url,
+    // The same client the SDK would create itself, with a ceiling on how
+    // long a request may go unanswered (see RequestTimeoutClient).
+    httpClient: RequestTimeoutClient(http.Client()),
     // Same key, new parameter name: the SDK does publishableKey ?? anonKey.
     publishableKey: key,
     // Auth is anonymous-only, so no link is ever an auth callback. Left on,
@@ -41,6 +54,9 @@ Future<void> initSupabase() async {
     authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
   );
   SupabaseConfig._initialized = true;
+  // Right away, not after other startup work: failed background refreshes
+  // arrive on the auth stream and must have a handler (see below).
+  SupabaseConfig.startAuthListener();
 }
 
 class SupabaseConfig {
